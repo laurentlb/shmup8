@@ -24,21 +24,6 @@ float noise(vec3 x) {
                         hash31(i+vec3(1,1,1)),f.x),f.y),f.z)*2.-1.;
 }
 
-// TODO: merge with previous function?
-vec2 valueNoise2(float p)
-{
-    float p0 = floor(p);
-    float p1 = p0 + 1.;
-
-    vec2 v0 = hash12(p0);
-    vec2 v1 = hash12(p1);
-
-    float fp = p - p0;
-    fp = fp*fp * (3.0 - 2.0 * fp);
-
-    return mix(v0, v1, fp);
-}
-
 // -------------------------------------------------------
 // SDF functions
 

@@ -5,6 +5,9 @@ GLfloat floatArray[200] = {};
 #define CLAMP(v, min, max) ( (v)<(min) ? (min) : ( (v)>(max) ? (max) : (v) ) )
 
 void game(float time) {
+	static float lastTime = 0;
+	float dt = time - lastTime;
+	lastTime = time;
 
 	floatArray[0] += 0.02f * (GET_KEY(VK_RIGHT) - GET_KEY(VK_LEFT));
 	floatArray[1] += 0.02f * (GET_KEY(VK_UP) - GET_KEY(VK_DOWN));
@@ -21,7 +24,8 @@ void game(float time) {
 	float coolDown = floatArray[7];
 	int nbMissiles = int(floatArray[8]);
 	for (int i = 0; i < nbMissiles; i++) {
-		floatArray[9 + i * 2 + 1] += 0.01f;
+		// missile movement
+		floatArray[9 + i * 2 + 1] += 2.f * dt;
 	}
 	if (GET_KEY(VK_SPACE) > 0.5f && time - coolDown > 1.f) {
 		floatArray[7] = time; // coolDown

@@ -233,7 +233,7 @@ int __cdecl main(int argc, char* argv[])
 		((PFNGLUSEPROGRAMPROC)wglGetProcAddress("glUseProgram"))(shaderMain);
 		game(time);
 		// ((PFNGLUNIFORM1FPROC)wglGetProcAddress("glUniform1f"))(0, time);
-		// ((PFNGLUNIFORM1IPROC)wglGetProcAddress("glUniform1i"))(1, 0); // Previous frame
+		((PFNGLUNIFORM1IPROC)wglGetProcAddress("glUniform1i"))(1, 0); // Previous frame
 		glRects(-1, -1, 1, 1);
 
 		// FXAA

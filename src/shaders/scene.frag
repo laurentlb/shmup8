@@ -1,69 +1,12 @@
 #version 150
 
-// Constants:
-const int MAX_RAY_MARCH_STEPS = 250;
-const float MAX_RAY_MARCH_DIST = 500.;
 const float INF = 1e6;
 #include "shared.h"
 
-const float lampHeight = 7.;
-
-// Uniforms:
-uniform float iTime;
-
-const int SCENE_SHEEP = 0;
-const int SCENE_MOTO = 1;
-const int SCENE_BLOOD = 2;
-const int SCENE_MOUTARD = 3;
-int sceneID = 0;
-
-float camProjectionRatio = 1.;
-float wheelie = 0.;
-float globalFade = 1.;
-float shouldDrawLogo = 0.;
-float blink = 0.;
-float squintEyes = 0.;
-float sheepTears = -1.;
-float headDist = 0.; // distance to head (for eyes AO)
-float sheepPos = INF;
-float lightFalloff = 10000.;
-float pupilSize = 0.1;
-
-vec2 headRot = vec2(0., -0.4);
-
-vec3 eyeDir = vec3(0.,-0.2,1.);
-vec3 animationSpeed = vec3(1.5);
-vec3 camPos;
-vec3 camTa;
-vec3 panelWarningPos = vec3(6., 0., 0.);
-vec3 motoPos;
-vec3 headLightOffsetFromMotoRoot = vec3(0.53, 0.98, 0.0);
-vec3 breakLightOffsetFromMotoRoot = vec3(-0.8, 0.75, 0.0);
-
-
-// Outputs:
 out vec4 fragColor;
+uniform float ARR[200];
 
 #include "common.frag"
-#include "ids.frag"
-#include "backgroundContent.frag"
-#include "roadContent.frag"
-#include "motoContent.frag"
-#include "sheep.frag"
-#include "rendering.frag"
-#include "camera.frag"
-#include "logo.frag"
-
-
-float bloom(vec3 ro, vec3 rd, vec3 lightPosition, vec3 lightDirection, float distFalloff)
-{
-    vec3 ol = motoToWorld(lightPosition, true) - ro;
-    vec3 cameraToLightDir = normalize(ol);
-    float dist = mix(1., length(ol), distFalloff);
-    float aligned = max(0., dot(cameraToLightDir, -motoToWorld(normalize(lightDirection), false)));
-    float d = 1.-dot(rd, cameraToLightDir);
-    return aligned / (1.+lightFalloff*d) / dist;
-}
 
 void main()
 {
@@ -71,48 +14,38 @@ void main()
     vec2 texCoord = gl_FragCoord.xy/iResolution.xy;
     vec2 uv = (texCoord * 2. - 1.) * vec2(1., iResolution.y / iResolution.x);
 
-    selectShot();
-
-    // camPos and camTa are passed by the vertex shader
-    vec3 cameraTarget = camTa;
-    vec3 cameraUp = vec3(0., 1., 0.);
-    vec3 cameraPosition = camPos;
-    if (sceneID == SCENE_MOTO || sceneID == SCENE_MOUTARD) {
-        cameraPosition = motoToWorldForCamera(camPos);
-        cameraTarget = motoToWorldForCamera(camTa);
-    }
-
-    // Setup camera
-    vec3 cameraForward = normalize(cameraTarget - cameraPosition);
-    vec3 ro = cameraPosition;
-    if (abs(dot(cameraForward, cameraUp)) > 0.99)
-    {
-        cameraUp = vec3(1., 0., 0.);
-    }
-    vec3 cameraRight = normalize(cross(cameraForward, cameraUp));
-    cameraUp = normalize(cross(cameraRight, cameraForward));
-
-    uv *= mix(1., length(uv), 0.1);
-    vec3 rd = normalize(cameraForward * camProjectionRatio + uv.x * cameraRight + uv.y * cameraUp);
-    // 
-
-    vec3 radiance = rayMarchScene(ro, rd);
-
-    // Bloom around headlight
-    if (sceneID == SCENE_MOTO || sceneID == SCENE_MOUTARD) {
-        radiance += 0.3*bloom(ro, rd, headLightOffsetFromMotoRoot + vec3(0.1, -0.05, 0.),
-                    vec3(1.0, -0.15, 0.0), 0.)
-            * 5.*vec3(1., 0.9, .8);
-    }
-
-    radiance = pow(pow(radiance, vec3(1./2.2)), vec3(1.0,1.05,1.1));
-
-    // fade in + logo
-    fragColor.rgb = radiance * globalFade * drawLogo(uv);
-
-    // debug
-    // uint n = uint(iTime / 5);
-    // digits7(fragColor, vec4(1.,.0,0,1), uv*20.+vec2(18,-10), iResolution, n);
+    fragColor.rgb = vec3(0.5);
 
     fragColor /= 1.+pow(length(uv),4.)*0.6;
+
+    // fragColor += ARR[0] * 0.1;
+
+    vec2 pos = vec2(ARR[0], ARR[1]);
+    fragColor *= smoothstep(0.05, 0.06, length(uv - pos));
+
+    int n = int(ARR[2]);
+    for (int i = 0; i < n; i++) {
+        vec2 pos2 = vec2(ARR[3 + 2*i], ARR[4 + 2*i]) * 0.5;
+        fragColor *= smoothstep(0.03, 0.04, length(uv - pos2));
+    }
+
+   
+
+   /*
+   {
+        int i = 6; // int(ARR[8]) - 1;
+        vec2 pos2 = vec2(ARR[9 + 2*i], ARR[9 + 2*i + 1]) * 0.2;
+        fragColor.r *= smoothstep(0.05, 0.06, length(uv - pos2));
+   }
+    vec2 pos2 = vec2(ARR[8], ARR[9]) * 0.1;
+    fragColor.b *= smoothstep(0.05, 0.06, length(uv - pos2));
+    */
+
+    int nMis = int(ARR[8]);
+    for (int i = 0; i < nMis; i++) {
+        vec2 pos2 = vec2(ARR[9 + 2*i], ARR[9 + 2*i + 1]);
+        fragColor.r *= smoothstep(0.02,  0.03, length(uv - pos2));
+    }
+    // fragColor.b = 0.5;
+
 }

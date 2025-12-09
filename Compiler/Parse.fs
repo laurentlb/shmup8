@@ -56,8 +56,16 @@ let precedence = [
     ["&&"], Associativity.Left
     ["^^"], Associativity.Left
     ["||"], Associativity.Left
-    ["="; "+="; "-="; "*="; "/="], Associativity.Right
+    // ["="; "+="; "-="; "*="; "/="], Associativity.Right
 ]
+
+// let simpleStatement = opt expr .>> ch ';' |>> (function Some exp -> Ast.ExprStmt exp | None -> Ast.Block [])
+let simpleStatement = expr .>> ch ';' |>> Ast.ExprStmt
+
+let assignmentStatement =
+    pipe3 ident (ch '=') expr (fun id _ exp -> Ast.Assign(id, exp)) .>> ch ';'
+
+let statement = choice [attempt assignmentStatement; simpleStatement] <?> "statement"
 
 do
     let mutable precCounter = 20 // we have at most 20 different precedence levels
@@ -69,9 +77,9 @@ do
 
     addInfix precedence
 
-let entrypoint = ws >>. expr .>> eof
+let entrypoint = ws >>. many statement .>> eof
 
 let parse() =
-    let res = runParserOnString entrypoint () "stream-name" "12 + 30"
+    let res = runParserOnString entrypoint () "stream-name" "a = 12 + 30; a;"
     Printf.printf "%A\n" res
     res

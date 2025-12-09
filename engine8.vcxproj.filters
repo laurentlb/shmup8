@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\edit\song.cpp">
+      <Filter>editor</Filter>
+    </ClCompile>
+    <ClCompile Include="src\thirdparty\imgui\imgui.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\thirdparty\imgui\imgui_demo.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\thirdparty\imgui\imgui_draw.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\thirdparty\imgui\imgui_impl_opengl2.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\thirdparty\imgui\imgui_impl_win32.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\thirdparty\imgui\imgui_tables.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\thirdparty\imgui\imgui_widgets.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\edit\editui.cpp">
+      <Filter>editor</Filter>
+    </ClCompile>
+    <ClCompile Include="src\edit\editor.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\definitions.h" />
+    <ClInclude Include="src\glext.h">
+      <Filter>ext</Filter>
+    </ClInclude>
+    <ClInclude Include="src\edit\editor.h">
+      <Filter>editor</Filter>
+    </ClInclude>
+    <ClInclude Include="src\edit\song.h">
+      <Filter>editor</Filter>
+    </ClInclude>
+    <ClInclude Include="src\music\music.h">
+      <Filter>music</Filter>
+    </ClInclude>
+    <ClInclude Include="src\thirdparty\imgui\imconfig.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\thirdparty\imgui\imgui.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\thirdparty\imgui\imgui_impl_opengl2.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\thirdparty\imgui\imgui_impl_win32.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\thirdparty\imgui\imgui_internal.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\thirdparty\imgui\imstb_rectpack.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\thirdparty\imgui\imstb_textedit.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\thirdparty\imgui\imstb_truetype.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\edit\editui.h">
+      <Filter>editor</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\shaders\fxaa.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\shaders.inl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\common.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\scene.vert">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\scene.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\motoContent.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\rendering.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\backgroundContent.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\postprocess.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\roadContent.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\ids.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\shared.h">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="preprocess_shaders.bat" />
+    <None Include="src\shaders\camera.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\sheep.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\rendering2.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="src\shaders\logo.frag">
+      <Filter>shaders</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="ext">
+      <UniqueIdentifier>{3ade9a72-96b0-4936-93c4-4926808a1ab2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{84f225d6-acf8-4151-aab3-e246410cdeba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="editor">
+      <UniqueIdentifier>{6bea572d-5f4d-4221-a499-2638f6e437db}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="music">
+      <UniqueIdentifier>{9bf824d7-0e9a-47d1-8928-742da8ce30c8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="imgui">
+      <UniqueIdentifier>{65cab054-d150-491e-b9bf-018d0e21dea3}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

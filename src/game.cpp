@@ -1,6 +1,9 @@
 #include <cmath>
 
-GLfloat floatArray[200] = {};
+GLfloat arrState[200] = {};
+GLfloat arrMissiles[200] = {};
+GLfloat arrEnemies[200] = {};
+
 #define GET_KEY(vk) ((GetAsyncKeyState(vk) & 0x8000) ? 1.0f : 0.f)
 #define CLAMP(v, min, max) ( (v)<(min) ? (min) : ( (v)>(max) ? (max) : (v) ) )
 
@@ -9,38 +12,45 @@ void game(float time) {
 	float dt = time - lastTime;
 	lastTime = time;
 
-	floatArray[0] += 0.02f * (GET_KEY(VK_RIGHT) - GET_KEY(VK_LEFT));
-	floatArray[1] += 0.02f * (GET_KEY(VK_UP) - GET_KEY(VK_DOWN));
+	arrState[0] += 0.02f * (GET_KEY(VK_RIGHT) - GET_KEY(VK_LEFT));
+	arrState[1] += 0.02f * (GET_KEY(VK_UP) - GET_KEY(VK_DOWN));
 
-	floatArray[0] = CLAMP(floatArray[0], -1.f, 1.f);
-	floatArray[1] = CLAMP(floatArray[1], -1.f, 1.f);
+	arrState[0] = CLAMP(arrState[0], -1.f, 1.f);
+	arrState[1] = CLAMP(arrState[1], -1.f, 1.f);
 
-	floatArray[2] = 2.; // nb ennemies
-	floatArray[3] = sin(time);
-	floatArray[4] = 0.5;
-	floatArray[5] = 0.5;
-	floatArray[6] = cos(time);
+	arrEnemies[0] = 2.; // nb enemies
+	arrEnemies[1] = sin(time);
+	arrEnemies[2] = 0.5;
+	arrEnemies[3] = 0.5;
+	arrEnemies[4] = cos(time);
 
-	float coolDown = floatArray[7];
-	int nbMissiles = int(floatArray[8]);
-	for (int i = 0; i < nbMissiles; i++) {
+	float coolDown = arrState[7];
+	int nbMissiles = int(arrMissiles[0]);
+	for (int i = nbMissiles - 1; i >= 0; i--) {
 		// missile movement
-		floatArray[9 + i * 2 + 1] += 2.f * dt;
-	}
-	if (GET_KEY(VK_SPACE) > 0.5f && time - coolDown > 1.f) {
-		floatArray[7] = time; // coolDown
-		floatArray[8] += 1.f; // count
+		arrMissiles[1 + i * 2 + 1] += 2.f * dt;
 
-		// nbMissiles = 0;
-		floatArray[9 + nbMissiles * 2] = floatArray[0];
-		floatArray[9 + nbMissiles * 2 + 1] = floatArray[1];
-		// floatArray[7] = 1.f;
+		if (arrMissiles[1 + i * 2 + 1] > 2.f) {
+			// swap with last missile and remove
+			arrMissiles[1 + i * 2] = arrMissiles[1 + (nbMissiles - 1) * 2];
+			arrMissiles[1 + i * 2 + 1] = arrMissiles[1 + (nbMissiles - 1) * 2 + 1];
+			arrMissiles[0] -= 1.f;
+		}
+	}
+	if (GET_KEY(VK_SPACE) > 0.5f && time - coolDown > 0.5f) {
+		arrState[7] = time; // coolDown
+		arrMissiles[0] += 1.f; // count
+
+		arrMissiles[1 + nbMissiles * 2] = arrState[0];
+		arrMissiles[1 + nbMissiles * 2 + 1] = arrState[1];
 	}
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 0, 0, XRES, YRES, 0);
 	((PFNGLUSEPROGRAMPROC)wglGetProcAddress("glUseProgram"))(shaderMain);
 	// ((PFNGLUNIFORM1FPROC)wglGetProcAddress("glUniform1f"))(0, time);
-	((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(0, 200, floatArray);
-	((PFNGLUNIFORM1IPROC)wglGetProcAddress("glUniform1i"))(1, 0); // Previous frame
+	((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(0, 200, arrState);
+	((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(200, 200, arrMissiles);
+	((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(400, 200, arrEnemies);
+	((PFNGLUNIFORM1IPROC)wglGetProcAddress("glUniform1i"))(1000, 0); // Previous frame
 }

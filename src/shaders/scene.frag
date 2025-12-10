@@ -1,13 +1,19 @@
-#version 150
+#version 430
+
+layout (location = 0) uniform float ARR[200];
+layout (location = 200) uniform float MISS[200];
+layout (location = 400) uniform float ENEMIES[200];
+layout (location = 1000) uniform sampler2D tex;
+
+// #version 150
 
 const float INF = 1e6;
 #include "shared.h"
 
 out vec4 fragColor;
-uniform float ARR[200];
+
 
 #define TIME ARR[0]
-uniform sampler2D tex;
 
 #include "common.frag"
 
@@ -41,6 +47,7 @@ vec3 background(vec2 uv) {
     vec2 b;
     float cloud1 = fbm(uv*2. + vec2(0., ARR[3]*1.));
     vec3 c1 = cloud1 * palette(0.5);
+    c1 = pow(c1, vec3(1. + ENEMIES[1]*0.5));
     float cloud2 = fbm(uv*1.4 + vec2(10));
     vec3 c2 = cloud2 * palette(0.0);
     vec3 cloudCol = mix(c1, c2, 0.5);
@@ -67,9 +74,9 @@ void main()
         fragColor.rgb = mix(fragColor.rgb, vec3(0,1,1), 1.0 - mask);
     }
 
-    int n = int(ARR[2]);
+    int n = int(ENEMIES[0]);
     for (int i = 0; i < n; i++) {
-        vec2 pos2 = vec2(ARR[3 + 2*i], ARR[4 + 2*i]) * 0.5;
+        vec2 pos2 = vec2(ENEMIES[1 + 2*i], ENEMIES[2 + 2*i]) * 0.5;
         float mask = smoothstep(0.03, 0.04, length(uv - pos2));
         fragColor.rgb = mix(fragColor.rgb, vec3(0,1,0), 1.0 - mask);
     }
@@ -85,15 +92,18 @@ void main()
     fragColor.b *= smoothstep(0.05, 0.06, length(uv - pos2));
     */
 
-    int nMis = int(ARR[8]);
+    int nMis = int(MISS[0]);
     for (int i = 0; i < nMis; i++) {
-        vec2 pos2 = vec2(ARR[9 + 2*i], ARR[9 + 2*i + 1]);
+        vec2 pos2 = vec2(MISS[1 + 2*i], MISS[1 + 2*i + 1]);
         float mask = smoothstep(0.02,  0.03, length(uv - pos2));
-        fragColor.rgb = mix(fragColor.rgb, vec3(1,0,0), 1.0 - mask);
-    }
-    // fragColor.b = 0.5;
-
-    float coef = hash21(uv + vec2(ARR[3])) * 0.8;
-    texCoord += (vec2(hash21(uv+vec2(1)), hash21(uv+vec2(2))) * 2. - 1.)*0.001;
+        fragColor.rgb = mix(fragColor.rgb, vec3(1,0,0), 1.0 - mask);  
+                }  
+               // fragColor.b = 0.5; 
+     
+                float coef = hash21(uv + 10.1*vec2(ENEMIES[1])) * 1.8;
+                coef = clamp(coef, 0.5, 1.5);
+                // coef = noise(uv.xyx*20.+0.1*vec3(ENEMIES[1])) * 0.9;
+                 //coef = clamp(coef, 0.5, 0.9);
+        texCoord += (vec2(hash21(uv+vec2(1)), hash21(uv+vec2(2))) * 2. - 1.)*0.005;
     fragColor.rgb = mix(fragColor.rgb, texture(tex, texCoord).rgb, coef);
 }

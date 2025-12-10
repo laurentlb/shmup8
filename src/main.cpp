@@ -88,6 +88,17 @@ void entrypoint(void)
 int __cdecl main(int argc, char* argv[])
 #endif
 {
+
+
+	void exec(char* tree);
+	char testtree[] = {
+		// '\00' /*print*/, '\00' /*int*/, 42, 0, 0, 0,         // PRINT
+		'\00' /*print*/, 0x01 /*float*/, 0, 0, 0x28, 0x42,         // PRINT
+		// 0x00, 0x00, 0x28, 0x42
+	};
+	exec(&testtree[0]);
+
+
 	// initialize window
 	#if FULLSCREEN
 		ChangeDisplaySettings(&screenSettings, CDS_FULLSCREEN);

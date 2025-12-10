@@ -31,6 +31,7 @@
     </ClCompile>
     <ClCompile Include="src\edit\editor.cpp" />
     <ClCompile Include="src\game.cpp" />
+    <ClCompile Include="src\interp.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\definitions.h" />

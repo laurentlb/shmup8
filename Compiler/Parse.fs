@@ -11,6 +11,8 @@ let commentLine = parse {
 let ws = (many (choice [spaces1; commentLine] <?> "") |>> ignore<unit list>)
 let ch c = skipChar c >>. ws
 
+let statement, stmtRef = createParserForwardedToRef()
+
 let keywords = System.Collections.Generic.HashSet<_>([
   "if"; "while"
 ])
@@ -69,7 +71,15 @@ let simpleStatement = expr .>> ch ';' |>> Ast.ExprStmt
 let assignmentStatement =
     pipe3 ident (ch '=') expr (fun id _ exp -> Ast.Assign(id, exp)) .>> ch ';'
 
-let statement = choice [attempt assignmentStatement; simpleStatement] <?> "statement"
+let ifStatement =
+    pipe3 (keyword "if" >>. parenExp) statement (opt (keyword "else" >>. statement))
+        (fun cond stmt1 stmt2 -> Ast.If(cond, stmt1))
+
+let whileStatement =
+    pipe2 (keyword "while" >>. parenExp) statement
+        (fun cond body -> Ast.While(cond, body))
+
+stmtRef.Value <- choice [ifStatement; whileStatement; attempt assignmentStatement; simpleStatement] <?> "statement"
 
 do
     let mutable precCounter = 20 // we have at most 20 different precedence levels

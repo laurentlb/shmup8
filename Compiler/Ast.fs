@@ -13,5 +13,8 @@ type Stmt =
     | Assign of Ident * Expr
     | Block of Stmt list
     | Print of Expr
+    | If of Expr * Stmt
+    | IfElse of Expr * Stmt * Stmt
+    | While of Expr * Stmt
     //| If of Expr * Stmt list * Stmt list option
     //| While of Expr * Stmt list

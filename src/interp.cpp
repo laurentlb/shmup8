@@ -1,12 +1,15 @@
 // bytecode interpreter
 
-typedef unsigned char byte;
-
 #include "stdio.h"
 
-enum tree_code {
+typedef unsigned char byte;
+
+enum stmt_code {
 	PRINT = 0x00,
 	SET = 0x01,
+	JUMP = 0x02,
+	JUMPIF = 0x03,
+	JUMPIFNOT = 0x04,
 };
 
 enum exp_code {
@@ -21,7 +24,6 @@ enum exp_code {
 	//SIN = 0x07,
 };
 
-byte* labels[256];
 float variables[256];
 
 float eval(byte** expp) {
@@ -62,18 +64,9 @@ float eval(byte** expp) {
 	return 0.f;
 }
 
-//void init(byte * tree, int tree_size) {
-//	int c, i;
-//	int l = 0;
-//	for (i = 0; i < tree_size; i++) {
-//		if (tree[i] == LABEL) {
-//			labels[l++] = &tree[i + 1];
-//		}
-//	}
-//}
-
 void exec(byte* tree, int size) {
 	fprintf(stdout, "Executing bytecode...\n");
+	byte* tree_start = tree;
 	byte* tree_end = tree + size;
 	while (tree < tree_end) {
 		enum tree_code tc = (enum tree_code)*tree++;
@@ -89,6 +82,37 @@ void exec(byte* tree, int size) {
 			float value = eval(&tree);
 			variables[index] = value;
 			fprintf(stdout, "set var %d to %f\n", index, value);
+			break;
+		}
+		case JUMP: {
+			int address = *(int*)tree;
+			tree = tree_start + address;
+			fprintf(stdout, "jump to address %d\n", address);
+			break;
+		}
+		case JUMPIF: {
+			float cond = eval(&tree);
+			int address = *(int*)tree;
+			tree += sizeof(int);
+			if (cond > 0.5f) {
+				tree = tree_start + address;
+				fprintf(stdout, "jumpif to address %d\n", address);
+			}
+			else {
+				fprintf(stdout, "jumpif not taken\n");
+			}
+		}
+		case JUMPIFNOT: {
+			float cond = eval(&tree);
+			int address = *(int*)tree;
+			tree += sizeof(int);
+			if (cond <= 0.5f) {
+				tree = tree_start + address;
+				fprintf(stdout, "jumpifnot to address %d\n", address);
+			}
+			else {
+				fprintf(stdout, "jumpifnot not taken\n");
+			}
 			break;
 		}
 		}

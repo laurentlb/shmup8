@@ -92,9 +92,15 @@ void Editor::updateShaders(int* mainShaderPID, int* ppShaderPID, bool force_upda
 			printf("Refreshing shaders...                                                   \n");
 
 			Sleep(100);
-			system("preprocess_shaders.bat");
+			// system("preprocess_shaders.bat");
 
-			reloadShaderSource(mainShaderPID, ppShaderPID);
+			void exec_file(const char* filename);
+			system("C:\\Laurent\\git\\shmup8\\Compiler\\bin\\Release\\net9.0\\Compiler.exe game.source");
+			Sleep(100);
+			exec_file("game.bytes");
+
+
+			// reloadShaderSource(mainShaderPID, ppShaderPID);
 		}
 
 		previousUpdateTime = timeGetTime();

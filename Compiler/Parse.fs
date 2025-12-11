@@ -44,7 +44,7 @@ let ident =
 
 let primitive = choice [
                     parenExp;
-                    pipe2 ident fcall (fun i f -> f i.Name);
+                    attempt (pipe2 ident fcall (fun i f -> f i.Name));
                     ident |>> Ast.Var;
                     number]
             <?> "expression"

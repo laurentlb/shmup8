@@ -53,8 +53,9 @@ float eval(byte** expp) {
 		b = eval(expp);
 		return a * b;
 	case VAR: {
-		int index = *(byte*)(*expp);
-		*expp += sizeof(byte);
+		int index = **expp;
+		(*expp)++;
+		fprintf(stdout, "fetching var %d = %f\n", index, variables[index]);
 		return variables[index];
 	}
 	}
@@ -71,21 +72,26 @@ float eval(byte** expp) {
 //	}
 //}
 
-void exec(byte* tree) {
-	enum tree_code tc = (enum tree_code)*tree++;
-	switch (tc) {
-	case PRINT: {
-		float val = eval(&tree);
-		fprintf(stdout, "print: %f\n", val);
-		break;
-	}
-	case SET: {
-		int index = *(byte*)(tree);
-		tree += sizeof(byte);
-		float value = eval(&tree);
-		variables[index] = value;
-		break;
-	}
+void exec(byte* tree, int size) {
+	fprintf(stdout, "Executing bytecode...\n");
+	byte* tree_end = tree + size;
+	while (tree < tree_end) {
+		enum tree_code tc = (enum tree_code)*tree++;
+		switch (tc) {
+		case PRINT: {
+			float val = eval(&tree);
+			fprintf(stdout, "print: %f\n", val);
+			break;
+		}
+		case SET: {
+			byte index = *tree;
+			tree++;
+			float value = eval(&tree);
+			variables[index] = value;
+			fprintf(stdout, "set var %d to %f\n", index, value);
+			break;
+		}
+		}
 	}
 }
 
@@ -98,7 +104,7 @@ void exec_file(const char* filename) {
 		byte* tree = new byte[size];
 		fread(tree, 1, size, f);
 		fclose(f);
-		exec(tree);
+		exec(tree, size);
 		delete[] tree;
 	}
 }

@@ -1,11 +1,24 @@
 ﻿module Compile
 
+open System.Collections.Generic
+
+// dictionary to hold variable names to their id
+let varDict = Dictionary<string, byte>()
+
+let getVarID (name: string) : byte =
+    if varDict.ContainsKey(name) then
+        varDict.[name]
+    else
+        let id = byte varDict.Count
+        varDict.Add(name, id)
+        id
+
 let rec compile_expr (bytes: ResizeArray<byte>) = function
     | Ast.Number n ->
         bytes.Add(0x01uy)
         let b = System.BitConverter.GetBytes(float32 n)
         bytes.AddRange(b)
-        printfn "Compiling Number: %f" n
+        // printfn "Compiling Number: %f" n
     //| Ast.Var ident ->
     //    bytes.Add(0x02)
     //    let nameBytes = System.Text.Encoding.UTF8.GetBytes(ident.Name)
@@ -31,6 +44,12 @@ let rec compile_expr (bytes: ResizeArray<byte>) = function
         bytes.Add(0x04uy)
         compile_expr bytes x
         compile_expr bytes y
+    | Ast.Var ident ->
+        bytes.Add(0x05uy)
+        let varId = getVarID ident.Name
+        bytes.Add(varId)
+        printfn "Compiling Var: %s with id %d" ident.Name varId
+
     //    let opBytes = System.Text.Encoding.UTF8.GetBytes(op)
     //    bytes.Add(byte opBytes.Length)
     //    bytes.AddRange(opBytes)
@@ -49,6 +68,12 @@ let compile_stmt (bytes: ResizeArray<byte>) = function
     | Ast.ExprStmt expr ->
         compile_expr bytes expr
         printfn "Compiling ExprStmt"
+    | Ast.Assign (ident, expr) ->
+        bytes.Add(0x01uy)
+        let varId = getVarID ident.Name
+        bytes.Add(varId)
+        compile_expr bytes expr
+        printfn "Compiling Assign statement to variable: %s with id %d" ident.Name varId
     | _ -> Printf.printf "Statement type not implemented yet.\n"
 
 let compile ast =

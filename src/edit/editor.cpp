@@ -91,11 +91,10 @@ void Editor::updateShaders(int* mainShaderPID, int* ppShaderPID, bool force_upda
 			// only way i can think of to clear the line without "status line" residue
 			printf("Refreshing shaders...                                                   \n");
 
-			Sleep(100);
 			// system("preprocess_shaders.bat");
 
 			void exec_file(const char* filename);
-			system("C:\\Laurent\\git\\shmup8\\Compiler\\bin\\Release\\net9.0\\Compiler.exe game.source");
+			system("Compiler\\bin\\Release\\net9.0\\Compiler.exe game.source");
 			Sleep(100);
 			exec_file("game.bytes");
 

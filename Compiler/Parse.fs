@@ -42,7 +42,11 @@ let ident =
     let p = p >>= (fun s -> if keywords.Contains(s.Name) then fail "ident is a keyword" else preturn s)
     (p .>> ws) <?> "identifier"
 
-let primitive = choice [parenExp; ident |>> Ast.Var; number]
+let primitive = choice [
+                    parenExp;
+                    pipe2 ident fcall (fun i f -> f i.Name);
+                    ident |>> Ast.Var;
+                    number]
             <?> "expression"
 
 do opp.TermParser <- primitive
@@ -73,13 +77,17 @@ do
         for ops, assoc in li do
             precCounter <- precCounter - 1
             for op in ops do
-                opp.AddOperator(InfixOperator(op, ws, precCounter, assoc, fun x y -> Ast.FunCall(Ast.Op op, [x; y])))
+                opp.AddOperator(InfixOperator(op, ws, precCounter, assoc, fun x y -> Ast.Binop(op, x, y)))
 
     addInfix precedence
 
 let entrypoint = ws >>. many statement .>> eof
 
-let parse() =
-    let res = runParserOnString entrypoint () "stream-name" "a = 12 + 30; a;"
+// subscript
+
+let parse str =
+    let res = runParserOnString entrypoint () "stream-name" str
     Printf.printf "%A\n" res
-    res
+    match res with
+        | Success (stmts, _, _) -> stmts
+        | Failure (errMsg, _, _) -> failwith errMsg

@@ -5,12 +5,13 @@ type Ident = { Name: string }
 type Expr =
     | Number of float
     | Var of Ident
-    | FunCall of Expr * Expr list
-    | Op of string
+    | FunCall of string * Expr list
+    | Binop of string * Expr * Expr
 
 type Stmt =
     | ExprStmt of Expr
     | Assign of Ident * Expr
     | Block of Stmt list
+    | Print of Expr
     //| If of Expr * Stmt list * Stmt list option
     //| While of Expr * Stmt list

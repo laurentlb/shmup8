@@ -79,7 +79,10 @@ let whileStatement =
     pipe2 (keyword "while" >>. parenExp) statement
         (fun cond body -> Ast.While(cond, body))
 
-stmtRef.Value <- choice [ifStatement; whileStatement; attempt assignmentStatement; simpleStatement] <?> "statement"
+let blockStatement =
+    between (ch '{') (ch '}') (many statement) |>> Ast.Block
+
+stmtRef.Value <- choice [blockStatement; ifStatement; whileStatement; attempt assignmentStatement; simpleStatement] <?> "statement"
 
 do
     let mutable precCounter = 20 // we have at most 20 different precedence levels

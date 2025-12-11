@@ -75,13 +75,13 @@ let rec compile_stmt (bytes: ResizeArray<byte>) = function
         bytes.Add(byte StmtOpcode.PRINT)
         compile_expr bytes expr
         printfn "Compiling Print statement"
+    | Ast.Block stmts ->
+        for stmt in stmts do
+            compile_stmt bytes stmt
     | Ast.ExprStmt (Ast.FunCall("print", [arg])) ->
         bytes.Add(byte StmtOpcode.PRINT)
         compile_expr bytes arg
         printfn "Compiling Print function call"
-    | Ast.ExprStmt expr ->
-        compile_expr bytes expr
-        printfn "Compiling ExprStmt"
     | Ast.Assign (ident, expr) ->
         bytes.Add(byte StmtOpcode.ASSIGN)
         let varId = getVarID ident.Name

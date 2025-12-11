@@ -94,11 +94,10 @@ void exec(byte* tree, int size) {
 			float cond = eval(&tree);
 			int address = *(int*)tree;
 			tree += sizeof(int);
-			if (cond > 0.5f) {
+			if (cond > 0.5f) { // in the world of floats... you need to be greater than 0.5 to be true!
 				tree = tree_start + address;
 				fprintf(stdout, "jumpif to address %d\n", address);
-			}
-			else {
+			} else {
 				fprintf(stdout, "jumpif not taken\n");
 			}
 		}
@@ -109,8 +108,7 @@ void exec(byte* tree, int size) {
 			if (cond <= 0.5f) {
 				tree = tree_start + address;
 				fprintf(stdout, "jumpifnot to address %d\n", address);
-			}
-			else {
+			} else {
 				fprintf(stdout, "jumpifnot not taken\n");
 			}
 			break;

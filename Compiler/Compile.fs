@@ -13,8 +13,8 @@ type StmtOpcode =
     | JUMPIFNOT = 0x04uy
 
 type ExpOpcode = 
-    | INT = 0x00uy
-    | FLOAT = 0x01uy
+    | CONSTANT = 0x00uy
+    | GET_KEY = 0x01uy
     | ADD = 0x02uy
     | SUB = 0x03uy
     | MUL = 0x04uy
@@ -27,6 +27,7 @@ let functions = dict([
     ("sin", (byte ExpOpcode.SIN, 1))
     ("clamp", (byte ExpOpcode.CLAMP, 3))
     ("mix", (byte ExpOpcode.MIX, 3))
+    ("get_key", (byte ExpOpcode.GET_KEY, 1))
 ])
 
 let getVarID (name: string) : byte =
@@ -56,7 +57,7 @@ let placeholderLabel (bytes: ResizeArray<byte>) =
 
 let rec compile_expr (bytes: ResizeArray<byte>) = function
     | Ast.Number n ->
-        bytes.Add(byte ExpOpcode.FLOAT)
+        bytes.Add(byte ExpOpcode.CONSTANT)
         let b = System.BitConverter.GetBytes(float32 n)
         bytes.AddRange(b)
     | Ast.Binop("+", x, y) ->

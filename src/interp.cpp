@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <cmath>
+#include <windows.h>
 
 typedef unsigned char byte;
 
@@ -14,8 +15,8 @@ enum stmt_code {
 };
 
 enum exp_code {
-	INT = 0x00,
-	FLOAT = 0x01,
+	CONSTANT = 0x00,
+	GET_KEY = 0x01,
 	ADD = 0x02,
 	SUB = 0x03,
 	MUL = 0x04,
@@ -40,12 +41,7 @@ float eval(byte** expp) {
 		a = eval(expp);
 		b = eval(expp);
 		return a - b;
-	case INT: {
-		int val = *(int*)(*expp);
-		*expp += sizeof(int);
-		return float(val);
-	}
-	case FLOAT: {
+	case CONSTANT: {
 		float* pt = (float*)(*expp);
 		float val = *pt;
 		*expp += sizeof(float);
@@ -77,6 +73,10 @@ float eval(byte** expp) {
 		float y = eval(expp);
 		a = eval(expp);
 		return x * (1.f - a) + y * a;
+	}
+	case GET_KEY: {
+		float vk = eval(expp);
+		return (GetAsyncKeyState((int)vk) & 0x8000) ? 1.0f : 0.f;
 	}
 	}
 	return 0.f;

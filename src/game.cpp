@@ -43,7 +43,7 @@ void game(float time) {
 		float target = float(i) * .1f + cos(time) * 0.5f - 0.1f;
 		arrEnemies[1 + i * enemyDataSize + 3] = MIX(arrEnemies[1 + i * enemyDataSize + 3], target, 0.02f); // py
 	}
-
+  
 	// Missile movement
 	int nbMissiles = int(arrMissiles[0]);
 	for (int i = nbMissiles - 1; i >= 0; i--) {
@@ -80,12 +80,9 @@ void game(float time) {
 		arrMissiles[1 + nbMissiles * 2 + 1] = arrState[1];
 	}
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 0, 0, XRES, YRES, 0);
-	((PFNGLUSEPROGRAMPROC)wglGetProcAddress("glUseProgram"))(shaderMain);
 	// ((PFNGLUNIFORM1FPROC)wglGetProcAddress("glUniform1f"))(0, time);
 	((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(0, 200, arrState);
 	((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(200, 200, arrMissiles);
 	((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(400, 200, arrEnemies);
-	((PFNGLUNIFORM1IPROC)wglGetProcAddress("glUniform1i"))(1000, 0); // Previous frame
+//	((PFNGLUNIFORM1IPROC)wglGetProcAddress("glUniform1i"))(1000, 0); // Previous frame
 }

@@ -19,6 +19,15 @@ type ExpOpcode =
     | SUB = 0x03uy
     | MUL = 0x04uy
     | VAR = 0x05uy
+    | CLAMP = 0x06uy
+    | SIN = 0x07uy
+    | MIX = 0x08uy
+
+let functions = dict([
+    ("sin", (byte ExpOpcode.SIN, 1))
+    ("clamp", (byte ExpOpcode.CLAMP, 3))
+    ("mix", (byte ExpOpcode.MIX, 3))
+])
 
 let getVarID (name: string) : byte =
     if varDict.ContainsKey(name) then
@@ -67,7 +76,14 @@ let rec compile_expr (bytes: ResizeArray<byte>) = function
         let varId = getVarID ident.Name
         bytes.Add(varId)
         printfn "Compiling Var: %s with id %d" ident.Name varId
-
+    | Ast.FunCall (name, args) when functions.ContainsKey(name) ->
+        let (opcode, argCount) = functions.[name]
+        if argCount <> args.Length then
+            failwithf "Function %s expects %d arguments but got %d" name argCount args.Length
+        bytes.Add(opcode)
+        for arg in args do
+            compile_expr bytes arg
+        printfn "Compiling function call %s" name
     | x -> Printf.printf "Expression type not implemented yet - %A.\n" x
 
 let rec compile_stmt (bytes: ResizeArray<byte>) = function

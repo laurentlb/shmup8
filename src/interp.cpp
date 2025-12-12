@@ -1,6 +1,7 @@
 // bytecode interpreter
 
-#include "stdio.h"
+#include <stdio.h>
+#include <cmath>
 
 typedef unsigned char byte;
 
@@ -19,9 +20,9 @@ enum exp_code {
 	SUB = 0x03,
 	MUL = 0x04,
 	VAR = 0x05,
-	//ROUND = 0x05,
-	//CLAMP = 0x06,
-	//SIN = 0x07,
+	CLAMP = 0x06,
+	SIN = 0x07,
+	MIX = 0x08,
 };
 
 float variables[256];
@@ -59,6 +60,23 @@ float eval(byte** expp) {
 		(*expp)++;
 		fprintf(stdout, "fetching var %d = %f\n", index, variables[index]);
 		return variables[index];
+	}
+	case SIN:
+		a = eval(expp);
+		return sinf(a);
+	case CLAMP: {
+		a = eval(expp);
+		float min = eval(expp);
+		float max = eval(expp);
+		if (a < min) return min;
+		if (a > max) return max;
+		return a;
+	}
+	case MIX: {
+		float x = eval(expp);
+		float y = eval(expp);
+		a = eval(expp);
+		return x * (1.f - a) + y * a;
 	}
 	}
 	return 0.f;

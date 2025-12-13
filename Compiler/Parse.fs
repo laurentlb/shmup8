@@ -10,6 +10,7 @@ let commentLine = parse {
 
 let ws = (many (choice [spaces1; commentLine] <?> "") |>> ignore<unit list>)
 let ch c = skipChar c >>. ws
+let str s = skipString s >>. ws
 
 let statement, stmtRef = createParserForwardedToRef()
 
@@ -65,14 +66,25 @@ let precedence = [
     ["&&"], Associativity.Left
     ["^^"], Associativity.Left
     ["||"], Associativity.Left
-    // ["="; "+="; "-="; "*="; "/="], Associativity.Right
 ]
 
 // let simpleStatement = opt expr .>> ch ';' |>> (function Some exp -> Ast.ExprStmt exp | None -> Ast.Block [])
-let simpleStatement = expr .>> ch ';' |>> Ast.ExprStmt
+let simpleStatement = expr |>> Ast.ExprStmt
 
 let assignmentStatement =
-    pipe3 expr (ch '=') expr (fun lvalue _ exp -> Ast.Assign(lvalue, exp)) .>> ch ';'
+    pipe3 primitive (ch '=') expr (fun lvalue _ exp -> Ast.Assign(lvalue, exp))
+
+let plusEqualStatement =
+    pipe3 primitive (str "+=") expr (fun lvalue _ exp -> Ast.Assign(lvalue, Ast.Binop("+", lvalue, exp)))
+
+let minusEqualStatement =
+    pipe3 primitive (str "-=") expr (fun lvalue _ exp -> Ast.Assign(lvalue, Ast.Binop("-", lvalue, exp)))
+
+let multEqualStatement =
+    pipe3 primitive (str "*=") expr (fun lvalue _ exp -> Ast.Assign(lvalue, Ast.Binop("*", lvalue, exp)))
+
+let sstatement =
+    choice [attempt plusEqualStatement; attempt assignmentStatement; simpleStatement] .>> ch ';'
 
 let ifStatement =
     pipe3 (keyword "if" >>. parenExp) statement (opt (keyword "else" >>. statement))
@@ -85,7 +97,7 @@ let whileStatement =
 let blockStatement =
     between (ch '{') (ch '}') (many statement) |>> Ast.Block
 
-stmtRef.Value <- choice [blockStatement; ifStatement; whileStatement; attempt assignmentStatement; simpleStatement] <?> "statement"
+stmtRef.Value <- choice [blockStatement; ifStatement; whileStatement; sstatement] <?> "statement"
 
 do
     let mutable precCounter = 20 // we have at most 20 different precedence levels

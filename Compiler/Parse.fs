@@ -15,7 +15,7 @@ let str s = skipString s >>. ws
 let statement, stmtRef = createParserForwardedToRef()
 
 let keywords = System.Collections.Generic.HashSet<_>([
-  "if"; "while"
+  "if"; "while"; "for"
 ])
 
 let keyword s = attempt (pstring s .>> notFollowedBy letter .>> notFollowedBy digit .>> notFollowedBy (ch '_')) .>> ws
@@ -84,20 +84,31 @@ let multEqualStatement =
     pipe3 primitive (str "*=") expr (fun lvalue _ exp -> Ast.Assign(lvalue, Ast.Binop("*", lvalue, exp)))
 
 let sstatement =
-    choice [attempt plusEqualStatement; attempt assignmentStatement; simpleStatement] .>> ch ';'
+    choice [attempt plusEqualStatement; attempt minusEqualStatement; attempt multEqualStatement; attempt assignmentStatement; simpleStatement]
 
 let ifStatement =
     pipe3 (keyword "if" >>. parenExp) statement (opt (keyword "else" >>. statement))
-        (fun cond stmt1 stmt2 -> Ast.If(cond, stmt1))
+        (fun cond stmt1 elseOpt ->
+            match elseOpt with
+            | Some stmt2 -> Ast.IfElse(cond, stmt1, stmt2)
+            | None -> Ast.If(cond, stmt1)
+        )
 
-let whileStatement =
+let whileLoop =
     pipe2 (keyword "while" >>. parenExp) statement
         (fun cond body -> Ast.While(cond, body))
+
+let forLoop =
+    let init = opt sstatement .>> ch ';' |>> (function Some st -> st | None -> Ast.Block [])
+    let cond = expr .>> ch ';'
+    let inc = opt sstatement .>> ch ')' |>> (function Some st -> st | None -> Ast.Block [])
+    pipe4 (keyword "for" >>. ch '(' >>. init) cond inc statement
+        (fun init cond inc statement -> Ast.Block [init; Ast.While(cond, Ast.Block [statement; inc])])
 
 let blockStatement =
     between (ch '{') (ch '}') (many statement) |>> Ast.Block
 
-stmtRef.Value <- choice [blockStatement; ifStatement; whileStatement; sstatement] <?> "statement"
+stmtRef.Value <- choice [blockStatement; ifStatement; whileLoop; forLoop; sstatement .>> ch ';'] <?> "statement"
 
 do
     let mutable precCounter = 20 // we have at most 20 different precedence levels

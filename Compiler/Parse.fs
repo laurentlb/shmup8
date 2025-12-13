@@ -20,7 +20,7 @@ let keywords = System.Collections.Generic.HashSet<_>([
 let keyword s = attempt (pstring s .>> notFollowedBy letter .>> notFollowedBy digit .>> notFollowedBy (ch '_')) .>> ws
 
 let number =
-    let r = @"(\d+\.?\d*|\.\d+)"
+    let r = @"-?(\d+\.?\d*|\.\d+)"
     let conv s =
         let ok, res = System.Double.TryParse(s : string)
         if ok then Ast.Number res

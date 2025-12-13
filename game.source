@@ -8,8 +8,8 @@ time = state[0];
 state[1] = state[1] + (get_key(right) - get_key(left))*0.01;
 state[2] = state[2] + (get_key(up) - get_key(down))*0.01;
 
-state[1] = clamp(state[1], 0-1, 1);
-state[2] = clamp(state[2], 0-0.5, 0.5);
+state[1] = clamp(state[1], -1, 1);
+state[2] = clamp(state[2], -0.5, 0.5);
 
 enemyDataSize = 4;
 
@@ -36,7 +36,7 @@ while (i < enemies[0]) {
 // Move missiles
 dt = 0.01; // TODO
 i = missiles[0] - 1;
-while (0 <= i) {
+while (i >= 0) {
     missiles[1 + i*2 + 1] = missiles[1 + i*2 + 1] + 2 * dt;
 
     // collisions with enemies
@@ -58,7 +58,7 @@ while (0 <= i) {
     }
 
     // remove missiles outside the screen
-    if (0.8 < missiles[1 + i*2 + 1]) {
+    if (missiles[1 + i*2 + 1] > 0.8) {
         // O(1) removal: swap element with the last one in the array
         missiles[1 + i*2] = missiles[1 + (missiles[0] - 1) * 2];
         missiles[1 + i*2 + 1] = missiles[1 + (missiles[0] - 1) * 2 + 1];
@@ -70,7 +70,7 @@ while (0 <= i) {
 
 coolDown = state[3];
 if (get_key(32)) {
-    if (0.25 < time - coolDown) {
+    if (time - coolDown > 0.1) {
 		state[3] = time; // coolDown
 		missiles[1 + missiles[0] * 2] = state[1];
 		missiles[1 + missiles[0] * 2 + 1] = state[2];

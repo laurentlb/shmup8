@@ -92,6 +92,10 @@ let rec compile_expr (bytes: ResizeArray<byte>) = function
         bytes.Add(byte ExpOpcode.LTE)
         compile_expr bytes x
         compile_expr bytes y
+    | Ast.Binop(">", x, y) ->
+        compile_expr bytes (Ast.Binop("<", y, x))
+    | Ast.Binop(">=", x, y) ->
+        compile_expr bytes (Ast.Binop("<=", y, x))
     | Ast.Var ident ->
         bytes.Add(byte ExpOpcode.VAR)
         bytes.Add(0x00uy)

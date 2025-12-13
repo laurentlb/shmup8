@@ -22,6 +22,9 @@ type ExpOpcode =
     | CLAMP = 0x06uy
     | SIN = 0x07uy
     | MIX = 0x08uy
+    | EQ = 0x09uy
+    | LT = 0x0Auy
+    | LTE = 0x0Buy
 
 let functions = dict([
     ("sin", (byte ExpOpcode.SIN, 1))
@@ -77,6 +80,18 @@ let rec compile_expr (bytes: ResizeArray<byte>) = function
         bytes.Add(byte ExpOpcode.MUL)
         compile_expr bytes x
         compile_expr bytes y
+    | Ast.Binop("==", x, y) ->
+        bytes.Add(byte ExpOpcode.EQ)
+        compile_expr bytes x
+        compile_expr bytes y
+    | Ast.Binop("<", x, y) ->
+        bytes.Add(byte ExpOpcode.LT)
+        compile_expr bytes x
+        compile_expr bytes y
+    | Ast.Binop("<=", x, y) ->
+        bytes.Add(byte ExpOpcode.LTE)
+        compile_expr bytes x
+        compile_expr bytes y
     | Ast.Var ident ->
         bytes.Add(byte ExpOpcode.VAR)
         bytes.Add(0x00uy)
@@ -102,7 +117,7 @@ let rec compile_expr (bytes: ResizeArray<byte>) = function
         for arg in args do
             compile_expr bytes arg
         printfn "Compiling function call %s" name
-    | x -> Printf.printf "Expression type not implemented yet - %A.\n" x
+    | x -> failwithf "Expression type not implemented yet - %A" x
 
 let rec compile_stmt (bytes: ResizeArray<byte>) = function
     | Ast.Print expr ->
@@ -169,7 +184,7 @@ let rec compile_stmt (bytes: ResizeArray<byte>) = function
         bytes.AddRange(b)
         patchAfterLoopAddr bytes.Count
         printfn "Compiling While statement"
-    | x -> Printf.printf "Statement type not implemented yet - %A\n" x
+    | x -> failwithf "Statement type not implemented yet - %A" x
 
 let compile ast =
     let bytes = ResizeArray<byte>()

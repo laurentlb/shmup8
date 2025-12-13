@@ -75,7 +75,7 @@ void main()
 
     int n = int(enemies[0]);
     for (int i = 0; i < n; i++) {
-        vec2 pos2 = vec2(enemies[4*i+1], enemies[4*i+2]);
+        vec2 pos2 = vec2(enemies[4*i+3], enemies[4*i+4]);
         float mask = smoothstep(0.03, 0.04, length(uv - pos2));
         fragColor.rgb = mix(fragColor.rgb, vec3(0,1,0), 1.0 - mask);
     }

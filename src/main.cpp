@@ -235,7 +235,7 @@ int __cdecl main(int argc, char* argv[])
 		// game(time);
 		void exec();
 		exec();
-		extern float variables[256][4];
+		extern float variables[4][256];
 
 		variables[1][0] = time;
 		((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(0, 200, variables[1]);

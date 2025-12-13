@@ -24,11 +24,14 @@ enum exp_code {
 	CLAMP = 0x06,
 	SIN = 0x07,
 	MIX = 0x08,
+	EQ = 0x09,
+	LT = 0x0A,
+	LTE = 0x0B,
 };
 
-float variables[256][4];
+float variables[4][256];
 
-// #define LOG(fmt, ...) fprintf(stdout, fmt, __VA_ARGS__)
+//#define LOG(fmt, ...) fprintf(stdout, fmt, __VA_ARGS__)
 #define LOG(fmt, ...) void(0)
 
 float eval(byte** expp) {
@@ -82,7 +85,23 @@ float eval(byte** expp) {
 		float vk = eval(expp);
 		return (GetAsyncKeyState((int)vk) & 0x8000) ? 1.0f : 0.f;
 	}
+	case EQ: {
+		float x = eval(expp);
+		float y = eval(expp);
+		return (fabsf(x - y) < 0.0001f) ? 1.f : 0.f;
 	}
+	case LT: {
+		float a = eval(expp);
+		float b = eval(expp);
+		return (a < b) ? 1.f : 0.f;
+	}
+	case LTE: {
+		float a = eval(expp);
+		float b = eval(expp);
+		return (a <= b) ? 1.f : 0.f;
+	}
+	}
+	fprintf(stderr, "Unknown expr opcode: %d\n", e);
 	return 0.f;
 }
 
@@ -136,6 +155,8 @@ void exec_private(byte* tree, int size) {
 			}
 			break;
 		}
+		default:
+			fprintf(stderr, "Unknown stmt opcode: %d\n", tc);
 		}
 	}
 }

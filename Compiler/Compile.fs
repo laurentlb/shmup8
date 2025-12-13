@@ -25,6 +25,7 @@ type ExpOpcode =
     | EQ = 0x09uy
     | LT = 0x0Auy
     | LTE = 0x0Buy
+    | BYTE = 0x0Cuy
 
 let functions = dict([
     ("sin", (byte ExpOpcode.SIN, 1))
@@ -58,16 +59,17 @@ let placeholderLabel (bytes: ResizeArray<byte>) =
             bytes.[addr + i] <- b.[i]
 
 
-// read var:
-//   VAR scopeId expr
-// set var:
-//   SET scopeId expr value
-
 let rec compile_expr (bytes: ResizeArray<byte>) = function
     | Ast.Number n ->
-        bytes.Add(byte ExpOpcode.CONSTANT)
-        let b = System.BitConverter.GetBytes(float32 n)
-        bytes.AddRange(b)
+        // test if float is actually an integer that fits in a byte
+        let intN = int n
+        if float intN = n && intN >= 0 && intN <= 255 then
+            bytes.Add(byte ExpOpcode.BYTE)
+            bytes.Add(byte intN)
+        else
+            bytes.Add(byte ExpOpcode.CONSTANT)
+            let b = System.BitConverter.GetBytes(float32 n)
+            bytes.AddRange(b)
     | Ast.Binop("+", x, y) ->
         bytes.Add(byte ExpOpcode.ADD)
         compile_expr bytes x

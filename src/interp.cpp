@@ -27,6 +27,7 @@ enum exp_code {
 	EQ = 0x09,
 	LT = 0x0A,
 	LTE = 0x0B,
+	BYTE_CONST = 0x0C,
 };
 
 float variables[4][256];
@@ -52,6 +53,11 @@ float eval(byte** expp) {
 		float val = *pt;
 		*expp += sizeof(float);
 		return val;
+	}
+	case BYTE_CONST: {
+		byte val = **expp;
+		(*expp)++;
+		return (float)val;
 	}
 	case MUL:
 		a = eval(expp);

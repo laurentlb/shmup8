@@ -26,7 +26,10 @@ enum exp_code {
 	MIX = 0x08,
 };
 
-float variables[256];
+float variables[256][4];
+
+// #define LOG(fmt, ...) fprintf(stdout, fmt, __VA_ARGS__)
+#define LOG(fmt, ...) void(0)
 
 float eval(byte** expp) {
 	enum exp_code e = (enum exp_code) * (*expp)++;
@@ -52,10 +55,11 @@ float eval(byte** expp) {
 		b = eval(expp);
 		return a * b;
 	case VAR: {
-		int index = **expp;
+		byte array = **expp;
 		(*expp)++;
-		fprintf(stdout, "fetching var %d = %f\n", index, variables[index]);
-		return variables[index];
+		float index = eval(expp);		
+		LOG("fetching var %d[%d] = %f\n", array, (int)index, variables[array][(int)index]);
+		return variables[array][(int)index];
 	}
 	case SIN:
 		a = eval(expp);
@@ -82,8 +86,8 @@ float eval(byte** expp) {
 	return 0.f;
 }
 
-void exec(byte* tree, int size) {
-	fprintf(stdout, "Executing bytecode...\n");
+void exec_private(byte* tree, int size) {
+	LOG("Executing bytecode...\n");
 	byte* tree_start = tree;
 	byte* tree_end = tree + size;
 	while (tree < tree_end) {
@@ -95,17 +99,18 @@ void exec(byte* tree, int size) {
 			break;
 		}
 		case SET: {
-			byte index = *tree;
+			byte array = *tree;
 			tree++;
+			float index = eval(&tree);
 			float value = eval(&tree);
-			variables[index] = value;
-			fprintf(stdout, "set var %d to %f\n", index, value);
+			variables[array][(int) index] = value;
+			LOG("set var %d[%d] to %f\n", array, (int)index, value);
 			break;
 		}
 		case JUMP: {
 			int address = *(int*)tree;
 			tree = tree_start + address;
-			fprintf(stdout, "jump to address %d\n", address);
+			LOG("jump to address %d\n", address);
 			break;
 		}
 		case JUMPIF: {
@@ -114,9 +119,9 @@ void exec(byte* tree, int size) {
 			tree += sizeof(int);
 			if (cond > 0.5f) { // in the world of floats... you need to be greater than 0.5 to be true!
 				tree = tree_start + address;
-				fprintf(stdout, "jumpif to address %d\n", address);
+				LOG("jumpif to address %d\n", address);
 			} else {
-				fprintf(stdout, "jumpif not taken\n");
+				LOG("jumpif not taken\n");
 			}
 		}
 		case JUMPIFNOT: {
@@ -125,9 +130,9 @@ void exec(byte* tree, int size) {
 			tree += sizeof(int);
 			if (cond <= 0.5f) {
 				tree = tree_start + address;
-				fprintf(stdout, "jumpifnot to address %d\n", address);
+				LOG("jumpifnot to address %d\n", address);
 			} else {
-				fprintf(stdout, "jumpifnot not taken\n");
+				LOG("jumpifnot not taken\n");
 			}
 			break;
 		}
@@ -135,16 +140,26 @@ void exec(byte* tree, int size) {
 	}
 }
 
+byte* tree = nullptr;
+int tree_size = 0;
+void exec() {
+	if (tree == nullptr || tree_size == 0) return;
+	exec_private(tree, tree_size);
+}
+
 void exec_file(const char* filename) {
 	FILE* f = fopen(filename, "rb");
 	if (f) {
+		if (tree != nullptr) {
+			delete[] tree;
+		}
 		fseek(f, 0, SEEK_END);
-		long size = ftell(f);
+		tree_size = ftell(f);
 		fseek(f, 0, SEEK_SET);
-		byte* tree = new byte[size];
-		fread(tree, 1, size, f);
+		tree = new byte[tree_size];
+		fread(tree, sizeof(byte), tree_size, f);
 		fclose(f);
-		exec(tree, size);
-		delete[] tree;
+		// exec(tree, tree_size);
+		// delete[] tree;
 	}
 }

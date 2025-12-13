@@ -6,11 +6,12 @@ type Expr =
     | Number of float
     | Var of Ident
     | FunCall of string * Expr list
+    | Subscript of Ident * Expr
     | Binop of string * Expr * Expr
 
 type Stmt =
     | ExprStmt of Expr
-    | Assign of Ident * Expr
+    | Assign of Expr * Expr
     | Block of Stmt list
     | Print of Expr
     | If of Expr * Stmt

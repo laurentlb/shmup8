@@ -37,6 +37,8 @@ let argList = sepBy expr (ch ',')
 let fcall = between (ch '(') (ch ')') argList |>>
             (fun args fct -> Ast.FunCall(fct, args))
 
+let subscript = between (ch '[') (ch ']') expr |>> (fun index var -> Ast.Subscript(var, index))
+
 let ident =
     let nonDigit = asciiLetter <|> pchar '_'
     let p = pipe3 getPosition nonDigit (manyChars (nonDigit <|> digit <?> "")) (
@@ -47,6 +49,7 @@ let ident =
 let primitive = choice [
                     parenExp;
                     attempt (pipe2 ident fcall (fun i f -> f i.Name));
+                    attempt (pipe2 ident subscript (fun i sub -> sub i));
                     ident |>> Ast.Var;
                     number]
             <?> "expression"
@@ -69,7 +72,7 @@ let precedence = [
 let simpleStatement = expr .>> ch ';' |>> Ast.ExprStmt
 
 let assignmentStatement =
-    pipe3 ident (ch '=') expr (fun id _ exp -> Ast.Assign(id, exp)) .>> ch ';'
+    pipe3 expr (ch '=') expr (fun lvalue _ exp -> Ast.Assign(lvalue, exp)) .>> ch ';'
 
 let ifStatement =
     pipe3 (keyword "if" >>. parenExp) statement (opt (keyword "else" >>. statement))

@@ -232,7 +232,15 @@ int __cdecl main(int argc, char* argv[])
 		glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 0, 0, XRES, YRES, 0);
 		((PFNGLUSEPROGRAMPROC)wglGetProcAddress("glUseProgram"))(shaderMain);
 		
-		game(time);
+		// game(time);
+		void exec();
+		exec();
+		extern float variables[256][4];
+
+		variables[1][0] = time;
+		((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(0, 200, variables[1]);
+		((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(200, 200, variables[2]);
+		((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(400, 200, variables[3]);
 
 		((PFNGLUNIFORM1IPROC)wglGetProcAddress("glUniform1i"))(1, 0); // Previous frame
 		glRects(-1, -1, 1, 1);

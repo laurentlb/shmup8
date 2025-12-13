@@ -1,5 +1,6 @@
 #include <cmath>
 
+GLfloat arrLocals[200] = {};
 GLfloat arrState[200] = {};
 GLfloat arrMissiles[200] = {};
 GLfloat arrEnemies[200] = {};
@@ -13,13 +14,13 @@ void game(float time) {
 	float dt = time - lastTime;
 	lastTime = time;
 
-	arrState[0] += 0.02f * (GET_KEY(VK_RIGHT) - GET_KEY(VK_LEFT));
-	arrState[1] += 0.02f * (GET_KEY(VK_UP) - GET_KEY(VK_DOWN));
+	arrState[1] += 0.02f * (GET_KEY(VK_RIGHT) - GET_KEY(VK_LEFT));
+	arrState[2] += 0.02f * (GET_KEY(VK_UP) - GET_KEY(VK_DOWN));
 
-	arrState[0] = CLAMP(arrState[0], -1.f, 1.f);
 	arrState[1] = CLAMP(arrState[1], -1.f, 1.f);
+	arrState[2] = CLAMP(arrState[2], -1.f, 1.f);
 
-	arrState[2] = time;
+	arrState[0] = time;
 	arrState[3]; // cool down
 
 	// Enemy data:

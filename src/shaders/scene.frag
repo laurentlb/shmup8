@@ -13,7 +13,7 @@ const float INF = 1e6;
 out vec4 fragColor;
 
 
-#define TIME state[0]
+const float TIME = state[0];
 
 #include "common.frag"
 
@@ -25,7 +25,6 @@ vec3 pal(float t, vec3 a, vec3 b, vec3 c, vec3 d)
 
 vec3 palette(float t) {
   return pal(t, vec3(0.2),vec3(0.2),vec3(0.2),vec3(0.2,0.20,0.90));
-  // return pal(t, vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(1.0,1.0,1.0),vec3(0.0,0.10,0.20));
 }
 
 float fbm(vec2 p) {
@@ -80,46 +79,6 @@ void main()
         fragColor.rgb = mix(fragColor.rgb, vec3(0,1,0), 1.0 - mask);
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-   /*
-   {
-        int i = 6; // int(state[8]) - 1;
-        vec2 pos2 = vec2(state[9 + 2*i], state[9 + 2*i + 1]) * 0.2;
-        fragColor.r *= smoothstep(0.05, 0.06, length(uv - pos2));
-   }
-    vec2 pos2 = vec2(state[8], state[9]) * 0.1;
-    fragColor.b *= smoothstep(0.05, 0.06, length(uv - pos2));
-    */
-
     int nMis = int(missiles[0]);
     for (int i = 0; i < nMis; i++) {
         vec2 pos2 = vec2(missiles[1 + 2*i], missiles[1 + 2*i + 1]);
@@ -129,8 +88,6 @@ void main()
      
     float coef = hash21(uv + 10.1*vec2(state[0])) * 1.2;
     coef = clamp(coef, 0.5, 1.);
-    // coef = noise(uv.xyx*20.+0.1*vec3(enemies[1])) * 0.9;
-    //coef = clamp(coef, 0.5, 0.9);
     texCoord += (vec2(hash21(uv+vec2(1)), hash21(uv+vec2(2))) * 2. - 1.)*0.005;
     fragColor.rgb = mix(fragColor.rgb, texture(tex, texCoord).rgb, coef);
 }

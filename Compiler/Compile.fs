@@ -191,9 +191,3 @@ let rec compile_stmt (bytes: ResizeArray<byte>) = function
         patchAfterLoopAddr bytes.Count
         printfn "Compiling While statement"
     | x -> failwithf "Statement type not implemented yet - %A" x
-
-let compile ast =
-    let bytes = ResizeArray<byte>()
-    for stmt in ast do
-        compile_stmt bytes stmt
-    System.IO.File.WriteAllBytes("game.bytes", bytes.ToArray())

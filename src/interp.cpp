@@ -35,6 +35,19 @@ float variables[4][256];
 //#define LOG(fmt, ...) fprintf(stdout, fmt, __VA_ARGS__)
 #define LOG(fmt, ...) void(0)
 
+#if defined(EDITOR_CONTROLS)
+# define ERR(fmt, ...) fprintf(stdout, fmt, __VA_ARGS__)
+#else
+# define ERR(fmt, ...) void(0)
+#endif
+
+float mysinf(const float x) {
+	float r; _asm fld  dword ptr[x];
+	_asm fsin;
+	_asm fstp dword ptr[r];
+	return r;
+}
+
 float eval(byte** expp) {
 	enum exp_code e = (enum exp_code) * (*expp)++;
 	float a, b;
@@ -72,7 +85,7 @@ float eval(byte** expp) {
 	}
 	case SIN:
 		a = eval(expp);
-		return sinf(a);
+		return mysinf(a);
 	case CLAMP: {
 		a = eval(expp);
 		float min = eval(expp);
@@ -107,7 +120,7 @@ float eval(byte** expp) {
 		return (a <= b) ? 1.f : 0.f;
 	}
 	}
-	fprintf(stderr, "Unknown expr opcode: %d\n", e);
+	ERR("Unknown expr opcode: %d\n", e);
 	return 0.f;
 }
 
@@ -120,7 +133,9 @@ void exec_private(byte* tree, int size) {
 		switch (tc) {
 		case PRINT: {
 			float val = eval(&tree);
+#if EDITOR_CONTROLS
 			fprintf(stdout, "print: %f\n", val);
+#endif
 			break;
 		}
 		case SET: {
@@ -162,11 +177,20 @@ void exec_private(byte* tree, int size) {
 			break;
 		}
 		default:
-			fprintf(stderr, "Unknown stmt opcode: %d\n", tc);
+			ERR("Unknown stmt opcode: %d\n", tc);
 		}
 	}
 }
 
+#ifndef EDITOR_CONTROLS
+
+#include "bytecode.h"
+
+void exec() {
+	exec_private(game_bytes, sizeof(game_bytes));
+}
+
+#else
 byte* tree = nullptr;
 int tree_size = 0;
 void exec() {
@@ -190,3 +214,4 @@ void exec_file(const char* filename) {
 		// delete[] tree;
 	}
 }
+#endif

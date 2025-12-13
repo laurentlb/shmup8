@@ -8,7 +8,7 @@
 	#define FULLSCREEN          1
 	#define DESPERATE           0
 	#define BREAK_COMPATIBILITY 0
-	#define SOUND_ON
+	// #define SOUND_ON
 #endif
 
 #include <windows.h>
@@ -75,8 +75,6 @@ MMTIME mmtime = {
 	0
 };
 #endif
-
-#include "game.cpp" // who said we can't include cpp files?
 
 #ifndef EDITOR_CONTROLS
 #pragma code_seg(".main")

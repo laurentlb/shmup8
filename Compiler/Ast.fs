@@ -17,5 +17,4 @@ type Stmt =
     | If of Expr * Stmt
     | IfElse of Expr * Stmt * Stmt
     | While of Expr * Stmt
-    //| If of Expr * Stmt list * Stmt list option
-    //| While of Expr * Stmt list
+    | InlineDecl of Ident * Expr

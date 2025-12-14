@@ -1,47 +1,51 @@
-left = 37;
-up = 38;
-right = 39;
-down = 40;
-space = 32;
+// Definitions
+inline left = 37;
+inline up = 38;
+inline right = 39;
+inline down = 40;
+inline space = 32;
 
-dt = state[0];
-state[8] += dt; // time
-time = state[8];
+inline dt = state[0]; // filled by the engine
+inline time = state[8];
 
-state[1] += (get_key(right) - get_key(left))*dt*0.8;
-state[2] += (get_key(up) - get_key(down))*dt*0.8;
+inline playerX = state[1];
+inline playerY = state[2];
+inline score = state[5];
+inline lives = state[6];
 
-state[1] = clamp(state[1], -1, 1);
-state[2] = clamp(state[2], -0.5, 0.5);
+time += dt;
 
-// 4: animation after losing life
+playerX += (get_key(right) - get_key(left))*dt*0.8;
+playerY += (get_key(up) - get_key(down))*dt*0.8;
+
+playerX = clamp(playerX, -1, 1);
+playerY = clamp(playerY, -0.5, 0.5);
+
+// Animation after losing life
 state[4] = clamp(state[4] - dt, 0., 1.);
-// 5: score
-// 6: number of lives
 
-enemyDataSize = 4;
+inline enemyDataSize = 4;
 
 // spawning
 if ((time >= 0) * (time < 0.5)) { // reset
     enemies[0] = 0;
-    state[1] = 0;
-    state[2] = -0.3;
-    state[3] = 0;
-    state[5] = 0; // score
-    state[6] = 0;
+    playerX = 0;
+    playerY = -0.3;
+    score = 0;
+    lives = 0;
     coolDown = 0;
     level = 0;
 } else if (time < 1) {
-    enemies[0] = 3; // nb enemies
-    state[6] = 3; // lives
+    lives = 3;
 
+    // init enemies data
     for (i = 0; i < 20; i += 1) {
         enemies[i*enemyDataSize + 1] = 0; // kind
         enemies[i*enemyDataSize + 2] = i; // seed
         enemies[i*enemyDataSize + 3] = 0;
         enemies[i*enemyDataSize + 4] = 10;
     }
-    // set kinds
+    // set enemy kinds
     index = 3*enemyDataSize + 1;
     enemies[index] = 1;
     index += enemyDataSize;
@@ -54,20 +58,13 @@ if ((time >= 0) * (time < 0.5)) { // reset
     enemies[index] = 3;
 }
 
-// Add enemies over time.
+// Add enemies over time
 t = time;
 enemies[0] = 2;
 while (t > 0) {
     t -= 7;
     enemies[0] += 1;
 }
-
-
-// Enemy:
-//  - kind (+1)
-//  - seed (+2)
-//  - px (+3)
-//  - py (+4)
 
 // Enemy movement
 for (i = 0; i < enemies[0]; i += 1) {
@@ -78,25 +75,27 @@ for (i = 0; i < enemies[0]; i += 1) {
         ty = i * 0.1 + sin(time + 1.5) * 0.5 - 0.1;
     }
     if (kind == 1) {
-        tx = state[1];
-        ty = state[2];
+        tx = playerX;
+        ty = playerY;
         mixer = 0;
     }
     if (kind == 2) {
         tx = sin(time);
-        ty = state[2];
+        ty = playerY;
         mixer = 0;
     }
     if (kind == 3) {
-        tx = state[1];
+        tx = playerX;
         ty = sin(time);
         mixer = 0;
     }
 
+    // Two interpolation modes
     if (mixer == 1) {
         enemies[i*enemyDataSize + 3] += clamp(tx - enemies[i*enemyDataSize + 3], -0.01, 0.01); // px
         enemies[i*enemyDataSize + 4] += clamp(ty - enemies[i*enemyDataSize + 4], -0.01, 0.01); // px
     } else {
+        // non-linear speed, slowing down when reaching target
         enemies[i*enemyDataSize + 3] = mix(enemies[i*enemyDataSize + 3], tx, 0.04); // px
         enemies[i*enemyDataSize + 4] = mix(enemies[i*enemyDataSize + 4], ty, 0.04); // py
     }
@@ -104,13 +103,13 @@ for (i = 0; i < enemies[0]; i += 1) {
 
 // collision with enemies
 for (j = 0; j < enemies[0]; j += 1) {
-    dx = enemies[j*enemyDataSize + 3] - state[1];
-    dy = enemies[j*enemyDataSize + 4] - state[2];
+    dx = enemies[j*enemyDataSize + 3] - playerX;
+    dy = enemies[j*enemyDataSize + 4] - playerY;
     if (dx * dx + dy * dy < 0.07 * 0.07) {
         enemies[j*enemyDataSize + 3] = sin(j);
         enemies[j*enemyDataSize + 4] = 10; // move out of screen
         state[4] = 1.;
-        state[6] -= 1; // lose life
+        lives -= 1;
     }
 }
 
@@ -125,7 +124,7 @@ for (i = missiles[0] - 1; i >= 0; i -= 1) {
         dist2 = dx * dx + dy * dy;
         if (dist2 < 0.05 * 0.05) {
             enemies[j*enemyDataSize + 4] = -10; // move out of screen
-            state[5] += 1; // score++
+            score += 1;
 
             nbexplo = explosions[0];
             explosions[nbexplo*3 + 1] = missiles[i*2 + 1];
@@ -157,19 +156,17 @@ for (i = explosions[0] - 1; i >= 0; i -= 1) {
 }
 
 
-
 if (get_key(space)) {
     if (time - coolDown > 0.15) {
 		coolDown = time;
         // Fire, create missile
-		missiles[missiles[0]*2 + 1] = state[1];
-		missiles[missiles[0]*2 + 2] = state[2];
-		missiles[0] += 1; // count
+		missiles[missiles[0]*2 + 1] = playerX;
+		missiles[missiles[0]*2 + 2] = playerY;
+		missiles[0] += 1; // number of missiles
 	}
 }
 
 // death
-if (state[8] > 2) {
-    if (state[6] <= 0) {
-    state[8] = -2.0;
-}}
+if ((time > 2) * (lives <= 0)) {
+    time = -2.0;
+}

@@ -86,6 +86,11 @@ let multEqualStatement =
 let sstatement =
     choice [attempt plusEqualStatement; attempt minusEqualStatement; attempt multEqualStatement; attempt assignmentStatement; simpleStatement]
 
+let inlineDecl =
+    let lvalue = keyword "inline" >>. ident
+    let value = ch '=' >>. expr
+    pipe2 lvalue value (fun lvalue value -> Ast.InlineDecl(lvalue, value))
+
 let ifStatement =
     pipe3 (keyword "if" >>. parenExp) statement (opt (keyword "else" >>. statement))
         (fun cond stmt1 elseOpt ->
@@ -108,7 +113,7 @@ let forLoop =
 let blockStatement =
     between (ch '{') (ch '}') (many statement) |>> Ast.Block
 
-stmtRef.Value <- choice [blockStatement; ifStatement; whileLoop; forLoop; sstatement .>> ch ';'] <?> "statement"
+stmtRef.Value <- choice [blockStatement; ifStatement; whileLoop; forLoop; inlineDecl; sstatement .>> ch ';'] <?> "statement"
 
 do
     let mutable precCounter = 20 // we have at most 20 different precedence levels

@@ -4,6 +4,7 @@ open System.Collections.Generic
 
 // dictionary to hold variable names to their id
 let varDict = Dictionary<string, byte>()
+let inlineDecls = Dictionary<string, Ast.Expr>()
 
 type StmtOpcode =
     | PRINT = 0x0uy
@@ -104,6 +105,8 @@ let rec compile_expr (bytes: ResizeArray<byte>) = function
         compile_expr bytes (Ast.Binop("<", y, x))
     | Ast.Binop(">=", x, y) ->
         compile_expr bytes (Ast.Binop("<=", y, x))
+    | Ast.Var ident when inlineDecls.ContainsKey(ident.Name) ->
+        compile_expr bytes inlineDecls.[ident.Name]
     | Ast.Var ident ->
         bytes.Add(byte ExpOpcode.VAR)
         bytes.Add(0x00uy)
@@ -137,6 +140,8 @@ let rec compile_stmt (bytes: ResizeArray<byte>) = function
         bytes.Add(byte StmtOpcode.PRINT)
         compile_expr bytes arg
         printfn "Compiling Print function call"
+    | Ast.Assign (Ast.Var ident, expr) when inlineDecls.ContainsKey(ident.Name) ->
+        compile_stmt bytes (Ast.Assign (inlineDecls.[ident.Name], expr))
     | Ast.Assign (Ast.Var ident, expr) ->
         bytes.Add(byte StmtOpcode.ASSIGN)
         bytes.Add(0x00uy)
@@ -184,4 +189,6 @@ let rec compile_stmt (bytes: ResizeArray<byte>) = function
         bytes.AddRange(b)
         patchAfterLoopAddr bytes.Count
         printfn "Compiling While statement"
+    | Ast.InlineDecl (ident, expr) ->
+        inlineDecls.Add(ident.Name, expr)
     | x -> failwithf "Statement type not implemented yet - %A" x

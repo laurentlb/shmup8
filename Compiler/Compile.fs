@@ -58,6 +58,12 @@ let placeholderLabel (bytes: ResizeArray<byte>) =
         for i in 0 .. 3 do
             bytes.[addr + i] <- b.[i]
 
+let arrayId = function
+    | "state" -> 0x01uy
+    | "missiles" -> 0x02uy
+    | "enemies" -> 0x03uy
+    | "explosions" -> 0x04uy
+    | name -> failwithf "Unknown subscript namespace: %s" name
 
 let rec compile_expr (bytes: ResizeArray<byte>) = function
     | Ast.Number n ->
@@ -106,13 +112,7 @@ let rec compile_expr (bytes: ResizeArray<byte>) = function
         printfn "Compiling Var: %s with id %d" ident.Name varId
     | Ast.Subscript (ident, index) ->
         bytes.Add(byte ExpOpcode.VAR)
-        let array =
-            match ident.Name with
-            | "state" -> 0x01uy
-            | "missiles" -> 0x02uy
-            | "enemies" -> 0x03uy
-            | _ -> failwithf "Unknown subscript namespace: %s" ident.Name
-        bytes.Add(array)
+        bytes.Add(arrayId ident.Name)
         compile_expr bytes index
         printfn "Compiling Subscript of variable: %s[%A]" ident.Name index
     | Ast.FunCall (name, args) when functions.ContainsKey(name) ->
@@ -146,13 +146,7 @@ let rec compile_stmt (bytes: ResizeArray<byte>) = function
         printfn "Compiling Assign statement to variable: %s with id %d" ident.Name varId
     | Ast.Assign (Ast.Subscript (ident, index), expr) ->
         bytes.Add(byte StmtOpcode.ASSIGN)
-        let array =
-            match ident.Name with
-            | "state" -> 0x01uy
-            | "missiles" -> 0x02uy
-            | "enemies" -> 0x03uy
-            | _ -> failwithf "Unknown subscript namespace: %s" ident.Name
-        bytes.Add(array)
+        bytes.Add(arrayId ident.Name)
         compile_expr bytes index
         compile_expr bytes expr
         printfn "Compiling Assign statement to variable: %s[%A]" ident.Name expr

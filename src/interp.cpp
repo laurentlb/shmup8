@@ -30,7 +30,7 @@ enum exp_code {
 	BYTE_CONST = 0x0C,
 };
 
-float variables[4][256];
+float variables[5][256];
 
 //#define LOG(fmt, ...) fprintf(stdout, fmt, __VA_ARGS__)
 #define LOG(fmt, ...) void(0)

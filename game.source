@@ -4,7 +4,9 @@ right = 39;
 down = 40;
 space = 32;
 
-time = state[0];
+dt = state[0];
+state[8] += dt; // time
+time = state[8];
 
 state[1] += (get_key(right) - get_key(left))*0.01;
 state[2] += (get_key(up) - get_key(down))*0.01;
@@ -13,33 +15,32 @@ state[1] = clamp(state[1], -1, 1);
 state[2] = clamp(state[2], -0.5, 0.5);
 
 // 4: animation after losing life
-state[4] = clamp(state[4] - 0.03, 0., 1.);
+state[4] = clamp(state[4] - dt, 0., 1.);
 // 5: score
 // 6: number of lives
 
 enemyDataSize = 4;
 
 // spawning
-if (time < 1) {
+if ((time >= 0) * (time < 0.5)) { // reset
+    enemies[0] = 0;
+    state[1] = 0;
+    state[2] = -0.3;
+    state[3] = 0;
+    state[5] = 0; // score
+    state[6] = 3;
+} else if (time < 1) {
     enemies[0] = 4; // nb enemies
     state[6] = 3;
-    state[7] = 0;
-}
 
-//state[6] = 3;
-// state[7] = 0;
-
-if ((enemies[0] == 0) * (state[7] == 0)) {
-    enemies[0] = 5; // nb enemies
     for (i = 0; i < enemies[0]; i += 1) {
         enemies[i*enemyDataSize + 1] = 0; // kind
         enemies[i*enemyDataSize + 2] = i; // seed
+        enemies[i*enemyDataSize + 3] = 0;
+        enemies[i*enemyDataSize + 4] = 10;
     }
-    state[6] = 3;
-}
 
-// 7: restart game animation
-state[7] = clamp(state[7] - 0.02, 0., 1.);
+}
 
 // Enemy:
 //  - kind (+1)
@@ -87,9 +88,8 @@ for (j = 0; j < enemies[0]; j += 1) {
 }
 
 // Move missiles
-dt = 0.01; // TODO
 for (i = missiles[0] - 1; i >= 0; i -= 1) {
-    missiles[i*2 + 2] += 2 * dt;
+    missiles[i*2 + 2] += 1 * dt;
 
     // collisions with enemies
     for (j = 0; j < enemies[0]; j += 1) {
@@ -98,19 +98,38 @@ for (i = missiles[0] - 1; i >= 0; i -= 1) {
         dist2 = dx * dx + dy * dy;
         if (dist2 < 0.05 * 0.05) {
             enemies[j*enemyDataSize + 4] = 10; // move out of screen
-            missiles[i*2 + 2] = 10; // move out of screen
             state[5] += 1; // score++
+
+            nbexplo = explosions[0];
+            explosions[nbexplo*3 + 1] = missiles[i*2 + 1];
+            explosions[nbexplo*3 + 2] = missiles[i*2 + 2];
+            explosions[nbexplo*3 + 3] = 1;
+            explosions[0] += 1;
+
+            missiles[i*2 + 2] = 10; // move out of screen
         }
     }
 
     // remove missiles outside the screen
-    if (missiles[i*2 + 2] > 0.8) {
+    if (missiles[i*2 + 2] > 0.5) {
         // O(1) removal: swap element with the last one in the array
         missiles[i*2 + 1] = missiles[(missiles[0] - 1)*2 + 1];
         missiles[i*2 + 2] = missiles[(missiles[0] - 1)*2 + 2];
         missiles[0] -= 1;
     }
 }
+
+// update explosions
+for (i = explosions[0] - 1; i >= 0; i -= 1) {
+    explosions[i*3 + 3] -= dt;
+    if (explosions[i*3 + 3] <= 0) {
+        explosions[i*3 + 1] = explosions[(explosions[0] - 1)*2 + 1];
+        explosions[i*3 + 2] = explosions[(explosions[0] - 1)*2 + 2];
+        explosions[0] -= 1;
+    }
+}
+
+
 
 coolDown = state[3];
 if (get_key(space)) {
@@ -123,9 +142,14 @@ if (get_key(space)) {
 	}
 }
 
-if (state[6] <= 0) {
-    state[7] = 1;
-    state[6] = 3;
-    state[5] = 0;
-    missiles[0] = 0;
-}
+// death
+if (state[8] > 2) {
+    if (state[6] <= 0) {
+    state[8] = -2.0;
+    // state[6] = 3;
+    //missiles[0] = 0;
+}}
+
+// time
+// -2 ; 0 : affichage du score
+// 0 - 3 : compte à rebours

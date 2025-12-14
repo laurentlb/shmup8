@@ -30,11 +30,11 @@ if ((time >= 0) * (time < 0.5)) { // reset
     state[5] = 0; // score
     state[6] = 3;
 } else if (time < 1) {
-    enemies[0] = 4; // nb enemies
+    enemies[0] = 5; // nb enemies
     state[6] = 3;
 
     for (i = 0; i < enemies[0]; i += 1) {
-        enemies[i*enemyDataSize + 1] = 0; // kind
+        enemies[i*enemyDataSize + 1] = i <= 1; // kind
         enemies[i*enemyDataSize + 2] = i; // seed
         enemies[i*enemyDataSize + 3] = 0;
         enemies[i*enemyDataSize + 4] = 10;
@@ -47,11 +47,6 @@ if ((time >= 0) * (time < 0.5)) { // reset
 //  - seed (+2)
 //  - px (+3)
 //  - py (+4)
-
-enemies[0*enemyDataSize + 1] = 0;
-enemies[1*enemyDataSize + 1] = 0;
-enemies[2*enemyDataSize + 1] = 1;
-enemies[3*enemyDataSize + 1] = 1;
 
 // Enemy movement
 for (i = 0; i < enemies[0]; i += 1) {

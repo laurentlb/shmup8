@@ -217,11 +217,10 @@ void main()
     int n = int(enemies[0]);
     for (int i = 0; i < n; i++) {
         vec2 pos2 = vec2(enemies[4*i+3], enemies[4*i+4]);
-        float kind = enemies[4*i+1];
         float mask;
-        if (kind < 0.5) { // triangle
+        if (enemies[4*i+1] < 0.5) { // square
             mask = boxDist(rot(-TIME*4.)*(uv - pos2), vec2(0.03));
-        } else { // square
+        } else { // triangle
             mask = triangleDist(rot(TIME*4.+float(i))*(uv - pos2)) - 0.02;
         }
         mask = smoothstep(0.0, 0.01, mask);

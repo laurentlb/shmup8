@@ -30,9 +30,10 @@ if (time < 1) {
 // state[7] = 0;
 
 if ((enemies[0] == 0) * (state[7] == 0)) {
+    enemies[0] = 5; // nb enemies
     for (i = 0; i < enemies[0]; i += 1) {
-        enemies[1 + i * enemyDataSize + 0] = 1; // kind
-        enemies[1 + i * enemyDataSize + 1] = i; // seed
+        enemies[i*enemyDataSize + 1] = 0; // kind
+        enemies[i*enemyDataSize + 2] = i; // seed
     }
     state[6] = 3;
 }
@@ -40,22 +41,46 @@ if ((enemies[0] == 0) * (state[7] == 0)) {
 // 7: restart game animation
 state[7] = clamp(state[7] - 0.02, 0., 1.);
 
+// Enemy:
+//  - kind (+1)
+//  - seed (+2)
+//  - px (+3)
+//  - py (+4)
+
+enemies[0*enemyDataSize + 1] = 0;
+enemies[1*enemyDataSize + 1] = 0;
+enemies[2*enemyDataSize + 1] = 1;
+enemies[3*enemyDataSize + 1] = 1;
+
 // Enemy movement
 for (i = 0; i < enemies[0]; i += 1) {
-    enemies[1 + i * enemyDataSize + 2] = sin(time + i) * 0.8; // px
-    target = i * 0.1 + sin(time + 1.5) * 0.5 - 0.1;
-    enemies[1 + i * enemyDataSize + 3] = mix(enemies[1 + i * enemyDataSize + 3], target, 0.02); // py
+    kind = enemies[i*enemyDataSize + 1];
+    mixer = 0;
+    if (kind == 0) {
+        tx = sin(time + i) * 0.8; // px
+        ty = i * 0.1 + sin(time + 1.5) * 0.5 - 0.1;
+    } else {// if (kind == 1) {
+        tx = state[1];
+        ty = state[2];
+        mixer = 0;
+    }
+
+    if (mixer == 1) {
+        enemies[i*enemyDataSize + 3] += clamp(tx - enemies[i*enemyDataSize + 3], -0.01, 0.01); // px
+        enemies[i*enemyDataSize + 4] += clamp(ty - enemies[i*enemyDataSize + 4], -0.01, 0.01); // px
+    } else {
+        enemies[i*enemyDataSize + 3] = mix(enemies[i*enemyDataSize + 3], tx, 0.04); // px
+        enemies[i*enemyDataSize + 4] = mix(enemies[i*enemyDataSize + 4], ty, 0.04); // py
+    }
 }
 
 // collision with enemies
 for (j = 0; j < enemies[0]; j += 1) {
-    ex = enemies[1 + j * enemyDataSize + 2];
-    ey = enemies[1 + j * enemyDataSize + 3];
-    dx = ex - state[1];
-    dy = ey - state[2];
-    dist2 = dx * dx + dy * dy;
-    if (dist2 < 0.07 * 0.07) {
-        enemies[1 + j * enemyDataSize + 3] = 10; // move out of screen
+    dx = enemies[j*enemyDataSize + 3] - state[1];
+    dy = enemies[j*enemyDataSize + 4] - state[2];
+    if (dx * dx + dy * dy < 0.07 * 0.07) {
+        enemies[j*enemyDataSize + 3] = sin(j);
+        enemies[j*enemyDataSize + 4] = 10; // move out of screen
         state[4] = 1.;
         state[6] -= 1; // lose life
     }
@@ -64,29 +89,25 @@ for (j = 0; j < enemies[0]; j += 1) {
 // Move missiles
 dt = 0.01; // TODO
 for (i = missiles[0] - 1; i >= 0; i -= 1) {
-    missiles[1 + i*2 + 1] += 2 * dt;
+    missiles[i*2 + 2] += 2 * dt;
 
-    mx = missiles[1 + i * 2 + 0];
-    my = missiles[1 + i * 2 + 1];
     // collisions with enemies
     for (j = 0; j < enemies[0]; j += 1) {
-        ex = enemies[1 + j * enemyDataSize + 2];
-        ey = enemies[1 + j * enemyDataSize + 3];
-        dx = ex - mx;
-        dy = ey - my;
+        dx = enemies[j*enemyDataSize + 3] - missiles[i*2 + 1];
+        dy = enemies[j*enemyDataSize + 4] - missiles[i*2 + 2];
         dist2 = dx * dx + dy * dy;
         if (dist2 < 0.05 * 0.05) {
-            enemies[1 + j * enemyDataSize + 3] = 10; // move out of screen
-            missiles[1 + i * 2 + 1] = 10; // move out of screen
-            state[5] += 1;
+            enemies[j*enemyDataSize + 4] = 10; // move out of screen
+            missiles[i*2 + 2] = 10; // move out of screen
+            state[5] += 1; // score++
         }
     }
 
     // remove missiles outside the screen
-    if (missiles[1 + i*2 + 1] > 0.8) {
+    if (missiles[i*2 + 2] > 0.8) {
         // O(1) removal: swap element with the last one in the array
-        missiles[1 + i*2] = missiles[1 + (missiles[0] - 1) * 2];
-        missiles[1 + i*2 + 1] = missiles[1 + (missiles[0] - 1) * 2 + 1];
+        missiles[i*2 + 1] = missiles[(missiles[0] - 1)*2 + 1];
+        missiles[i*2 + 2] = missiles[(missiles[0] - 1)*2 + 2];
         missiles[0] -= 1;
     }
 }
@@ -95,8 +116,9 @@ coolDown = state[3];
 if (get_key(space)) {
     if (time - coolDown > 0.15) {
 		state[3] = time; // coolDown
-		missiles[1 + missiles[0] * 2] = state[1];
-		missiles[1 + missiles[0] * 2 + 1] = state[2];
+        // Fire, create missile
+		missiles[missiles[0]*2 + 1] = state[1];
+		missiles[missiles[0]*2 + 2] = state[2];
 		missiles[0] += 1; // count
 	}
 }

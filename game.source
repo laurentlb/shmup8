@@ -8,8 +8,8 @@ dt = state[0];
 state[8] += dt; // time
 time = state[8];
 
-state[1] += (get_key(right) - get_key(left))*0.01;
-state[2] += (get_key(up) - get_key(down))*0.01;
+state[1] += (get_key(right) - get_key(left))*dt*0.8;
+state[2] += (get_key(up) - get_key(down))*dt*0.8;
 
 state[1] = clamp(state[1], -1, 1);
 state[2] = clamp(state[2], -0.5, 0.5);
@@ -28,19 +28,40 @@ if ((time >= 0) * (time < 0.5)) { // reset
     state[2] = -0.3;
     state[3] = 0;
     state[5] = 0; // score
-    state[6] = 3;
+    state[6] = 0;
+    coolDown = 0;
+    level = 0;
 } else if (time < 1) {
-    enemies[0] = 5; // nb enemies
-    state[6] = 3;
+    enemies[0] = 3; // nb enemies
+    state[6] = 3; // lives
 
-    for (i = 0; i < enemies[0]; i += 1) {
-        enemies[i*enemyDataSize + 1] = i <= 1; // kind
+    for (i = 0; i < 20; i += 1) {
+        enemies[i*enemyDataSize + 1] = 0; // kind
         enemies[i*enemyDataSize + 2] = i; // seed
         enemies[i*enemyDataSize + 3] = 0;
         enemies[i*enemyDataSize + 4] = 10;
     }
+    // set kinds
+    index = 3*enemyDataSize + 1;
+    enemies[index] = 1;
+    index += enemyDataSize;
+    enemies[index] = 1;
 
+    index += enemyDataSize;
+    enemies[index] = 2;
+
+    index += enemyDataSize;
+    enemies[index] = 3;
 }
+
+// Add enemies over time.
+t = time;
+enemies[0] = 2;
+while (t > 0) {
+    t -= 7;
+    enemies[0] += 1;
+}
+
 
 // Enemy:
 //  - kind (+1)
@@ -55,9 +76,20 @@ for (i = 0; i < enemies[0]; i += 1) {
     if (kind == 0) {
         tx = sin(time + i) * 0.8; // px
         ty = i * 0.1 + sin(time + 1.5) * 0.5 - 0.1;
-    } else {// if (kind == 1) {
+    }
+    if (kind == 1) {
         tx = state[1];
         ty = state[2];
+        mixer = 0;
+    }
+    if (kind == 2) {
+        tx = sin(time);
+        ty = state[2];
+        mixer = 0;
+    }
+    if (kind == 3) {
+        tx = state[1];
+        ty = sin(time);
         mixer = 0;
     }
 
@@ -92,7 +124,7 @@ for (i = missiles[0] - 1; i >= 0; i -= 1) {
         dy = enemies[j*enemyDataSize + 4] - missiles[i*2 + 2];
         dist2 = dx * dx + dy * dy;
         if (dist2 < 0.05 * 0.05) {
-            enemies[j*enemyDataSize + 4] = 10; // move out of screen
+            enemies[j*enemyDataSize + 4] = -10; // move out of screen
             state[5] += 1; // score++
 
             nbexplo = explosions[0];
@@ -126,10 +158,9 @@ for (i = explosions[0] - 1; i >= 0; i -= 1) {
 
 
 
-coolDown = state[3];
 if (get_key(space)) {
     if (time - coolDown > 0.15) {
-		state[3] = time; // coolDown
+		coolDown = time;
         // Fire, create missile
 		missiles[missiles[0]*2 + 1] = state[1];
 		missiles[missiles[0]*2 + 2] = state[2];
@@ -141,10 +172,4 @@ if (get_key(space)) {
 if (state[8] > 2) {
     if (state[6] <= 0) {
     state[8] = -2.0;
-    // state[6] = 3;
-    //missiles[0] = 0;
 }}
-
-// time
-// -2 ; 0 : affichage du score
-// 0 - 3 : compte à rebours

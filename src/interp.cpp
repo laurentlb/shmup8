@@ -184,7 +184,7 @@ void exec_private(byte* tree, int size) {
 
 #ifndef EDITOR_CONTROLS
 
-#include "bytecode.h"
+#include "bytecode.cpp"
 
 void exec() {
 	exec_private(game_bytes, sizeof(game_bytes));

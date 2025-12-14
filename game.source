@@ -12,16 +12,33 @@ state[2] += (get_key(up) - get_key(down))*0.01;
 state[1] = clamp(state[1], -1, 1);
 state[2] = clamp(state[2], -0.5, 0.5);
 
+// 4: animation after losing life
+state[4] = clamp(state[4] - 0.03, 0., 1.);
+// 5: score
+// 6: number of lives
+
 enemyDataSize = 4;
 
 // spawning
 if (time < 1) {
     enemies[0] = 4; // nb enemies
+    state[6] = 3;
+    state[7] = 0;
+}
+
+//state[6] = 3;
+// state[7] = 0;
+
+if ((enemies[0] == 0) * (state[7] == 0)) {
     for (i = 0; i < enemies[0]; i += 1) {
         enemies[1 + i * enemyDataSize + 0] = 1; // kind
         enemies[1 + i * enemyDataSize + 1] = i; // seed
     }
+    state[6] = 3;
 }
+
+// 7: restart game animation
+state[7] = clamp(state[7] - 0.02, 0., 1.);
 
 // Enemy movement
 for (i = 0; i < enemies[0]; i += 1) {
@@ -30,25 +47,38 @@ for (i = 0; i < enemies[0]; i += 1) {
     enemies[1 + i * enemyDataSize + 3] = mix(enemies[1 + i * enemyDataSize + 3], target, 0.02); // py
 }
 
+// collision with enemies
+for (j = 0; j < enemies[0]; j += 1) {
+    ex = enemies[1 + j * enemyDataSize + 2];
+    ey = enemies[1 + j * enemyDataSize + 3];
+    dx = ex - state[1];
+    dy = ey - state[2];
+    dist2 = dx * dx + dy * dy;
+    if (dist2 < 0.07 * 0.07) {
+        enemies[1 + j * enemyDataSize + 3] = 10; // move out of screen
+        state[4] = 1.;
+        state[6] -= 1; // lose life
+    }
+}
+
 // Move missiles
 dt = 0.01; // TODO
 for (i = missiles[0] - 1; i >= 0; i -= 1) {
     missiles[1 + i*2 + 1] += 2 * dt;
 
+    mx = missiles[1 + i * 2 + 0];
+    my = missiles[1 + i * 2 + 1];
     // collisions with enemies
-	j = 0;
     for (j = 0; j < enemies[0]; j += 1) {
         ex = enemies[1 + j * enemyDataSize + 2];
         ey = enemies[1 + j * enemyDataSize + 3];
-        mx = missiles[1 + i * 2 + 0];
-        my = missiles[1 + i * 2 + 1];
         dx = ex - mx;
         dy = ey - my;
         dist2 = dx * dx + dy * dy;
-        boundingRadius = 0.05;
-        if (dist2 < boundingRadius * boundingRadius) {
+        if (dist2 < 0.05 * 0.05) {
             enemies[1 + j * enemyDataSize + 3] = 10; // move out of screen
             missiles[1 + i * 2 + 1] = 10; // move out of screen
+            state[5] += 1;
         }
     }
 
@@ -69,4 +99,11 @@ if (get_key(space)) {
 		missiles[1 + missiles[0] * 2 + 1] = state[2];
 		missiles[0] += 1; // count
 	}
+}
+
+if (state[6] <= 0) {
+    state[7] = 1;
+    state[6] = 3;
+    state[5] = 0;
+    missiles[0] = 0;
 }

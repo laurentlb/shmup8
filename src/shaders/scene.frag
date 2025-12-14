@@ -217,11 +217,16 @@ void main()
     int n = int(enemies[0]);
     for (int i = 0; i < n; i++) {
         vec2 pos2 = vec2(enemies[4*i+3], enemies[4*i+4]);
+        vec2 uvrot = rot(-TIME*4.)*(uv - pos2);
+        float kind = enemies[4*i+1];
         float mask;
-        if (enemies[4*i+1] < 0.5) { // square
-            mask = boxDist(rot(-TIME*4.)*(uv - pos2), vec2(0.03));
-        } else { // triangle
+        if (kind < 0.5) { // square
+            mask = boxDist(uvrot, vec2(0.03));
+        } else if (kind < 1.5) { // triangle
             mask = triangleDist(rot(TIME*4.+float(i))*(uv - pos2)) - 0.02;
+        } else {
+            mask = length(uvrot) - 0.03; // boxDist(uvrot, vec2(0.03));
+            mask = max(-mask, triangleDist(rot(TIME*4.+float(i))*(uv - pos2)) - 0.03);
         }
         mask = smoothstep(0.0, 0.01, mask);
         fragColor.rgb = mix(fragColor.rgb, vec3(0,1,0), 1.0 - mask);

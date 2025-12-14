@@ -29,11 +29,10 @@ inline enemyDataSize = 4;
 // spawning
 if ((time >= 0) * (time < 0.5)) { // reset
     enemies[0] = 0;
-    playerX = 0;
-    playerY = -0.3;
+    playerX = mix(playerX, 0, 0.2);
+    playerY = mix(playerY, -0.3, 0.2);
     score = 0;
     lives = 0;
-    coolDown = 0;
     level = 0;
 } else if (time < 1) {
     lives = 3;
@@ -169,4 +168,5 @@ if (get_key(space)) {
 // death
 if ((time > 2) * (lives <= 0)) {
     time = -2.0;
+    coolDown = time;
 }

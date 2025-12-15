@@ -155,16 +155,13 @@ vec3 background(vec2 uv) {
     }
 
     vec2 p = uv*5.;
-    vec2 b;
     float cloud1 = fbm(uv*5. + vec2(0., TIME*1.));
     vec3 c1 = cloud1 * palette(0.5);
     c1 = pow(c1, vec3(1. + state[0]*0.5));
     float cloud2 = fbm(uv*2. + vec2(10));
-    vec3 stars = vec3(0.1,0.1,0) * smoothstep(0.8, 0.98, fbm(uv*50. + vec2(0, TIME))); // smoothstep(0.5, 1.0, pow(cloud2, 2.));
+    vec3 stars = vec3(0.1,0.1,0) * smoothstep(0.8, 0.98, fbm(uv*50. + vec2(0, TIME)));
     vec3 c2 = cloud2 * palette(0.0);
-    vec3 cloudCol = mix(c1, c2, 0.5) + 0.2*starColor;// * vec3(1.0, 1.0, 0.8);
-    // return stars;
-    // return starColor;
+    vec3 cloudCol = mix(c1, c2, 0.5) + 0.2*starColor;
     return cloudCol;
 }
 
@@ -210,7 +207,9 @@ void main()
     {
         float size = 0.05 + smoothstep(0., 1., state[4]) * 0.1;
         float mask = smoothstep(size, size + 0.01, length(uv - pos));
-        fragColor.rgb = vec3(mix(fragColor.rgb, vec3(0.8)-state[4]*vec3(0,1,1), 1.0 - mask));
+        mask *= pow(length(uv - pos), 0.15);
+        // fragColor.rgb = vec3(mix(fragColor.rgb, vec3(0.8)-state[4]*vec3(0,1,1), 1.0 - mask));
+        fragColor.rgb = vec3(mix(fragColor.rgb, vec3(1)-state[4]*vec3(0,1,1), 1.0 - pow(mask, 0.5)));
    }
 
 
@@ -229,7 +228,7 @@ void main()
             mask = max(-mask, triangleDist(rot(TIME*4.+float(i))*(uv - pos2)) - 0.03);
         }
         mask = smoothstep(0.0, 0.01, mask);
-        fragColor.rgb = mix(fragColor.rgb, vec3(0,1,0), 1.0 - mask);
+        fragColor.rgb = mix(fragColor.rgb, vec3(sin(kind), 1, 0.2), 1.0 - mask);
     }
 
     int nMis = int(missiles[0]);
@@ -244,20 +243,11 @@ void main()
     texCoord += (vec2(hash21(uv+vec2(1)), hash21(uv+vec2(2))) * 2. - 1.)*0.005;
     fragColor.rgb = mix(fragColor.rgb, texture(tex, texCoord).rgb, coef);
 
-    // 0 -> normal
-    // 0.5 -> black
-    // 1 -> normal
-    // fragColor.rgb *= smoothstep(0., 0.5, TIME);
-    // fragColor.rgb *= mix(fragColor.rgb, vec3(0), smoothstep(-2, -1, time)*smoothstep(0., -1., time));
-//    fragColor.rgb = mix(fragColor.rgb, vec3(0), );
-
+    fragColor.rgb *= mix(1.2, 1., smoothstep(0., 2., TIME));
     if (TIME < 0.) {
-        fragColor.rgb *= 1.2;
         digits7(fragColor, vec4(1.,.0,0,1), uv*5.-vec2(2,0), iResolution, uint(state[5]), 4);
     } else {
         digits7(fragColor, vec4(1.,.0,0,1), uv*20.-vec2(18,8.5), iResolution, uint(state[5]), 4);
         digits7(fragColor, vec4(0,0.5,0,1), uv*20.-vec2(-19,8.5), iResolution, uint(state[6]), 1);
     }
-    // digits7(fragColor, vec4(0,0.5,0,1), uv*21.-vec2(-16,8.5), iResolution, uint(state[8]+30), 4);
-
 }

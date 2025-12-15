@@ -88,7 +88,7 @@ let sstatement =
 
 let inlineDecl =
     let lvalue = keyword "inline" >>. ident
-    let value = ch '=' >>. expr
+    let value = ch '=' >>. expr .>> ch ';'
     pipe2 lvalue value (fun lvalue value -> Ast.InlineDecl(lvalue, value))
 
 let ifStatement =

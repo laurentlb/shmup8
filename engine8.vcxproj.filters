@@ -75,13 +75,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\shaders\fxaa.frag">
-      <Filter>shaders</Filter>
-    </None>
     <None Include="src\shaders\shaders.inl">
-      <Filter>shaders</Filter>
-    </None>
-    <None Include="src\shaders\common.frag">
       <Filter>shaders</Filter>
     </None>
     <None Include="src\shaders\scene.vert">
@@ -90,40 +84,10 @@
     <None Include="src\shaders\scene.frag">
       <Filter>shaders</Filter>
     </None>
-    <None Include="src\shaders\motoContent.frag">
-      <Filter>shaders</Filter>
-    </None>
-    <None Include="src\shaders\rendering.frag">
-      <Filter>shaders</Filter>
-    </None>
-    <None Include="src\shaders\backgroundContent.frag">
-      <Filter>shaders</Filter>
-    </None>
-    <None Include="src\shaders\postprocess.frag">
-      <Filter>shaders</Filter>
-    </None>
-    <None Include="src\shaders\roadContent.frag">
-      <Filter>shaders</Filter>
-    </None>
-    <None Include="src\shaders\ids.frag">
-      <Filter>shaders</Filter>
-    </None>
     <None Include="src\shaders\shared.h">
       <Filter>shaders</Filter>
     </None>
     <None Include="preprocess_shaders.bat" />
-    <None Include="src\shaders\camera.frag">
-      <Filter>shaders</Filter>
-    </None>
-    <None Include="src\shaders\sheep.frag">
-      <Filter>shaders</Filter>
-    </None>
-    <None Include="src\shaders\rendering2.frag">
-      <Filter>shaders</Filter>
-    </None>
-    <None Include="src\shaders\logo.frag">
-      <Filter>shaders</Filter>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="ext">

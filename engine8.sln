@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.4.33122.133
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "wav_export", "wav_export.vcxproj", "{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Engine8", "engine8.vcxproj", "{59C1D4F3-AE93-4A0A-B4FE-60841CA865E5}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Compiler", "Compiler\Compiler.fsproj", "{979A851F-EC6C-4DDC-BBFA-AAB6EC3831C8}"
@@ -23,26 +21,6 @@ Global
 		Snapshot|Win32 = Snapshot|Win32
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Debug|Any CPU.ActiveCfg = Debug|x64
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Debug|Any CPU.Build.0 = Debug|x64
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Debug|Win32.ActiveCfg = Debug|Win32
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Debug|Win32.Build.0 = Debug|Win32
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Editor|Any CPU.ActiveCfg = Release|x64
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Editor|Any CPU.Build.0 = Release|x64
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Editor|Win32.ActiveCfg = Debug|Win32
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Editor|Win32.Build.0 = Debug|Win32
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Heavy Release|Any CPU.ActiveCfg = Release|x64
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Heavy Release|Any CPU.Build.0 = Release|x64
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Heavy Release|Win32.ActiveCfg = Release|Win32
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Heavy Release|Win32.Build.0 = Release|Win32
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Release|Any CPU.ActiveCfg = Release|x64
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Release|Any CPU.Build.0 = Release|x64
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Release|Win32.ActiveCfg = Release|Win32
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Release|Win32.Build.0 = Release|Win32
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Snapshot|Any CPU.ActiveCfg = Release|x64
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Snapshot|Any CPU.Build.0 = Release|x64
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Snapshot|Win32.ActiveCfg = Debug|Win32
-		{1E7DA663-B56C-4ED4-BD98-2A3C6C09217D}.Snapshot|Win32.Build.0 = Debug|Win32
 		{59C1D4F3-AE93-4A0A-B4FE-60841CA865E5}.Debug|Any CPU.ActiveCfg = Debug|Win32
 		{59C1D4F3-AE93-4A0A-B4FE-60841CA865E5}.Debug|Any CPU.Build.0 = Debug|Win32
 		{59C1D4F3-AE93-4A0A-B4FE-60841CA865E5}.Debug|Win32.ActiveCfg = Debug|Win32

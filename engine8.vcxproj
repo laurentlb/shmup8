@@ -688,22 +688,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="preprocess_shaders.bat" />
-    <None Include="src\shaders\backgroundContent.frag" />
-    <None Include="src\shaders\camera.frag" />
-    <None Include="src\shaders\common.frag" />
-    <None Include="src\shaders\fxaa.frag" />
-    <None Include="src\shaders\ids.frag" />
-    <None Include="src\shaders\logo.frag" />
-    <None Include="src\shaders\rendering2.frag" />
     <None Include="src\shaders\shared.h" />
-    <None Include="src\shaders\motoContent.frag" />
-    <None Include="src\shaders\postprocess.frag" />
-    <None Include="src\shaders\rendering.frag" />
-    <None Include="src\shaders\roadContent.frag" />
     <None Include="src\shaders\scene.frag" />
     <None Include="src\shaders\scene.vert" />
     <None Include="src\shaders\shaders.inl" />
-    <None Include="src\shaders\sheep.frag" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

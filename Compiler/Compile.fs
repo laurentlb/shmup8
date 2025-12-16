@@ -43,13 +43,6 @@ let getVarID (name: string) : byte =
         varDict.Add(name, id)
         id
 
-let newLabel =
-    let counter = ref 0uy
-    fun () ->
-        let lbl = counter.Value
-        counter.Value <- counter.Value + 1uy
-        lbl
-
 // Insert a placeholder for a label address and return a function to backpatch it later
 let placeholderLabel (bytes: ResizeArray<byte>) =
     let addr = bytes.Count
@@ -66,6 +59,15 @@ let arrayId = function
     | "explosions" -> 0x04uy
     | name -> failwithf "Unknown subscript namespace: %s" name
 
+// Make floats smaller
+// https://www.ctrl-alt-test.fr/2018/making-floating-point-numbers-smaller/
+let truncateb (f: float32) (bitsToKeep: int) =
+    let initialIntBits = System.BitConverter.SingleToInt32Bits(f)
+    let bitsToClear = 32 - bitsToKeep
+    let truncationMask = -1 <<< bitsToClear
+    let finalIntBits = initialIntBits &&& truncationMask
+    System.BitConverter.GetBytes(finalIntBits)
+
 let rec compile_expr (bytes: ResizeArray<byte>) = function
     | Ast.Number n ->
         // test if float is actually an integer that fits in a byte
@@ -75,8 +77,8 @@ let rec compile_expr (bytes: ResizeArray<byte>) = function
             bytes.Add(byte intN)
         else
             bytes.Add(byte ExpOpcode.CONSTANT)
-            let b = System.BitConverter.GetBytes(float32 n)
-            bytes.AddRange(b)
+            let bits = truncateb (float32 n) 16
+            bytes.AddRange(bits)
     | Ast.Binop("+", x, y) ->
         bytes.Add(byte ExpOpcode.ADD)
         compile_expr bytes x

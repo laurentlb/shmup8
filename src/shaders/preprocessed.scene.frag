@@ -3,11 +3,9 @@
 layout (location = 0) uniform float state[200];
 layout (location = 200) uniform float missiles[200];
 layout (location = 400) uniform float enemies[200];
+layout (location = 600) uniform float explosions[200];
 layout (location = 1000) uniform sampler2D tex;
 
-
-
-const float INF = 1e6;
 // Include begin: shared.h
 // --------------------------------------------------------------------
 
@@ -24,21 +22,8 @@ const int DEMO_LENGTH_IN_S = (60 + 47);
 
 out vec4 fragColor;
 
-
-const float TIME = state[0];
-
-// Include begin: common.frag
-// --------------------------------------------------------------------
-
-
-
-
-float hash11(float x) { return fract(sin(x) * 43758.5453); }
 float hash21(vec2 xy) { return fract(sin(dot(xy, vec2(12.9898, 78.233))) * 43758.5453); }
 float hash31(vec3 xyz) { return hash21(vec2(hash21(xyz.xy), xyz.z)); }
-vec2 hash22(vec2 xy) { return fract(sin(vec2(dot(xy, vec2(127.1,311.7)), dot(xy, vec2(269.5,183.3)))) * 43758.5453); }
-vec2 hash12(float x) { float h = hash11(x); return vec2(h, hash11(h)); }
-
 
 float noise(vec3 x) {
 
@@ -56,107 +41,7 @@ float noise(vec3 x) {
 }
 
 
-
-
-float smin(float d1, float d2, float k)
-{
-    float h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
-    return mix( d2, d1, h ) - k*h*(1.0-h);
-}
-
-float cappedCone(vec3 p, float h, float r1, float r2)
-{
-  vec2 q = vec2( length(p.xz), p.y );
-  vec2 k1 = vec2(r2,h);
-  vec2 k2 = vec2(r2-r1,2.0*h);
-  vec2 ca = vec2(q.x-min(q.x,(q.y<0.0)?r1:r2), abs(q.y)-h);
-  vec2 cb = q - k1 + k2*clamp( dot(k1-q,k2)/dot(k2,k2), 0.0, 1.0 );
-  float s = (cb.x<0.0 && ca.y<0.0) ? -1.0 : 1.0;
-  return s*sqrt( min(dot(ca,ca),dot(cb,cb)) );
-}
-
-float smax(float a, float b, float k)
-{
-    k *= 1.4;
-    float h = max(k-abs(a-b),0.0);
-    return max(a, b) + h*h*h/(6.0*k*k);
-}
-
-float Box3(vec3 p, vec3 size, float corner)
-{
-   p = abs(p) - size + corner;
-   return length(max(p, 0.)) + min(max(max(p.x, p.y), p.z), 0.) - corner;
-}
-
-float Ellipsoid(in vec3 p, in vec3 r)
-{
-    float k0 = length(p / r);
-    float k1 = length(p / (r*r));
-    return k0 * (k0-1.0) / k1;
-}
-
-float Segment3(vec3 p, vec3 a, vec3 b, out float h)
-{
-	vec3 ap = p - a;
-	vec3 ab = b - a;
-	h = clamp(dot(ap, ab) / dot(ab, ab), 0., 1.);
-	return length(ap - ab * h);
-}
-
-
-float capsule(vec3 p, vec3 a, vec3 b, float r)
-{
-  vec3 pa = p - a, ba = b - a;
-  return length( pa - ba*clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 ) ) - r;
-}
-
-float Capsule(vec3 p, float h, float r)
-{
-    p.y += clamp(-p.y, 0., h);
-    return length(p) - r;
-}
-
-float Torus(vec3 p, vec2 t)
-{
-    return length(vec2(length(p.xz) - t.x,p.y)) - t.y;
-}
-
-mat2 Rotation(float angle)
-{
-    float c = cos(angle);
-    float s = sin(angle);
-    return mat2(c, s, -s, c);
-}
-
-float Triangle(vec3 p, vec2 h, float r)
-{
-  return max(
-        abs(p.z) - h.y,
-        smax(smax(p.x*0.9 + p.y*0.5, -p.x*0.9 + p.y*0.5, r),-p.y,r) - h.x*0.5);
-}
-
-float UnevenCapsule2d( vec2 p, float r1, float r2, float h )
-{
-    p.x = abs(p.x);
-    float b = (r1-r2)/h;
-    float a = sqrt(1.0-b*b);
-    float k = dot(p,vec2(-b,a));
-    if( k < 0.0 ) return length(p) - r1;
-    if( k > a*h ) return length(p-vec2(0.0,h)) - r2;
-    return dot(p, vec2(a,b) ) - r1;
-}
-
-
-
-
-
-
-vec2 MinDist(vec2 d1, vec2 d2)
-{
-    return d1.x < d2.x ? d1 : d2;
-}
-// --------------------------------------------------------------------
-// Include end: common.frag
+const float TIME = state[8];
 
 
 
@@ -197,8 +82,7 @@ float digit7(vec2 q, int n)
 	return d - .05; 
 }
 
-void digits7(inout vec4 o, vec4 c, vec2 q, vec2 R, uint value, int digits)
-{
+void digits7(inout vec4 o, vec4 c, vec2 q, vec2 R, uint value, int digits) {
 	float d = 1e9;
 	for (int i = 0; i < digits; i++) {
 		d = min(d, digit7(q, int(value%10u)));
@@ -210,8 +94,7 @@ void digits7(inout vec4 o, vec4 c, vec2 q, vec2 R, uint value, int digits)
 }
 
 
-vec3 pal(float t, vec3 a, vec3 b, vec3 c, vec3 d)
-{
+vec3 pal(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
     return a + b*cos(6.28318*(c*t+d));
 }
 
@@ -220,29 +103,95 @@ vec3 palette(float t) {
 }
 
 float fbm(vec2 p) {
-    return noise(p.xyx) * 0.5 + 0.5;
+    float value = 0.0;
+    float amplitude = 0.5;
+    for (int i = 0; i < 6; i++) {
+        value += amplitude * (noise(p.xyx) * 0.5 + 0.5);
+        p *= 2.0;
+        amplitude *= 0.5;
+    }
+    return value;
 }
 
-float fbm1d(float v_p)
-{
-      float pvpx = 2.0*v_p;
-      vec2 V1 = vec2(0.5*floor(pvpx      ));
-      vec2 V2 = vec2(0.5*floor(pvpx + 1.0));
-      return mix(hash21(V1),hash21(V2),smoothstep(0.0,1.0,fract(pvpx)));
+vec3 explosion_2d(vec2 uv, float progress, vec3 backgroundcolor, float time) {
+    const float MAX_RADIUS = 0.15;
+    const float NOISE_SCALE = 6.;
+    const float NOISE_AMPLITUDE = 0.1;
+    
+    float d = length(uv);
+    
+    float radius = pow(sin(progress * 3.14159), 0.15) * MAX_RADIUS;
+    
+    float noise_val = noise(vec3(uv * NOISE_SCALE, time * 0.5)); 
+    float distortion_amp = NOISE_AMPLITUDE * (1.0 - progress);
+    float d_distorted = d - noise_val * distortion_amp;
+    float mask_inner = smoothstep(0.0, radius * 0.5, d);
+    float mask_outer = smoothstep(radius, radius - 0.05, d_distorted);
+    float mask_final = mask_inner * mask_outer;
+    
+    float alpha = mask_final * pow(1.0 - progress, 2.0);
+    
+    if (alpha < 0.001) {
+        return backgroundcolor;
+    }
+    
+    float flame_gradient = d / radius;
+    vec3 col_inner = vec3(1.0, 0.9, 0.7);
+    vec3 col_outer = vec3(1.0, 0.3, 0.0);
+    vec3 fire_color = mix(col_inner, col_outer, flame_gradient);
+    fire_color *= (1.0 + progress * 0.5); 
+    
+    return mix(backgroundcolor, fire_color, alpha);
+}
+
+float metaDiamond(vec2 p, vec2 pixel, float r) {
+    vec2 d = abs(p - pixel);
+    return r / (d.x + d.y);
 }
 
 vec3 background(vec2 uv) {
     vec3 col = vec3(0);
-    
-    vec2 p = uv*5.;
-    vec2 b;
-    float cloud1 = fbm(uv*2. + vec2(0., state[0]*1.));
+
+    vec3 starColor = vec3(0.0);
+    vec2 uvstars = uv * 3. + vec2(0, TIME * 0.1);
+    vec2 grid = floor(uvstars);
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            vec2 cell = grid + vec2(x, y);
+            vec2 starPos = cell + vec2(hash21(cell), hash21(cell.yx)) - 0.5;
+            float starSize = hash21(cell * 1.5) * 0.01;
+            starColor += vec3(1.0, 0.95, 0.8) * metaDiamond(uvstars, starPos, starSize);
+        }
+    }
+
+    vec2 p  = uv*5.;
+    float cloud1 = fbm(uv*5. + vec2(0., TIME*1.));
     vec3 c1 = cloud1 * palette(0.5);
     c1 = pow(c1, vec3(1. + state[0]*0.5));
-    float cloud2 = fbm(uv*1.4 + vec2(10));
+    float  cloud2 = fbm(uv*2. + vec2(10));
+    vec3 stars = vec3(0.1,0.1,0) * smoothstep(0.8, 0.98, fbm(uv*50. + vec2(0, TIME)));
     vec3 c2 = cloud2 * palette(0.0);
-    vec3 cloudCol = mix(c1, c2, 0.5);
+    vec3 cloudCol = mix(c1, c2, 0.5) + 0.2*starColor;
     return cloudCol;
+}
+
+mat2 rot(float angle)
+{
+    float c = cos(angle);
+    float s = sin(angle);
+    return mat2(c, s, -s, c);
+}
+
+float triangleDist(vec2 p)
+{
+	return max(abs(p).x * 0.866025 + 
+			   p.y * 0.5, -p.y);
+}
+
+float boxDist(vec2 p, vec2 size)
+{
+	vec2 d = abs(p) - size;
+  	return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
 
 void main()
@@ -257,40 +206,58 @@ void main()
     fragColor.rgb = background(uv);
     fragColor /= 1.+pow(length(uv),4.)*0.6;
 
+    int nExplo = int(explosions[0]);
+    for (int i = 0; i < nExplo; i++) {
+        vec2 pos2 = vec2(explosions[3*i+1], explosions[3*i + 2]);
+        float progress = 1. - explosions[3*i + 3];
+        fragColor.rgb = explosion_2d(uv - pos2, progress, fragColor.rgb, TIME);
+    }
+
+    
     {
         float size = 0.05 + smoothstep(0., 1., state[4]) * 0.1;
         float mask = smoothstep(size, size + 0.01, length(uv - pos));
-        fragColor.rgb = vec3(mix(fragColor.rgb, vec3(1,1,1)-state[4]*vec3(0,1,1), 1.0 - mask));
-
-    }
+        mask *= pow(length(uv - pos), 0.15);
+        
+        fragColor.rgb = vec3(mix(fragColor.rgb, vec3(1)-state[4]*vec3(0,1,1), 1.0 - pow(mask, 0.5)));
+   }
 
 
     int n = int(enemies[0]);
     for (int i = 0; i < n; i++) {
         vec2 pos2 = vec2(enemies[4*i+3], enemies[4*i+4]);
-        float mask = smoothstep(0.03, 0.04, length(uv - pos2));
-        fragColor.rgb = mix(fragColor.rgb, vec3(0,1,0), 1.0 - mask);
+        vec2 uvrot = rot(-TIME*4.)*(uv - pos2);
+        float kind = enemies[4*i+1];
+        float mask;
+        if (kind < 0.5) { 
+            mask = boxDist(uvrot, vec2(0.03));
+        } else if (kind < 1.5) { 
+            mask = triangleDist(rot(TIME*4.+float(i))*(uv - pos2)) - 0.02;
+        } else {
+            mask = length(uvrot) - 0.03; 
+            mask = max(-mask, triangleDist(rot(TIME*4.+float(i))*(uv - pos2)) - 0.03);
+        }
+        mask = smoothstep(0.0, 0.01, mask);
+        fragColor.rgb = mix(fragColor.rgb, vec3(sin(kind), 1, 0.2), 1.0 - mask);
     }
 
     int nMis = int(missiles[0]);
     for (int i = 0; i < nMis; i++) {
         vec2 pos2 = vec2(missiles[1 + 2*i], missiles[1 + 2*i + 1]);
         float mask = smoothstep(0.01,  0.02, length(uv - pos2));
-        fragColor.rgb = mix(fragColor.rgb, vec3(1,0.1,0.1), 1.0 - mask);
-   }  
-     
+        fragColor.rgb = mix(fragColor.rgb, vec3(1,1,0.8), 1.0 - mask);
+   }
+
     float coef = hash21(uv) * 1.2;
     coef = clamp(coef, 0.5, 1.);
     texCoord += (vec2(hash21(uv+vec2(1)), hash21(uv+vec2(2))) * 2. - 1.)*0.005;
     fragColor.rgb = mix(fragColor.rgb, texture(tex, texCoord).rgb, coef);
 
-    
-    
-    
-    float fade = state[7];
-    fragColor.rgb = mix(fragColor.rgb, vec3(0), smoothstep(0.0, 0.5, fade)*smoothstep(1.0, 0.5, fade));
-
-
-    digits7(fragColor, vec4(1.,.0,0,1), uv*20.-vec2(18,8.5), iResolution, uint(state[5]), 4);
-    digits7(fragColor, vec4(0,0.5,0,1), uv*20.-vec2(-19,8.5), iResolution, uint(state[6]), 1);
+    fragColor.rgb *= mix(1.2, 1., smoothstep(0., 2., TIME));
+    if (TIME < 0.) {
+        digits7(fragColor, vec4(1.,.0,0,1), uv*5.-vec2(2,0), iResolution, uint(state[5]), 4);
+    } else {
+        digits7(fragColor, vec4(1.,.0,0,1), uv*20.-vec2(18,8.5), iResolution, uint(state[5]), 4);
+        digits7(fragColor, vec4(0,0.5,0,1), uv*20.-vec2(-19,8.5), iResolution, uint(state[6]), 1);
+    }
 }

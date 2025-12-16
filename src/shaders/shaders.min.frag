@@ -6,7 +6,6 @@ layout(location=400)uniform float enemies[200];
 layout(location=600)uniform float explosions[200];
 layout(location=1000)uniform sampler2D tex;
 out vec4 fragColor;
-const float TIME=state[8];
 float hash21(vec2 xy)
 {
   return fract(sin(dot(xy,vec2(12.9898,78.233)))*43758.5453);
@@ -22,6 +21,7 @@ float noise(vec3 x)
   x=x*x*x*(x*(x*6.-15.)+10.);
   return mix(mix(mix(hash31(i+vec3(0)),hash31(i+vec3(1,0,0)),x.x),mix(hash31(i+vec3(0,1,0)),hash31(i+vec3(1,1,0)),x.x),x.y),mix(mix(hash31(i+vec3(0,0,1)),hash31(i+vec3(1,0,1)),x.x),mix(hash31(i+vec3(0,1,1)),hash31(i+vec3(1)),x.x),x.y),x.z)*2.-1.;
 }
+const float TIME=state[8];
 float digit7(vec2 q,int n)
 {
   const int digitsegs[10]=int[](95,10,118,122,43,121,125,26,127,123);

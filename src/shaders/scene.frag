@@ -6,18 +6,32 @@ layout (location = 400) uniform float enemies[200];
 layout (location = 600) uniform float explosions[200];
 layout (location = 1000) uniform sampler2D tex;
 
-// #version 150
-
-const float INF = 1e6;
 #include "shared.h"
 
 out vec4 fragColor;
 
+float hash21(vec2 xy) { return fract(sin(dot(xy, vec2(12.9898, 78.233))) * 43758.5453); }
+float hash31(vec3 xyz) { return hash21(vec2(hash21(xyz.xy), xyz.z)); }
+
+float noise(vec3 x) {
+
+    vec3 i = floor(x);
+    vec3 f = fract(x);
+    f = f*f*f*(f*(f*6.0-15.0)+10.0);
+    return mix(mix(mix( hash31(i+vec3(0,0,0)), 
+                        hash31(i+vec3(1,0,0)),f.x),
+                   mix( hash31(i+vec3(0,1,0)), 
+                        hash31(i+vec3(1,1,0)),f.x),f.y),
+               mix(mix( hash31(i+vec3(0,0,1)), 
+                        hash31(i+vec3(1,0,1)),f.x),
+                   mix( hash31(i+vec3(0,1,1)), 
+                        hash31(i+vec3(1,1,1)),f.x),f.y),f.z)*2.-1.;
+}
+
 
 const float TIME = state[8];
 
-#include "common.frag"
-
+// https://www.shadertoy.com/view/NtsXR2
 // had some brief spurt of inspiration when looking at this toy
 // Simple 7-segment Numbers by Kamoshika https://shadertoy.com/view/ftsSzB
 // but code is completely original by spalmer.  hope it's useful!
@@ -56,8 +70,7 @@ float digit7(vec2 q, int n)
 	return d - .05; // seg thickness
 }
 
-void digits7(inout vec4 o, vec4 c, vec2 q, vec2 R, uint value, int digits)
-{
+void digits7(inout vec4 o, vec4 c, vec2 q, vec2 R, uint value, int digits) {
 	float d = 1e9;
 	for (int i = 0; i < digits; i++) {
 		d = min(d, digit7(q, int(value%10u)));
@@ -69,17 +82,12 @@ void digits7(inout vec4 o, vec4 c, vec2 q, vec2 R, uint value, int digits)
 }
 
 // https://iquilezles.org/articles/palettes/
-vec3 pal(float t, vec3 a, vec3 b, vec3 c, vec3 d)
-{
+vec3 pal(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
     return a + b*cos(6.28318*(c*t+d));
 }
 
 vec3 palette(float t) {
   return pal(t, vec3(0.2),vec3(0.2),vec3(0.2),vec3(0.2,0.20,0.90));
-}
-
-float fbm1(vec2 p) {
-    return noise(p.xyx) * 0.5 + 0.5;
 }
 
 float fbm(vec2 p) {
@@ -99,8 +107,6 @@ vec3 explosion_2d(vec2 uv, float progress, vec3 backgroundcolor, float time) {
     const float NOISE_AMPLITUDE = 0.1;
     
     float d = length(uv);
-
-    // progress = pow(progress, 0.5);
     
     float radius = pow(sin(progress * 3.14159), 0.15) * MAX_RADIUS;
     
@@ -126,14 +132,6 @@ vec3 explosion_2d(vec2 uv, float progress, vec3 backgroundcolor, float time) {
     return mix(backgroundcolor, fire_color, alpha);
 }
 
-float fbm1d(float v_p)
-{
-      float pvpx = 2.0*v_p;
-      vec2 V1 = vec2(0.5*floor(pvpx      ));
-      vec2 V2 = vec2(0.5*floor(pvpx + 1.0));
-      return mix(hash21(V1),hash21(V2),smoothstep(0.0,1.0,fract(pvpx)));
-}
-
 float metaDiamond(vec2 p, vec2 pixel, float r) {
     vec2 d = abs(p - pixel);
     return r / (d.x + d.y);
@@ -154,11 +152,11 @@ vec3 background(vec2 uv) {
         }
     }
 
-    vec2 p = uv*5.;
+    vec2 p  = uv*5.;
     float cloud1 = fbm(uv*5. + vec2(0., TIME*1.));
     vec3 c1 = cloud1 * palette(0.5);
     c1 = pow(c1, vec3(1. + state[0]*0.5));
-    float cloud2 = fbm(uv*2. + vec2(10));
+    float  cloud2 = fbm(uv*2. + vec2(10));
     vec3 stars = vec3(0.1,0.1,0) * smoothstep(0.8, 0.98, fbm(uv*50. + vec2(0, TIME)));
     vec3 c2 = cloud2 * palette(0.0);
     vec3 cloudCol = mix(c1, c2, 0.5) + 0.2*starColor;

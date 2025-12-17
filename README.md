@@ -1,24 +1,24 @@
 # Shmup8
 
-Work in progress.
+In the last few days, I built a shoot ’em up game by embedding a tiny custom bytecode VM and rendering the graphics using a fullscreen pixel shader. The result is a 3kB Windows executable.
 
-The goal is to make something for https://langjamgamejam.com/
+Released at https://laurentlb.itch.io/shmup8
+
+Created for https://langjamgamejam.com
 
 > A 7-day hackathon where you build a programming language and then make a game using it.
 
-A write-up will come later, if the project is successful.
+---
+
+A detailed write-up will come later.
 
 High-level plan:
-- Design a small language.
-- Write a compiler (using F#) that compiles that language to a bytecode.
-- Write a bytecode interpreter in C++.
-- Use the language to write the game mechanics
-- Use a GLSL shader to render the game
+* Design a language.
+* Implement a compiler to compile it to bytecode, using F#.
+* Write a bytecode interpreter, using C++.
+* Create a shoot’em up game, using the custom language.
+* Render the graphics, using a single GLSL shader.
 
-It is possible that the bytecode will be more compact than writing the engine in C++, even after counting the bytecode interpreter (to be confirmed).
-
-Goal: get a game (shoot'em up) in approximately 4kB-8kB.
-
---
+---
 
 The C++ code setup comes from https://github.com/ctrl-alt-test/engine8.

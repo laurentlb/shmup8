@@ -11,6 +11,10 @@
 
 #include "definitions.h"
 
+#if EDITOR_CONTROLS
+#include "thirdparty/imgui/imgui.h"
+#endif
+
 // Global defines
 #define USE_CREATE_SHADER_PROGRAM // Save almost 40 bytes, require OpenGL 4.1 (Anat : doesn't work on my emulated windows)
 
@@ -80,7 +84,7 @@ int __cdecl main(int argc, char* argv[])
 #endif
 
 		#if EDITOR_CONTROLS
-			EditUI::draw(time);
+			EditUI::drawStart(time);
 			track.seek(time);
 		#else
 			// do minimal message handling so windows doesn't kill your application
@@ -110,6 +114,25 @@ int __cdecl main(int argc, char* argv[])
 		((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(600, 200, variables[4]);
 
 		((PFNGLUNIFORM1IPROC)wglGetProcAddress("glUniform1i"))(1, 0); // Previous frame
+		#if !EDITOR_CONTROLS
+			glUniform1f(0, time);
+		#else
+			glUniform1f(glGetUniformLocation(shaderMain, "iTime"), time);
+			static float camPos[] = { 0, 0, 0 };
+			ImGui::SliderFloat3("u_camPos", camPos, -10.0f, 10.0f);
+			glUniform3f(glGetUniformLocation(shaderMain, "u_camPos"), camPos[0], camPos[1], camPos[2]);
+
+			static float var1[] = { 0, 0, 0 };
+			ImGui::SliderFloat3("u_var1", var1, -10.0f, 10.0f);
+			glUniform3f(glGetUniformLocation(shaderMain, "u_camVar1"), var1[0], var1[1], var1[2]);
+
+			static float var2[] = { 0, 0, 0 };
+			ImGui::SliderFloat3("u_var2", var2, -10.0f, 10.0f);
+			glUniform3f(glGetUniformLocation(shaderMain, "u_camVar2"), var2[0], var2[1], var2[2]);
+
+			EditUI::drawEnd();
+		#endif
+
 		glRects(-1, -1, 1, 1);
 
 

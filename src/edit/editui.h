@@ -3,6 +3,7 @@
 namespace EditUI {
 	HWND createEditorWindow();
 	void init();
-	void draw(float& time);
+	void drawStart(float& time);
+	void drawEnd();
 	void render();
 }

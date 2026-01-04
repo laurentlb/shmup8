@@ -48,7 +48,7 @@ namespace EditUI {
 		ImGui::StyleColorsDark();
 	}
 
-	void draw(float& time) {
+	void drawStart(float& time) {
 		MSG msg;
 		while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
 		{
@@ -63,8 +63,10 @@ namespace EditUI {
 		static float slider = 0.0f;
 		ImGui::Begin("Demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 		ImGui::SliderFloat("Time", &time, 0.0f, DEMO_LENGTH_IN_S);
-		ImGui::End();
+	}
 
+	void drawEnd() {
+		ImGui::End();
 		ImGui::Render();
 	}
 

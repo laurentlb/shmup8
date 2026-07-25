@@ -11,17 +11,55 @@ using namespace Leviathan;
 
 #define USE_MESSAGEBOX 0
 
-// Turn a preprocessed shader source into its editor variant: define EDITOR
-// (right after the mandatory #version line) and inject any tweak uniforms.
+// Turn a preprocessed shader source into its editor variant.
+//
+// The shader preprocessor evaluates (and collapses) #ifdef blocks itself, so we
+// cannot switch TWEAK's behaviour with a runtime '#define EDITOR'. Instead the
+// release macro '#define TWEAK(name, value) (value)' survives preprocessing as a
+// plain line, and here we rewrite its body to expand to the parameter 'name' so
+// each TWEAK becomes the injected uniform of that name.
+static void rewriteTweakMacro(std::string& s, const char* macro)
+{
+	std::string needle = std::string("#define ") + macro + "(";
+	size_t p = s.find(needle);
+	while (p != std::string::npos)
+	{
+		size_t open  = s.find('(', p);
+		size_t comma = s.find(',', open);
+		size_t close = s.find(')', open);
+		size_t eol   = s.find('\n', p);
+		if (open != std::string::npos && comma != std::string::npos &&
+		    close != std::string::npos && comma < close &&
+		    (eol == std::string::npos || close < eol))
+		{
+			std::string firstParam = s.substr(open + 1, comma - open - 1);
+			// strip surrounding whitespace
+			size_t a = firstParam.find_first_not_of(" \t");
+			size_t b = firstParam.find_last_not_of(" \t");
+			if (a != std::string::npos) firstParam = firstParam.substr(a, b - a + 1);
+
+			size_t end = (eol == std::string::npos) ? s.size() : eol;
+			s.replace(close + 1, end - (close + 1), " " + firstParam);
+		}
+		p = s.find(needle, p + 1);
+	}
+}
+
 static std::string makeEditorSource(const char* source, const char* uniformDecls)
 {
 	std::string s = source ? source : "";
-	size_t nl = s.find('\n');
-	size_t insertAt = (nl == std::string::npos) ? 0 : nl + 1;
 
-	std::string inject = "#define EDITOR 1\n";
-	if (uniformDecls) inject += uniformDecls;
-	s.insert(insertAt, inject);
+	// Rewrite the TWEAK/TWEAKC macros so they expand to their uniform name.
+	if (uniformDecls)
+	{
+		rewriteTweakMacro(s, "TWEAK");
+		rewriteTweakMacro(s, "TWEAKC");
+
+		// Inject the uniform declarations right after the mandatory #version line.
+		size_t nl = s.find('\n');
+		size_t insertAt = (nl == std::string::npos) ? 0 : nl + 1;
+		s.insert(insertAt, uniformDecls);
+	}
 	return s;
 }
 

@@ -14,10 +14,10 @@ using namespace Leviathan;
 // Turn a preprocessed shader source into its editor variant.
 //
 // The shader preprocessor evaluates (and collapses) #ifdef blocks itself, so we
-// cannot switch TWEAK's behaviour with a runtime '#define EDITOR'. Instead the
-// release macro '#define TWEAK(name, value) (value)' survives preprocessing as a
+// cannot switch _TV's behaviour with a runtime '#define EDITOR'. Instead the
+// release macro '#define _TV(name, value) (value)' survives preprocessing as a
 // plain line, and here we rewrite its body to expand to the parameter 'name' so
-// each TWEAK becomes the injected uniform of that name.
+// each _TV becomes the injected uniform of that name.
 static void rewriteTweakMacro(std::string& s, const char* macro)
 {
 	std::string needle = std::string("#define ") + macro + "(";
@@ -49,11 +49,11 @@ static std::string makeEditorSource(const char* source, const char* uniformDecls
 {
 	std::string s = source ? source : "";
 
-	// Rewrite the TWEAK/TWEAKC macros so they expand to their uniform name.
+	// Rewrite the _TV/_TVC macros so they expand to their uniform name.
 	if (uniformDecls)
 	{
-		rewriteTweakMacro(s, "TWEAK");
-		rewriteTweakMacro(s, "TWEAKC");
+		rewriteTweakMacro(s, "_TV");
+		rewriteTweakMacro(s, "_TVC");
 
 		// Inject the uniform declarations right after the mandatory #version line.
 		size_t nl = s.find('\n');
@@ -170,7 +170,7 @@ void Editor::reloadShaderSource(int* mainShaderPID, int* postShaderPID)
 	char* sourcePS = textFileRead("src/shaders/preprocessed.scene.frag");
 	if (!sourceVS || !sourcePS) { free(sourceVS); free(sourcePS); return; }
 
-	// Discover the TWEAK() constants and turn them into live uniforms.
+	// Discover the _TV() constants and turn them into live uniforms.
 	EditUI::Tweaks::scan(sourcePS);
 	std::string editorVS = makeEditorSource(sourceVS, nullptr);
 	std::string editorPS = makeEditorSource(sourcePS, EditUI::Tweaks::uniformDeclarations());

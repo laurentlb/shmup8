@@ -76,7 +76,7 @@ namespace EditUI
 			return s.substr(a, b - a + 1);
 		}
 
-		// A TWEAK token on a preprocessor (#...) or comment (//...) line is not a
+		// A _TV token on a preprocessor (#...) or comment (//...) line is not a
 		// real usage (e.g. the macro definitions and doc in tweaks.frag).
 		static bool ignoredLine(const std::string& s, size_t pos)
 		{
@@ -132,7 +132,7 @@ namespace EditUI
 			return false;
 		}
 
-		// Locate a TWEAK/TWEAKC invocation starting at 'p'. On success fills the
+		// Locate a _TV/_TVC invocation starting at 'p'. On success fills the
 		// name and the [open+1, valEnd) span covering the value argument(s), and
 		// returns the index just past the closing paren. Returns npos if 'p' is
 		// not a real usage (word boundary / macro-def / comment / malformed).
@@ -144,8 +144,8 @@ namespace EditUI
 				char before = src[p - 1];
 				if (isalnum((unsigned char)before) || before == '_') return std::string::npos;
 			}
-			bool isColor = src.compare(p, 7, "TWEAKC(") == 0;
-			bool isPlain = src.compare(p, 6, "TWEAK(") == 0;
+			bool isColor = src.compare(p, 5, "_TVC(") == 0;
+			bool isPlain = src.compare(p, 4, "_TV(") == 0;
 			if (!isColor && !isPlain) return std::string::npos;
 			if (ignoredLine(src, p)) return std::string::npos;
 
@@ -199,15 +199,22 @@ namespace EditUI
 		{
 			std::string src = sourceCStr ? sourceCStr : "";
 
+			// Snapshot the previous set so live-edited values survive a rescan,
+			// while tweaks whose _TV line was removed drop out.
+			static Tweak previous[MAX_TWEAKS];
+			int previousCount = tweakCount;
+			for (int i = 0; i < previousCount; ++i) previous[i] = tweaks[i];
+			tweakCount = 0;
+
 			size_t p = 0;
-			while ((p = src.find("TWEAK", p)) != std::string::npos)
+			while ((p = src.find("_TV", p)) != std::string::npos)
 			{
 				std::string name;
 				size_t valStart, valEnd;
 				size_t next = parseInvocation(src, p, name, valStart, valEnd);
-				if (next == std::string::npos) { p += 5; continue; }
+				if (next == std::string::npos) { p += 3; continue; }
 
-				bool isColor = src.compare(p, 7, "TWEAKC(") == 0;
+				bool isColor = src.compare(p, 5, "_TVC(") == 0;
 				std::string valueText = trim(src.substr(valStart, valEnd - valStart));
 				p = next;
 
@@ -220,6 +227,14 @@ namespace EditUI
 				parseValue(valueText, t.type, t.value);
 				for (int c = 0; c < 4; ++c) t.original[c] = t.value[c];
 				t.location = -1;
+
+				// Preserve the live value from a previous scan (if still same type).
+				for (int j = 0; j < previousCount; ++j)
+					if (previous[j].name == name && previous[j].type == t.type)
+					{
+						for (int c = 0; c < 4; ++c) t.value[c] = previous[j].value[c];
+						break;
+					}
 			}
 
 			// (re)build the uniform declarations for shader injection
@@ -303,7 +318,7 @@ namespace EditUI
 
 		// --- baking ----------------------------------------------------------
 
-		// Rewrite every TWEAK/TWEAKC value in one shader file with the current
+		// Rewrite every _TV/_TVC value in one shader file with the current
 		// live value. Reads/writes in binary so line endings are preserved.
 		static void bakeFile(const std::string& path)
 		{
@@ -321,12 +336,12 @@ namespace EditUI
 			size_t copied = 0;
 			size_t p = 0;
 			bool changed = false;
-			while ((p = src.find("TWEAK", p)) != std::string::npos)
+			while ((p = src.find("_TV", p)) != std::string::npos)
 			{
 				std::string name;
 				size_t valStart, valEnd;
 				size_t next = parseInvocation(src, p, name, valStart, valEnd);
-				if (next == std::string::npos) { p += 5; continue; }
+				if (next == std::string::npos) { p += 3; continue; }
 
 				const Tweak* t = findTweak(name);
 				if (t)

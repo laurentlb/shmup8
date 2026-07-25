@@ -2,7 +2,7 @@
 
 namespace EditUI
 {
-	// Editor-only support for TWEAK()/TWEAKC() shader constants.
+	// Editor-only support for _TV()/_TVC() shader constants.
 	//
 	// scan() discovers the tweaks in a preprocessed shader source, the editor
 	// injects uniformDeclarations() into the source it compiles, drawAndApply()
@@ -10,7 +10,7 @@ namespace EditUI
 	// writes the current values back into the shader source as literals.
 	namespace Tweaks
 	{
-		// Parse TWEAK/TWEAKC occurrences from a preprocessed shader source.
+		// Parse _TV/_TVC occurrences from a preprocessed shader source.
 		// Existing values are preserved across reloads (merge by name).
 		void scan(const char* source);
 

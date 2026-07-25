@@ -1,5 +1,6 @@
 #include "definitions.h"
 #include "glext.h"
+#include "editui.h"
 
 #include "thirdparty/imgui/imgui.h"
 #include "thirdparty/imgui/imgui_impl_win32.h"
@@ -8,6 +9,7 @@
 #include <windows.h>
 #include <mmsystem.h>
 #include <cmath>
+#include <cstdio>
 
 HWND hwnd;
 
@@ -22,8 +24,19 @@ namespace EditUI {
 	static char  s_status[256] = "";   // last shader compile message
 	static int   s_statusLevel = 0;    // 0 info, 1 success, 2 error
 
+	static bool      s_playing = false;             // pushed by main each frame
+	static Transport s_transport = Transport::None; // pending transport request
+
 	bool panelOpen() { return s_panelOpen; }
 	float volume() { return s_volume; }
+
+	void setPlaying(bool playing) { s_playing = playing; }
+
+	Transport takeTransport() {
+		Transport t = s_transport;
+		s_transport = Transport::None;
+		return t;
+	}
 
 	void setShaderStatus(const char* message, int level) {
 		if (!message) message = "";
@@ -103,6 +116,11 @@ namespace EditUI {
 
 		ImGui::SliderFloat("Volume", &s_volume, 0.0f, 1.0f);
 		ImGui::Separator();
+
+		// Play/pause on the same line as the time slider.
+		if (ImGui::Button(s_playing ? "Pause" : "Play "))
+			s_transport = Transport::Toggle;
+		ImGui::SameLine();
 		ImGui::SliderFloat("Time", &time, 0.0f, DEMO_LENGTH_IN_S);
 	}
 
@@ -119,9 +137,10 @@ namespace EditUI {
 	void updateManualCamera(int shaderProgram) {
 		ImGuiIO& io = ImGui::GetIO();
 
-		static float px = 0.f, py = 1.f, pz = -3.f; // position
-		static float yaw = 0.f, pitch = 0.f;        // orientation (radians)
-		static float speed = 5.f;                   // units per second
+		static const float defPx = 0.f, defPy = 1.f, defPz = -3.f;
+		static float px = defPx, py = defPy, pz = defPz; // position
+		static float yaw = 0.f, pitch = 0.f;             // orientation (radians)
+		static float speed = 5.f;                        // units per second
 
 		// Look: hold the right mouse button and drag.
 		if (!io.WantCaptureMouse && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
@@ -158,9 +177,24 @@ namespace EditUI {
 		if (lt >= 0) glUniform3f(lt, px + fx, py + fy, pz + fz);
 		if (ld >= 0) glUniform3f(ld, fx, fy, fz);
 
-		// Position readout (widget only issued when the panel is open).
-		if (s_windowBegun)
-			ImGui::Text("Cam: %.2f %.2f %.2f", px, py, pz);
+		// Camera controls (widgets only issued when the panel is open).
+		if (s_windowBegun && ImGui::CollapsingHeader("Camera"))
+		{
+			ImGui::Text("Pos: %.2f %.2f %.2f", px, py, pz);
+			ImGui::SliderFloat("Speed", &speed, 0.1f, 50.f, "%.1f", ImGuiSliderFlags_Logarithmic);
+
+			char buf[96];
+			snprintf(buf, sizeof(buf), "vec3(%.3f, %.3f, %.3f)", px, py, pz);
+			if (ImGui::Button("Copy pos")) ImGui::SetClipboardText(buf);
+			ImGui::SameLine();
+			snprintf(buf, sizeof(buf), "vec3(%.3f, %.3f, %.3f)", px + fx, py + fy, pz + fz);
+			if (ImGui::Button("Copy target")) ImGui::SetClipboardText(buf);
+			ImGui::SameLine();
+			snprintf(buf, sizeof(buf), "vec3(%.3f, %.3f, %.3f)", fx, fy, fz);
+			if (ImGui::Button("Copy dir")) ImGui::SetClipboardText(buf);
+			ImGui::SameLine();
+			if (ImGui::Button("Reset")) { px = defPx; py = defPy; pz = defPz; yaw = pitch = 0.f; }
+		}
 	}
 
 	void render()

@@ -77,12 +77,7 @@ int Song::toggle()
 
 bool Song::is_playing()
 {
-	OAFilterState state;
-	mediaControl->GetState(INFINITE, &state);
-	__int64 trackLength, position;
-	mediaSeeking->GetDuration(&trackLength);
-	mediaSeeking->GetCurrentPosition(&position);
-	return position<trackLength;
+	return playing;
 }
 
 void Song::seek(long double position)

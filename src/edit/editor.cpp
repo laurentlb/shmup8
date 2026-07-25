@@ -117,40 +117,36 @@ void Editor::printFrameStatistics()
 
 double Editor::handleEvents(Leviathan::Song* track, double position)
 {
-	if (GetAsyncKeyState(VK_MENU) & 0x8000)
+	ImGuiIO& io = ImGui::GetIO();
+
+	// Play/pause toggle requested from the ImGui transport button.
+	if (EditUI::takeTransport() == EditUI::Transport::Toggle)
+		track->toggle();
+
+	// Scrub with the arrow keys while the demo window is focused (ImGui only
+	// receives keys then) and no widget is capturing the keyboard. Hold to
+	// scrub continuously; shift for a slower, finer rate.
+	if (!io.WantCaptureKeyboard)
 	{
+		const double rate = io.KeyShift ? 1.0 : 10.0; // seconds per second held
 		double seek = 0.0;
-		if (GetAsyncKeyState(VK_DOWN) & 0x8000)
-		{
-			state = Paused;
-			track->pause();
-		}
-		if (GetAsyncKeyState(VK_UP) & 0x8000)
-		{
-			state = Playing;
-			track->play();
-		}
-		bool shift = GetAsyncKeyState(VK_SHIFT) & 0x8000;
-		if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && !shift) seek += 1.0;
-		if (GetAsyncKeyState(VK_LEFT) & 0x8000 && !shift) seek -= 1.0;
-		if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && shift) seek += 0.1;
-		if (GetAsyncKeyState(VK_LEFT) & 0x8000 && shift) seek -= 0.1;
-		if (position + seek != position)
+		if (ImGui::IsKeyDown(ImGuiKey_RightArrow)) seek += rate * io.DeltaTime;
+		if (ImGui::IsKeyDown(ImGuiKey_LeftArrow))  seek -= rate * io.DeltaTime;
+		if (seek != 0.0)
 		{
 			position += seek;
 			track->seek(position);
 		}
+
+		// Space toggles play/pause.
+		if (ImGui::IsKeyPressed(ImGuiKey_Space, false))
+			track->toggle();
 	}
 
 	if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState('S') & 0x8000))
 		shaderUpdatePending = true;
 
-	// Space toggles play/pause (ignored while an ImGui widget has keyboard focus).
-	if (!ImGui::GetIO().WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_Space, false))
-	{
-		track->toggle();
-		state = track->is_playing() ? Playing : Paused;
-	}
+	state = track->is_playing() ? Playing : Paused;
 
 	trackPosition = position;
 	trackEnd = track->getLength();

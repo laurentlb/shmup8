@@ -281,8 +281,9 @@ namespace EditUI
 			cachedProgram = shaderProgram;
 
 			// Uniforms must always be uploaded; the ImGui widgets are only issued
-			// when the panel is visible (F1 toggle).
-			const bool ui = panelOpen();
+			// when the panel is visible (F1) and the tweaks section is expanded.
+			const bool ui = panelOpen() &&
+				ImGui::CollapsingHeader("Tweakable values (_TV)", ImGuiTreeNodeFlags_DefaultOpen);
 
 			for (int i = 0; i < tweakCount; ++i)
 			{

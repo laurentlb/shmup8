@@ -17,4 +17,14 @@ namespace EditUI {
 	// Report the latest shader (re)compile result for display in the panel.
 	// level: 0 = info/in-progress, 1 = success, 2 = error (shown in red).
 	void setShaderStatus(const char* message, int level);
+
+	// --- transport ----------------------------------------------------------
+	// Playback action requested from the transport row, consumed by the editor.
+	enum class Transport { None, Toggle };
+
+	// Return and clear the pending transport request (call once per frame).
+	Transport takeTransport();
+
+	// Push the current playback state so the transport label/button can reflect it.
+	void setPlaying(bool playing);
 }

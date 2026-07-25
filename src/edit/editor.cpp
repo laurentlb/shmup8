@@ -55,10 +55,20 @@ static std::string makeEditorSource(const char* source, const char* uniformDecls
 		rewriteTweakMacro(s, "_TV");
 		rewriteTweakMacro(s, "_TVC");
 
-		// Inject the uniform declarations right after the mandatory #version line.
+		// Editor-only preamble: define EDITOR (guards editor-only code such as
+		// the manual camera in selectShot), inject the manual-camera uniforms,
+		// then the scanned _TV uniform declarations. Inserted right after the
+		// mandatory #version line.
+		std::string preamble =
+			"#define EDITOR 1\n"
+			"uniform vec3 iCamPos;\n"
+			"uniform vec3 iCamTarget;\n"
+			"uniform vec3 iCamDir;\n";
+		preamble += uniformDecls;
+
 		size_t nl = s.find('\n');
 		size_t insertAt = (nl == std::string::npos) ? 0 : nl + 1;
-		s.insert(insertAt, uniformDecls);
+		s.insert(insertAt, preamble);
 	}
 	return s;
 }

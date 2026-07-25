@@ -14,7 +14,7 @@ namespace EditUI
 {
 	namespace Tweaks
 	{
-		enum Type { TypeFloat, TypeVec2, TypeVec3, TypeVec4, TypeColor };
+		enum Type { TypeFloat, TypeVec2, TypeVec3, TypeVec4, TypeColor, TypeBool };
 
 		struct Tweak
 		{
@@ -47,6 +47,7 @@ namespace EditUI
 			case TypeVec3: return "vec3";
 			case TypeColor: return "vec3";
 			case TypeVec4: return "vec4";
+			case TypeBool: return "bool";
 			default:       return "float";
 			}
 		}
@@ -55,6 +56,7 @@ namespace EditUI
 		static Type classify(const std::string& valueText, bool isColor)
 		{
 			if (isColor) return TypeColor;
+			if (valueText == "true" || valueText == "false") return TypeBool;
 			if (valueText.compare(0, 4, "vec2") == 0) return TypeVec2;
 			if (valueText.compare(0, 4, "vec3") == 0) return TypeVec3;
 			if (valueText.compare(0, 4, "vec4") == 0) return TypeVec4;
@@ -100,6 +102,11 @@ namespace EditUI
 		{
 			out[0] = out[1] = out[2] = out[3] = 0.0f;
 			const int n = compCount(type);
+			if (type == TypeBool)
+			{
+				out[0] = (valueText == "true") ? 1.0f : 0.0f;
+				return;
+			}
 			if (type == TypeFloat)
 			{
 				out[0] = (float)atof(valueText.c_str());
@@ -178,6 +185,8 @@ namespace EditUI
 		{
 			char buf[160];
 			const int n = compCount(t.type);
+			if (t.type == TypeBool)
+				return t.value[0] != 0.0f ? "true" : "false";
 			if (n == 1)
 			{
 				snprintf(buf, sizeof(buf), "%g", t.value[0]);
@@ -258,6 +267,7 @@ namespace EditUI
 		{
 			auto glGetUniformLocation = (PFNGLGETUNIFORMLOCATIONPROC)wglGetProcAddress("glGetUniformLocation");
 			auto glUniform1f = (PFNGLUNIFORM1FPROC)wglGetProcAddress("glUniform1f");
+			auto glUniform1i = (PFNGLUNIFORM1IPROC)wglGetProcAddress("glUniform1i");
 			auto glUniform2f = (PFNGLUNIFORM2FPROC)wglGetProcAddress("glUniform2f");
 			auto glUniform3f = (PFNGLUNIFORM3FPROC)wglGetProcAddress("glUniform3f");
 			auto glUniform4f = (PFNGLUNIFORM4FPROC)wglGetProcAddress("glUniform4f");
@@ -298,6 +308,14 @@ namespace EditUI
 					ImGui::ColorEdit3(t.name.c_str(), t.value);
 					if (t.location >= 0) glUniform3f(t.location, t.value[0], t.value[1], t.value[2]);
 					break;
+				case TypeBool:
+				{
+					bool b = t.value[0] != 0.0f;
+					ImGui::Checkbox(t.name.c_str(), &b);
+					t.value[0] = b ? 1.0f : 0.0f;
+					if (t.location >= 0) glUniform1i(t.location, b ? 1 : 0);
+					break;
+				}
 				}
 			}
 

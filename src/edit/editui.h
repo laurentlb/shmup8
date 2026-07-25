@@ -5,5 +5,6 @@ namespace EditUI {
 	void init();
 	void drawStart(float& time);
 	void drawEnd();
+	void updateManualCamera(int shaderProgram);
 	void render();
 }

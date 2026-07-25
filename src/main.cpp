@@ -120,6 +120,7 @@ int __cdecl main(int argc, char* argv[])
 		#else
 			glUniform1f(glGetUniformLocation(shaderMain, "iTime"), time);
 			EditUI::Tweaks::drawAndApply(shaderMain);
+			EditUI::updateManualCamera(shaderMain);
 
 			EditUI::drawEnd();
 		#endif

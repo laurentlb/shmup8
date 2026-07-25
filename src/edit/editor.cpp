@@ -1,12 +1,29 @@
 #include "editor.h"
 #include "song.h"
+#include "tweaks.h"
 
 #include "stdio.h"
 #include "glext.h"
 
+#include <string>
+
 using namespace Leviathan;
 
 #define USE_MESSAGEBOX 0
+
+// Turn a preprocessed shader source into its editor variant: define EDITOR
+// (right after the mandatory #version line) and inject any tweak uniforms.
+static std::string makeEditorSource(const char* source, const char* uniformDecls)
+{
+	std::string s = source ? source : "";
+	size_t nl = s.find('\n');
+	size_t insertAt = (nl == std::string::npos) ? 0 : nl + 1;
+
+	std::string inject = "#define EDITOR 1\n";
+	if (uniformDecls) inject += uniformDecls;
+	s.insert(insertAt, inject);
+	return s;
+}
 
 Editor::Editor() : lastFrameStart(0), lastFrameStop(0), trackPosition(0.0), trackEnd(0.0), state(Playing)
 {
@@ -113,10 +130,17 @@ void Editor::reloadShaderSource(int* mainShaderPID, int* postShaderPID)
 {
 	char* sourceVS = textFileRead("src/shaders/preprocessed.scene.vert");
 	char* sourcePS = textFileRead("src/shaders/preprocessed.scene.frag");
-	if (!sourceVS || !sourcePS) return;
+	if (!sourceVS || !sourcePS) { free(sourceVS); free(sourcePS); return; }
 
-	int shaderVS = compileShader(sourceVS, GL_VERTEX_SHADER);
-	int shaderPS = compileShader(sourcePS, GL_FRAGMENT_SHADER);
+	// Discover the TWEAK() constants and turn them into live uniforms.
+	EditUI::Tweaks::scan(sourcePS);
+	std::string editorVS = makeEditorSource(sourceVS, nullptr);
+	std::string editorPS = makeEditorSource(sourcePS, EditUI::Tweaks::uniformDeclarations());
+	free(sourceVS);
+	free(sourcePS);
+
+	int shaderVS = compileShader(editorVS.c_str(), GL_VERTEX_SHADER);
+	int shaderPS = compileShader(editorPS.c_str(), GL_FRAGMENT_SHADER);
 	if (!shaderVS || !shaderPS) return;
 
 	int newMainShaderPID = ((PFNGLCREATEPROGRAMPROC)wglGetProcAddress("glCreateProgram"))();
@@ -137,7 +161,9 @@ void Editor::reloadShaderSource(int* mainShaderPID, int* postShaderPID)
 	{
 		char* sourcePPS = textFileRead("src/shaders/preprocessed.postprocess.frag");
 		if (!sourcePPS) return;
-		int shaderPPS = compileShader(sourcePPS, GL_FRAGMENT_SHADER);
+		std::string editorPPS = makeEditorSource(sourcePPS, nullptr);
+		free(sourcePPS);
+		int shaderPPS = compileShader(editorPPS.c_str(), GL_FRAGMENT_SHADER);
 		if (!shaderPPS) return;
 		int newPostShaderPID = ((PFNGLCREATEPROGRAMPROC)wglGetProcAddress("glCreateProgram"))();
 		((PFNGLATTACHSHADERPROC)wglGetProcAddress("glAttachShader"))(newPostShaderPID, shaderPPS);
@@ -152,7 +178,7 @@ void Editor::reloadShaderSource(int* mainShaderPID, int* postShaderPID)
 }
 
 
-int Editor::compileShader(char* source, GLenum shaderType) {
+int Editor::compileShader(const char* source, GLenum shaderType) {
 	int pid = ((PFNGLCREATESHADERPROC)wglGetProcAddress("glCreateShader"))(shaderType);
 	((PFNGLSHADERSOURCEPROC)wglGetProcAddress("glShaderSource"))(pid, 1, &source, 0);
 	((PFNGLCOMPILESHADERPROC)wglGetProcAddress("glCompileShader"))(pid);

@@ -28,7 +28,7 @@ namespace Leviathan
 	private:
 		void reloadShaderSource(int* mainShaderPID, int* ppShaderPID);
 		char* textFileRead(const char* filename);
-		int compileShader(char *source, GLenum shaderType);
+		int compileShader(const char *source, GLenum shaderType);
 
 		enum PlayState {Playing, Paused};
 		PlayState state;
@@ -41,7 +41,7 @@ namespace Leviathan
 		int timeHistory[windowSize] = {};
 
 		bool shaderUpdatePending = false;
-		int previousUpdateTime;
+		int previousUpdateTime = 0;
 
 		double trackPosition;
 		double trackEnd;

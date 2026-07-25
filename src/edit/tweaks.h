@@ -2,15 +2,26 @@
 
 namespace EditUI
 {
-	// Editor-only tweakable shader uniforms.
+	// Editor-only support for TWEAK()/TWEAKC() shader constants.
 	//
-	// Renders an ImGui slider for each registered uniform and uploads the
-	// current values to the given shader program. Values are intentionally
-	// transient (not persisted across runs).
-	//
-	// To expose a new tweakable uniform, add an entry to the table in tweaks.cpp.
+	// scan() discovers the tweaks in a preprocessed shader source, the editor
+	// injects uniformDeclarations() into the source it compiles, drawAndApply()
+	// renders the ImGui controls and pushes the live uniform values, and bake()
+	// writes the current values back into the shader source as literals.
 	namespace Tweaks
 	{
+		// Parse TWEAK/TWEAKC occurrences from a preprocessed shader source.
+		// Existing values are preserved across reloads (merge by name).
+		void scan(const char* source);
+
+		// GLSL 'uniform' declarations for the scanned tweaks, to be injected
+		// into the editor shader (valid until the next scan()).
+		const char* uniformDeclarations();
+
+		// Render an ImGui control per tweak and upload the values to the program.
 		void drawAndApply(int shaderProgram);
+
+		// Rewrite the current values back into the shader source files.
+		void bake();
 	}
 }

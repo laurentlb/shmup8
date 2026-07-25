@@ -15,6 +15,24 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 namespace EditUI {
 
+	// --- editor UI state -----------------------------------------------------
+	static bool  s_panelOpen = true;   // toggled with F1
+	static bool  s_windowBegun = false; // was ImGui::Begin issued this frame?
+	static float s_volume = 0.5f;      // linear 0..1, default 50%
+	static char  s_status[256] = "";   // last shader compile message
+	static int   s_statusLevel = 0;    // 0 info, 1 success, 2 error
+
+	bool panelOpen() { return s_panelOpen; }
+	float volume() { return s_volume; }
+
+	void setShaderStatus(const char* message, int level) {
+		if (!message) message = "";
+		size_t i = 0;
+		for (; message[i] && i < sizeof(s_status) - 1; ++i) s_status[i] = message[i];
+		s_status[i] = '\0';
+		s_statusLevel = level;
+	}
+
 	LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
 		ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
@@ -61,13 +79,36 @@ namespace EditUI {
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 
-		static float slider = 0.0f;
+		// F1 toggles the whole control panel (uniforms still update when hidden).
+		if (ImGui::IsKeyPressed(ImGuiKey_F1, false))
+			s_panelOpen = !s_panelOpen;
+
+		s_windowBegun = false;
+		if (!s_panelOpen)
+			return;
+
 		ImGui::Begin("Demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+		s_windowBegun = true;
+
+		ImGuiIO& io = ImGui::GetIO();
+		ImGui::Text("%.1f FPS (%.3f ms/frame)", io.Framerate, 1000.0f / io.Framerate);
+
+		if (s_status[0])
+		{
+			ImVec4 col = s_statusLevel == 2 ? ImVec4(1.0f, 0.4f, 0.4f, 1.0f)
+			           : s_statusLevel == 1 ? ImVec4(0.4f, 1.0f, 0.4f, 1.0f)
+			                                : ImVec4(1.0f, 1.0f, 0.4f, 1.0f);
+			ImGui::TextColored(col, "%s", s_status);
+		}
+
+		ImGui::SliderFloat("Volume", &s_volume, 0.0f, 1.0f);
+		ImGui::Separator();
 		ImGui::SliderFloat("Time", &time, 0.0f, DEMO_LENGTH_IN_S);
 	}
 
 	void drawEnd() {
-		ImGui::End();
+		if (s_windowBegun)
+			ImGui::End();
 		ImGui::Render();
 	}
 
@@ -116,6 +157,10 @@ namespace EditUI {
 		if (lp >= 0) glUniform3f(lp, px, py, pz);
 		if (lt >= 0) glUniform3f(lt, px + fx, py + fy, pz + fz);
 		if (ld >= 0) glUniform3f(ld, fx, fy, fz);
+
+		// Position readout (widget only issued when the panel is open).
+		if (s_windowBegun)
+			ImGui::Text("Cam: %.2f %.2f %.2f", px, py, pz);
 	}
 
 	void render()

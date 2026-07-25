@@ -25,6 +25,9 @@ namespace Leviathan
 
 		virtual void seek(long double position);
 
+		// Set playback volume from a linear 0..1 amplitude (0 = silent, 1 = full).
+		virtual void setVolume(float v01);
+
 		virtual long double getTime();
 
 		virtual long double getLength();
@@ -75,6 +78,8 @@ namespace Leviathan
                 lastTick = GetTickCount64();  // Reset the tick count after seeking
             }
         }
+
+        void setVolume(float) override {}
 
         long double getTime() override {
             if (playing) {

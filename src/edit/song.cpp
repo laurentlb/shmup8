@@ -1,4 +1,5 @@
 #include <string>
+#include <cmath>
 #include "song.h"
 #pragma comment(lib, "strmiids.lib")
 #pragma comment(lib, "ComCtl32.lib")
@@ -23,7 +24,7 @@ Song::Song(LPCWSTR path) : playing(false)
 	graph->QueryInterface(IID_IMediaControl, (void**)&mediaControl);
 	graph->QueryInterface(IID_IMediaSeeking, (void**)&mediaSeeking);
 	graph->QueryInterface(IID_IBasicAudio, (void**)&audioControl);
-	audioControl->put_Volume(long(-90000));
+	setVolume(0.5f);
 
 	HRESULT hr = graph->RenderFile(path, 0);
 
@@ -98,6 +99,17 @@ void Song::seek(long double position)
 	mediaSeeking->SetPositions(&seekPosition, AM_SEEKING_AbsolutePositioning, &seekPosition, AM_SEEKING_NoPositioning);
 	if (playing)
 		mediaControl->Run();
+}
+
+void Song::setVolume(float v01)
+{
+	if (v01 < 0.0f) v01 = 0.0f;
+	if (v01 > 1.0f) v01 = 1.0f;
+	// IBasicAudio uses hundredths of a dB in [-10000, 0]; map linear amplitude.
+	long cb = (v01 <= 0.0f) ? -10000 : long(2000.0 * log10((double)v01));
+	if (cb < -10000) cb = -10000;
+	if (cb > 0) cb = 0;
+	audioControl->put_Volume(cb);
 }
 
 long double Song::getTime()

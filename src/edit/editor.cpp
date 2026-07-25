@@ -1,6 +1,9 @@
 #include "editor.h"
 #include "song.h"
 #include "tweaks.h"
+#include "editui.h"
+
+#include "thirdparty/imgui/imgui.h"
 
 #include "stdio.h"
 #include "glext.h"
@@ -142,6 +145,13 @@ double Editor::handleEvents(Leviathan::Song* track, double position)
 	if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState('S') & 0x8000))
 		shaderUpdatePending = true;
 
+	// Space toggles play/pause (ignored while an ImGui widget has keyboard focus).
+	if (!ImGui::GetIO().WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_Space, false))
+	{
+		track->toggle();
+		state = track->is_playing() ? Playing : Paused;
+	}
+
 	trackPosition = position;
 	trackEnd = track->getLength();
 
@@ -157,6 +167,7 @@ void Editor::updateShaders(int* mainShaderPID, int* ppShaderPID, bool force_upda
 		{
 			// only way i can think of to clear the line without "status line" residue
 			printf("Refreshing shaders...                                                   \n");
+			EditUI::setShaderStatus("Compiling...", 0);
 
 			system("preprocess_shaders.bat");
 
@@ -167,6 +178,12 @@ void Editor::updateShaders(int* mainShaderPID, int* ppShaderPID, bool force_upda
 
 
 			reloadShaderSource(mainShaderPID, ppShaderPID);
+			if (!lastCompileFailed)
+			{
+				char msg[64];
+				snprintf(msg, sizeof(msg), "Compiled in %lu ms", (unsigned long)(timeGetTime() - compileStart));
+				EditUI::setShaderStatus(msg, 1);
+			}
 		}
 
 		previousUpdateTime = timeGetTime();
@@ -243,6 +260,8 @@ int Editor::compileShader(const char* source, GLenum shaderType) {
 		MessageBox(NULL, errorBuffer, "", 0x00000000L);
 #endif
 		printf("Compilation errors in %s\n", errorBuffer);
+		lastCompileFailed = true;
+		EditUI::setShaderStatus(errorBuffer, 2);
 		return 0;
 	}
 	return pid;

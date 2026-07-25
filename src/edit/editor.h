@@ -42,6 +42,7 @@ namespace Leviathan
 
 		bool shaderUpdatePending = false;
 		int previousUpdateTime = 0;
+		bool lastCompileFailed = false;
 
 		double trackPosition;
 		double trackEnd;

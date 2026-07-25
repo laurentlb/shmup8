@@ -12,6 +12,8 @@
 
 namespace EditUI
 {
+	bool panelOpen(); // defined in editui.cpp
+
 	namespace Tweaks
 	{
 		enum Type { TypeFloat, TypeVec2, TypeVec3, TypeVec4, TypeColor, TypeBool };
@@ -278,6 +280,10 @@ namespace EditUI
 			const bool refresh = shaderProgram != cachedProgram;
 			cachedProgram = shaderProgram;
 
+			// Uniforms must always be uploaded; the ImGui widgets are only issued
+			// when the panel is visible (F1 toggle).
+			const bool ui = panelOpen();
+
 			for (int i = 0; i < tweakCount; ++i)
 			{
 				Tweak& t = tweaks[i];
@@ -289,29 +295,29 @@ namespace EditUI
 				switch (t.type)
 				{
 				case TypeFloat:
-					ImGui::DragFloat(t.name.c_str(), &t.value[0], 0.01f);
+					if (ui) ImGui::DragFloat(t.name.c_str(), &t.value[0], 0.01f);
 					if (t.location >= 0) glUniform1f(t.location, t.value[0]);
 					break;
 				case TypeVec2:
-					ImGui::DragFloat2(t.name.c_str(), t.value, 0.01f);
+					if (ui) ImGui::DragFloat2(t.name.c_str(), t.value, 0.01f);
 					if (t.location >= 0) glUniform2f(t.location, t.value[0], t.value[1]);
 					break;
 				case TypeVec3:
-					ImGui::DragFloat3(t.name.c_str(), t.value, 0.01f);
+					if (ui) ImGui::DragFloat3(t.name.c_str(), t.value, 0.01f);
 					if (t.location >= 0) glUniform3f(t.location, t.value[0], t.value[1], t.value[2]);
 					break;
 				case TypeVec4:
-					ImGui::DragFloat4(t.name.c_str(), t.value, 0.01f);
+					if (ui) ImGui::DragFloat4(t.name.c_str(), t.value, 0.01f);
 					if (t.location >= 0) glUniform4f(t.location, t.value[0], t.value[1], t.value[2], t.value[3]);
 					break;
 				case TypeColor:
-					ImGui::ColorEdit3(t.name.c_str(), t.value);
+					if (ui) ImGui::ColorEdit3(t.name.c_str(), t.value);
 					if (t.location >= 0) glUniform3f(t.location, t.value[0], t.value[1], t.value[2]);
 					break;
 				case TypeBool:
 				{
 					bool b = t.value[0] != 0.0f;
-					ImGui::Checkbox(t.name.c_str(), &b);
+					if (ui) ImGui::Checkbox(t.name.c_str(), &b);
 					t.value[0] = b ? 1.0f : 0.0f;
 					if (t.location >= 0) glUniform1i(t.location, b ? 1 : 0);
 					break;
@@ -319,7 +325,7 @@ namespace EditUI
 				}
 			}
 
-			if (tweakCount > 0)
+			if (ui && tweakCount > 0)
 			{
 				ImGui::Separator();
 				if (ImGui::Button("Bake to source"))

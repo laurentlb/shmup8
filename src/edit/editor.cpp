@@ -27,16 +27,18 @@ void Editor::printFrameStatistics()
 {
 	const int frameTime = lastFrameStop - lastFrameStart;
 
-	// calculate average fps over 'windowSize' of frames
-	float fps = 0.0f;
+	// keep a sliding window of the last 'windowSize' frame durations
+	int totalTime = 0;
 	for (int i = 0; i < windowSize - 1; ++i)
 	{
 		timeHistory[i] = timeHistory[i + 1];
-		fps += 1.0f / static_cast<float>(timeHistory[i]);
+		totalTime += timeHistory[i];
 	}
 	timeHistory[windowSize - 1] = frameTime;
-	fps += 1.0f / static_cast<float>(frameTime);
-	fps *= 1000.0f / static_cast<float>(windowSize);
+	totalTime += frameTime;
+
+	// average fps = frames / elapsed seconds
+	const float fps = totalTime > 0 ? 1000.0f * windowSize / static_cast<float>(totalTime) : 0.0f;
 
 	printf("%s: %0.2i:%0.2i (%i%%), frame duration: %i ms (running fps average: %2.2f) \r",
 		state == Playing ? "Playing" : " Paused",
@@ -72,7 +74,7 @@ double Editor::handleEvents(Leviathan::Song* track, double position)
 		}
 	}
 
-	if (GetAsyncKeyState(VK_CONTROL) && GetAsyncKeyState('S'))
+	if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState('S') & 0x8000))
 		shaderUpdatePending = true;
 
 	trackPosition = position;

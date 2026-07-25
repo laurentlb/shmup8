@@ -40,6 +40,9 @@
     <ClInclude Include="src\edit\editor.h">
       <Filter>editor</Filter>
     </ClInclude>
+    <ClInclude Include="src\edit\tweaks.h">
+      <Filter>editor</Filter>
+    </ClInclude>
     <ClInclude Include="src\edit\song.h">
       <Filter>editor</Filter>
     </ClInclude>

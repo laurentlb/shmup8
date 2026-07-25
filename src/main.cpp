@@ -34,6 +34,7 @@ void entrypoint(void)
 #include "edit/editor.h"
 #include "edit/song.h"
 #include "edit/editui.h"
+#include "edit/tweaks.h"
 int __cdecl main(int argc, char* argv[])
 #endif
 {
@@ -118,17 +119,7 @@ int __cdecl main(int argc, char* argv[])
 			glUniform1f(0, time);
 		#else
 			glUniform1f(glGetUniformLocation(shaderMain, "iTime"), time);
-			static float camPos[] = { 0, 0, 0 };
-			ImGui::SliderFloat3("u_camPos", camPos, -10.0f, 10.0f);
-			glUniform3f(glGetUniformLocation(shaderMain, "u_camPos"), camPos[0], camPos[1], camPos[2]);
-
-			static float var1[] = { 0, 0, 0 };
-			ImGui::SliderFloat3("u_var1", var1, -10.0f, 10.0f);
-			glUniform3f(glGetUniformLocation(shaderMain, "u_camVar1"), var1[0], var1[1], var1[2]);
-
-			static float var2[] = { 0, 0, 0 };
-			ImGui::SliderFloat3("u_var2", var2, -10.0f, 10.0f);
-			glUniform3f(glGetUniformLocation(shaderMain, "u_camVar2"), var2[0], var2[1], var2[2]);
+			EditUI::Tweaks::drawAndApply(shaderMain);
 
 			EditUI::drawEnd();
 		#endif

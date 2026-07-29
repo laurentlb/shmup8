@@ -129,6 +129,7 @@ int __cdecl main(int argc, char* argv[])
 
 
 #ifdef EDITOR_CONTROLS
+		EditUI::pickColor();
 		EditUI::render();
 #endif
 		SwapBuffers(hDC);

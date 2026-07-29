@@ -6,6 +6,12 @@ namespace EditUI {
 	void drawStart(float& time);
 	void drawEnd();
 	void updateManualCamera(int shaderProgram);
+
+	// Pipette: while the left mouse button is held (and not over the panel),
+	// read the backbuffer pixel under the cursor. Call after the scene has been
+	// drawn to the backbuffer but before the ImGui overlay is rendered.
+	void pickColor();
+
 	void render();
 
 	// Whether the ImGui control panel is currently shown (toggled with F1).

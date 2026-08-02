@@ -15,7 +15,7 @@ enum stmt_code {
 };
 
 enum exp_code {
-	CONSTANT = 0x00,
+	CONSTANT = 0x00, // load a constant float32
 	GET_KEY = 0x01,
 	ADD = 0x02,
 	SUB = 0x03,
@@ -27,7 +27,7 @@ enum exp_code {
 	EQ = 0x09,
 	LT = 0x0A,
 	LTE = 0x0B,
-	BYTE_CONST = 0x0C,
+	BYTE_CONST = 0x0C, // load a constant unsigned byte
 };
 
 float variables[5][256];
@@ -47,6 +47,9 @@ float mysinf(const float x) {
 	_asm fstp dword ptr[r];
 	return r;
 }
+
+
+#if 1
 
 float eval(byte** expp) {
 	enum exp_code e = (enum exp_code) * (*expp)++;
@@ -215,3 +218,215 @@ void exec_file(const char* filename) {
 	}
 }
 #endif
+
+
+#else
+
+// Definitions
+const float left = 37;
+const float up = 38;
+const float right = 39;
+const float down = 40;
+const float space = 32;
+
+#define dt state[0] // filled by the engine
+#define time state[8]
+
+#define playerX state[1]
+#define playerY state[2]
+#define score state[5]
+#define lives state[6]
+
+#define state variables[1]
+#define missiles variables[2]
+#define enemies variables[3]
+#define explosions variables[4]
+
+float get_key(float vk) {
+	return (GetAsyncKeyState((int)vk) & 0x8000) ? 1.0f : 0.f;
+}
+
+float clamp(float x, float min, float max) {
+	if (x < min) return min;
+	if (x > max) return max;
+	return x;
+}
+
+float mix(float x, float y, float a) {
+	return x * (1.f - a) + y * a;
+}
+
+void exec() {
+	static int level;
+	static int index, mixer, i, j;
+	static float coolDown;
+	static float t;
+	static float dx, dy, dist2, tx, ty;
+
+	time += dt;
+
+	playerX += (get_key(right) - get_key(left)) * dt * 0.8f;
+	playerY += (get_key(up) - get_key(down)) * dt * 0.8f;
+
+	playerX = clamp(playerX, -1, 1);
+	playerY = clamp(playerY, -0.5f, 0.5f);
+
+	// Animation after losing life
+	state[4] = clamp(state[4] - dt, 0., 1.);
+
+	#define enemyDataSize 4
+
+	// spawning
+	if ((time >= 0) * (time < 0.5)) { // reset
+		enemies[0] = 0;
+		playerX = mix(playerX, 0, 0.2);
+		playerY = mix(playerY, -0.3, 0.2);
+		score = 0;
+		lives = 0;
+		level = 0;
+	}
+	else if (time < 1) {
+		lives = 3;
+
+		// init enemies data
+		for (i = 0; i < 20; i += 1) {
+			enemies[i * enemyDataSize + 1] = 0; // kind
+			enemies[i * enemyDataSize + 2] = (float) i; // seed
+			enemies[i * enemyDataSize + 3] = 0;
+			enemies[i * enemyDataSize + 4] = 10;
+		}
+		// set enemy kinds
+		index = 3 * enemyDataSize + 1;
+		enemies[index] = 1;
+		index += enemyDataSize;
+		enemies[index] = 1;
+
+		index += enemyDataSize;
+		enemies[index] = 2;
+
+		index += enemyDataSize;
+		enemies[index] = 3;
+	}
+
+	// Add enemies over time
+	t = time;
+	enemies[0] = 2;
+	while (t > 0) {
+		t -= 7;
+		enemies[0] += 1;
+	}
+
+	// Enemy movement
+	for (i = 0; i < enemies[0]; i += 1) {
+		float kind = enemies[i * enemyDataSize + 1];
+		mixer = 0;
+		if (kind == 0) {
+			tx = mysinf(time + i) * 0.8f; // px
+			ty = i * 0.1f + mysinf(time + 1.5f) * 0.5f - 0.1f;
+		}
+		if (kind == 1) {
+			tx = playerX;
+			ty = playerY;
+			mixer = 0;
+		}
+		if (kind == 2) {
+			tx = mysinf(time);
+			ty = playerY;
+			mixer = 0;
+		}
+		if (kind == 3) {
+			tx = playerX;
+			ty = mysinf(time);
+			mixer = 0;
+		}
+
+		// Two interpolation modes
+		if (mixer == 1) {
+			enemies[i * enemyDataSize + 3] += clamp(tx - enemies[i * enemyDataSize + 3], -0.01, 0.01); // px
+			enemies[i * enemyDataSize + 4] += clamp(ty - enemies[i * enemyDataSize + 4], -0.01, 0.01); // px
+		}
+		else {
+			// non-linear speed, slowing down when reaching target
+			enemies[i * enemyDataSize + 3] = mix(enemies[i * enemyDataSize + 3], tx, 0.04); // px
+			enemies[i * enemyDataSize + 4] = mix(enemies[i * enemyDataSize + 4], ty, 0.04); // py
+		}
+	}
+
+	// collision with enemies
+	for (j = 0; j < enemies[0]; j += 1) {
+		dx = enemies[j * enemyDataSize + 3] - playerX;
+		dy = enemies[j * enemyDataSize + 4] - playerY;
+		if (dx * dx + dy * dy < 0.07 * 0.07) {
+			enemies[j * enemyDataSize + 3] = mysinf((float) j);
+			enemies[j * enemyDataSize + 4] = 10; // move out of screen
+			state[4] = 1.;
+			lives -= 1;
+		}
+	}
+
+	// Move missiles
+	for (i = (int) missiles[0] - 1; i >= 0; i -= 1) {
+		missiles[i * 2 + 2] += 1 * dt;
+
+		// collisions with enemies
+		for (j = 0; j < enemies[0]; j += 1) {
+			dx = enemies[j * enemyDataSize + 3] - missiles[i * 2 + 1];
+			dy = enemies[j * enemyDataSize + 4] - missiles[i * 2 + 2];
+			dist2 = dx * dx + dy * dy;
+			if (dist2 < 0.05 * 0.05) {
+				enemies[j * enemyDataSize + 4] = -10; // move out of screen
+				score += 1;
+
+				int nbexplo = (int) explosions[0];
+				explosions[nbexplo * 3 + 1] = missiles[i * 2 + 1];
+				explosions[nbexplo * 3 + 2] = missiles[i * 2 + 2];
+				explosions[nbexplo * 3 + 3] = 1;
+				explosions[0] += 1;
+
+				missiles[i * 2 + 2] = 10; // move out of screen
+			}
+		}
+
+		// remove missiles outside the screen
+		if (missiles[i * 2 + 2] > 0.5) {
+			// O(1) removal: swap element with the last one in the array
+			missiles[i * 2 + 1] = missiles[(int) (missiles[0] - 1) * 2 + 1];
+			missiles[i * 2 + 2] = missiles[(int) (missiles[0] - 1) * 2 + 2];
+			missiles[0] -= 1;
+		}
+	}
+
+	// update explosions
+	for (i = (int) explosions[0] - 1; i >= 0; i -= 1) {
+		explosions[i * 3 + 3] -= dt;
+		if (explosions[i * 3 + 3] <= 0) {
+			explosions[i * 3 + 1] = explosions[(int) (explosions[0] - 1) * 2 + 1];
+			explosions[i * 3 + 2] = explosions[(int) (explosions[0] - 1) * 2 + 2];
+			explosions[0] -= 1;
+		}
+	}
+
+
+	if (get_key(space)) {
+		if (time - coolDown > 0.15) {
+			coolDown = time;
+			// Fire, create missile
+			missiles[(int) missiles[0] * 2 + 1] = playerX;
+			missiles[(int) missiles[0] * 2 + 2] = playerY;
+			missiles[0] += 1; // number of missiles
+		}
+	}
+
+	// death
+	if ((time > 2) * (lives <= 0)) {
+		time = -2.0;
+		coolDown = time;
+	}
+}
+
+void exec_file(const char* filename) {
+	// nothing to do
+}
+
+#endif
+

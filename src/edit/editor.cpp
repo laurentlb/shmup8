@@ -176,9 +176,21 @@ void Editor::updateShaders(int* mainShaderPID, int* ppShaderPID, bool force_upda
 			reloadShaderSource(mainShaderPID, ppShaderPID);
 			if (!lastCompileFailed)
 			{
-				char msg[64];
-				snprintf(msg, sizeof(msg), "Compiled in %lu ms", (unsigned long)(timeGetTime() - compileStart));
-				EditUI::setShaderStatus(msg, 1);
+				printf("Shader preprocessing failed\n");
+				EditUI::setShaderStatus("Shader preprocessing failed", 2);
+				lastCompileFailed = true;
+			}
+			else
+			{
+				lastCompileFailed = false;
+				DWORD compileStart = timeGetTime();
+				reloadShaderSource(mainShaderPID, ppShaderPID);
+				if (!lastCompileFailed)
+				{
+					char msg[64];
+					snprintf(msg, sizeof(msg), "Compiled in %lu ms", (unsigned long)(timeGetTime() - compileStart));
+					EditUI::setShaderStatus(msg, 1);
+				}
 			}
 		}
 
@@ -191,7 +203,7 @@ void Editor::reloadShaderSource(int* mainShaderPID, int* postShaderPID)
 {
 	char* sourceVS = textFileRead("src/shaders/preprocessed.scene.vert");
 	char* sourcePS = textFileRead("src/shaders/preprocessed.scene.frag");
-	if (!sourceVS || !sourcePS) { free(sourceVS); free(sourcePS); return; }
+	if (!sourceVS || !sourcePS) { free(sourceVS); free(sourcePS); lastCompileFailed = true; return; }
 
 	// Discover the _TV() constants and turn them into live uniforms.
 	EditUI::Tweaks::scan(sourcePS);

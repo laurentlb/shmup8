@@ -21,6 +21,13 @@ namespace EditUI
 		// Render an ImGui control per tweak and upload the values to the program.
 		void drawAndApply(int shaderProgram);
 
+		// Upload the values to the program without any UI (headless capture).
+		void apply(int shaderProgram);
+
+		// Override a tweak from text, e.g. ("reflMax", "0.5") or
+		// ("neonColor", "vec3(1,0,0)"). Returns false if no such tweak.
+		bool set(const char* name, const char* valueText);
+
 		// Rewrite the current values back into the shader source files.
 		void bake();
 	}

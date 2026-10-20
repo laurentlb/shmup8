@@ -265,7 +265,33 @@ namespace EditUI
 			return declarations.c_str();
 		}
 
+		bool set(const char* name, const char* valueText)
+		{
+			for (int i = 0; i < tweakCount; ++i)
+				if (tweaks[i].name == name)
+				{
+					parseValue(trim(valueText), tweaks[i].type, tweaks[i].value);
+					return true;
+				}
+			return false;
+		}
+
+		static void upload(int shaderProgram, bool ui);
+
+		void apply(int shaderProgram)
+		{
+			upload(shaderProgram, false);
+		}
+
 		void drawAndApply(int shaderProgram)
+		{
+			// The ImGui widgets are only issued when the panel is visible (F1)
+			// and the tweaks section is expanded.
+			upload(shaderProgram, panelOpen() &&
+				ImGui::CollapsingHeader("Tweakable values (_TV)", ImGuiTreeNodeFlags_DefaultOpen));
+		}
+
+		static void upload(int shaderProgram, bool ui)
 		{
 			auto glGetUniformLocation = (PFNGLGETUNIFORMLOCATIONPROC)wglGetProcAddress("glGetUniformLocation");
 			auto glUniform1f = (PFNGLUNIFORM1FPROC)wglGetProcAddress("glUniform1f");
@@ -279,11 +305,6 @@ namespace EditUI
 			static int cachedProgram = 0;
 			const bool refresh = shaderProgram != cachedProgram;
 			cachedProgram = shaderProgram;
-
-			// Uniforms must always be uploaded; the ImGui widgets are only issued
-			// when the panel is visible (F1) and the tweaks section is expanded.
-			const bool ui = panelOpen() &&
-				ImGui::CollapsingHeader("Tweakable values (_TV)", ImGuiTreeNodeFlags_DefaultOpen);
 
 			for (int i = 0; i < tweakCount; ++i)
 			{

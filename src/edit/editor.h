@@ -25,6 +25,9 @@ namespace Leviathan
 
 		void updateShaders(int* mainShaderPID, int* ppShaderPID, bool force_update = false);
 
+		// Whether the last shader (re)compile failed.
+		bool compileFailed() const { return lastCompileFailed; }
+
 	private:
 		void reloadShaderSource(int* mainShaderPID, int* ppShaderPID);
 		char* textFileRead(const char* filename);

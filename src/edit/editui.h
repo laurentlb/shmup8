@@ -1,7 +1,7 @@
 #pragma once
 
 namespace EditUI {
-	HWND createEditorWindow();
+	HWND createEditorWindow(bool visible = true);
 	void init();
 	void drawStart(float& time);
 	void drawEnd();

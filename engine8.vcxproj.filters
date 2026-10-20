@@ -37,6 +37,9 @@
     <ClInclude Include="src\glext.h">
       <Filter>ext</Filter>
     </ClInclude>
+    <ClInclude Include="src\edit\capture.h">
+      <Filter>editor</Filter>
+    </ClInclude>
     <ClInclude Include="src\edit\editor.h">
       <Filter>editor</Filter>
     </ClInclude>

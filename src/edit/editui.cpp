@@ -63,13 +63,13 @@ namespace EditUI {
 		}
 	}
 
-	HWND createEditorWindow() {
+	HWND createEditorWindow(bool visible) {
 		WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, WndProc, 0L, 0L,
 					GetModuleHandle(NULL), NULL, NULL, NULL, NULL,
 					"DemoWindowClass", NULL };
 		RegisterClassEx(&wc);
 		hwnd = CreateWindowA(wc.lpszClassName, "Demo",
-			WS_CAPTION | WS_SYSMENU | WS_VISIBLE, 0, 0, XRES, YRES,
+			WS_CAPTION | WS_SYSMENU | (visible ? WS_VISIBLE : 0), 0, 0, XRES, YRES,
 			NULL, NULL, wc.hInstance, NULL);
 		return hwnd;
 	}

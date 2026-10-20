@@ -44,7 +44,8 @@ int __cdecl main(int argc, char* argv[])
 		ShowCursor(0);
 		HWND hwnd = CreateWindow((LPCSTR)0xC018, 0, WS_POPUP | WS_VISIBLE | WS_MAXIMIZE, 0, 0, 0, 0, 0, 0, 0, 0);
 	#elif EDITOR_CONTROLS
-		HWND hwnd = EditUI::createEditorWindow();
+		const bool capture = Capture::requested(argc, argv);
+		HWND hwnd = EditUI::createEditorWindow(!capture);
 	#else
 		HWND hwnd = CreateWindow((LPCSTR)0xC018, 0, WS_POPUP | WS_VISIBLE, 0, 0, XRES, YRES, 0, 0, 0, 0);
 	#endif

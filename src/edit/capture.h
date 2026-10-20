@@ -15,6 +15,9 @@
 //     --sheet FILE       also write all frames into one contact sheet
 //     --cols N           contact sheet columns (default: 3)
 //
+//   cat-debug.exe --capture --video OUT.mp4 [options]
+//     Renders every frame and pipes them into ffmpeg; see usage() for options.
+//
 // Exit code: 0 on success, 1 if the shader failed to compile, 2 on bad usage.
 namespace Capture
 {

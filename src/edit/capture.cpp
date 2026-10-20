@@ -52,8 +52,80 @@ namespace Capture
 			"  --cam px,py,pz,tx,ty,tz  use the manual camera at this position/target\n"
 			"  --repeat N         timed renders per frame (default: 3)\n"
 			"  --sheet FILE       also write a contact sheet of all frames\n"
-			"  --cols N           contact sheet columns (default: 3)\n", XRES);
+			"  --cols N           contact sheet columns (default: 3)\n"
+			"\n"
+			"usage: cat-debug.exe --capture --video OUT.mp4 [options]\n"
+			"  --fps N            frame rate (default: 60)\n"
+			"  --start S          first frame time in seconds (default: 0)\n"
+			"  --end S            end time in seconds (default: %d)\n"
+			"  --audio FILE       soundtrack, '-' for none (default: themusic.wav if present)\n"
+			"  --crf N            x264 quality, lower is better (default: 12)\n"
+			"  --ffmpeg PATH      ffmpeg executable (default: ffmpeg)\n"
+			"  --width, --set and --cam also apply.\n", XRES, DEMO_LENGTH_IN_S);
 		return 2;
+	}
+
+	// Render every frame from 'start' to 'end' and pipe them into ffmpeg.
+	static int renderVideo(PFNGLUNIFORM1FPROC glUniform1f, int timeLocation, const std::string& out, const std::string& ffmpeg,
+		std::string audio, float start, float end, int fps, int crf, int width)
+	{
+		if (audio.empty() && GetFileAttributesA("themusic.wav") != INVALID_FILE_ATTRIBUTES)
+			audio = "themusic.wav";
+		if (audio == "-")
+			audio.clear();
+		const int height = (int)((long long)YRES * width / XRES) & ~1;
+
+		char cmd[2048];
+		int n = snprintf(cmd, sizeof(cmd),
+			"\"\"%s\" -y -loglevel warning -stats -f rawvideo -vcodec rawvideo -s %dx%d -pix_fmt bgra -r %d -i -",
+			ffmpeg.c_str(), XRES, YRES, fps);
+		if (!audio.empty())
+			n += snprintf(cmd + n, sizeof(cmd) - n, " -ss %.3f -i \"%s\"", start, audio.c_str());
+		// GL rows are bottom-up.
+		n += snprintf(cmd + n, sizeof(cmd) - n, " -vf vflip%s", width == XRES ? "" : ",scale=");
+		if (width != XRES)
+			n += snprintf(cmd + n, sizeof(cmd) - n, "%d:%d:flags=lanczos", width & ~1, height);
+		n += snprintf(cmd + n, sizeof(cmd) - n,
+			" -c:v libx264 -crf %d -preset slow -pix_fmt yuv420p", crf);
+		if (!audio.empty())
+			n += snprintf(cmd + n, sizeof(cmd) - n, " -c:a aac -b:a 384k -shortest");
+		snprintf(cmd + n, sizeof(cmd) - n, " \"%s\"\"", out.c_str());
+		printf("%s\n", cmd);
+
+		FILE* pipe = _popen(cmd, "wb");
+		if (!pipe)
+		{
+			printf("capture: cannot start ffmpeg\n");
+			return 1;
+		}
+
+		const int frameCount = (int)ceilf((end - start) * fps);
+		std::vector<unsigned char> pixels(XRES * YRES * 4);
+		DWORD startTick = GetTickCount();
+		int result = 0;
+		for (int i = 0; i < frameCount; ++i)
+		{
+			glUniform1f(timeLocation, start + (float)i / fps);
+			glRects(-1, -1, 1, 1);
+			glReadPixels(0, 0, XRES, YRES, GL_BGRA_EXT, GL_UNSIGNED_BYTE, &pixels[0]);
+			if (fwrite(&pixels[0], 1, pixels.size(), pipe) != pixels.size())
+			{
+				printf("capture: ffmpeg stopped reading at frame %d\n", i);
+				result = 1;
+				break;
+			}
+			if (i % fps == 0)
+				fprintf(stderr, "frame %d/%d (t=%.1f, %.0fs elapsed)\n", i, frameCount,
+					start + (float)i / fps, (GetTickCount() - startTick) / 1000.0);
+		}
+		if (_pclose(pipe) != 0)
+		{
+			printf("capture: ffmpeg failed\n");
+			result = 1;
+		}
+		if (result == 0)
+			printf("video: %s\n", out.c_str());
+		return result;
 	}
 
 	bool requested(int argc, char* argv[])
@@ -126,6 +198,9 @@ namespace Capture
 		std::vector<float> times;
 		float cam[6];
 		bool hasCam = false;
+		std::string videoPath, audio, ffmpeg = "ffmpeg";
+		int fps = 60, crf = 12;
+		float start = 0.f, end = (float)DEMO_LENGTH_IN_S;
 
 		for (int i = 2; i < argc; ++i)
 		{
@@ -136,6 +211,13 @@ namespace Capture
 			else if (!strcmp(a, "--repeat") && hasValue) repeat = atoi(argv[++i]);
 			else if (!strcmp(a, "--sheet") && hasValue) sheetPath = argv[++i];
 			else if (!strcmp(a, "--cols") && hasValue) cols = atoi(argv[++i]);
+			else if (!strcmp(a, "--video") && hasValue) videoPath = argv[++i];
+			else if (!strcmp(a, "--fps") && hasValue) fps = atoi(argv[++i]);
+			else if (!strcmp(a, "--start") && hasValue) start = (float)atof(argv[++i]);
+			else if (!strcmp(a, "--end") && hasValue) end = (float)atof(argv[++i]);
+			else if (!strcmp(a, "--audio") && hasValue) audio = argv[++i];
+			else if (!strcmp(a, "--crf") && hasValue) crf = atoi(argv[++i]);
+			else if (!strcmp(a, "--ffmpeg") && hasValue) ffmpeg = argv[++i];
 			else if (!strcmp(a, "--cam") && hasValue)
 			{
 				hasCam = sscanf(argv[++i], "%f,%f,%f,%f,%f,%f",
@@ -161,7 +243,8 @@ namespace Capture
 			else if (a[0] == '-' && !(a[1] >= '0' && a[1] <= '9')) return usage();
 			else times.push_back((float)atof(a));
 		}
-		if (times.empty() || width <= 0 || width > XRES || repeat < 1 || cols < 1)
+		if ((times.empty() && videoPath.empty()) || width <= 0 || width > XRES || repeat < 1 || cols < 1 ||
+			fps < 1 || end <= start)
 			return usage();
 
 		#define GLFN(type, name) auto name = (type)wglGetProcAddress(#name)
@@ -206,6 +289,8 @@ namespace Capture
 			glUniform3f(glGetUniformLocation(shaderProgram, "iCamDir"), d[0], d[1], d[2]);
 		}
 		const int timeLocation = glGetUniformLocation(shaderProgram, "iTime");
+		if (!videoPath.empty())
+			return renderVideo(glUniform1f, timeLocation, videoPath, ffmpeg, audio, start, end, fps, crf, width);
 
 		Gdiplus::GdiplusStartupInput gdiplusInput;
 		ULONG_PTR gdiplusToken;

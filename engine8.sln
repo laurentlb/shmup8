@@ -19,6 +19,7 @@ Global
 		Release|Win32 = Release|Win32
 		Snapshot|Any CPU = Snapshot|Any CPU
 		Snapshot|Win32 = Snapshot|Win32
+		Video|Win32 = Video|Win32
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{59C1D4F3-AE93-4A0A-B4FE-60841CA865E5}.Debug|Any CPU.ActiveCfg = Debug|Win32

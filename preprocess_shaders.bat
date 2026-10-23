@@ -11,6 +11,5 @@ cd src\shaders
 :: @set shader_file_list=%shader_file_list% src\shaders\preprocessed.scene.vert
 
 @if "%~1"=="--minify" (
-    shader_minifier.exe -v -o src\shaders\shaders.inl %shader_file_list%
-    shader_minifier.exe    -o src\shaders\shaders.min.frag --no-renaming --format indented %shader_file_list%
+    shader_minifier.exe --preprocess -v -o src\shaders\shaders.inl --readable-output src\shaders\shaders.min.frag %shader_file_list%
 )

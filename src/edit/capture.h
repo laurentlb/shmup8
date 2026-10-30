@@ -17,11 +17,16 @@
 //
 //   cat-debug.exe --capture --video OUT.mp4 [options]
 //     Renders every frame and pipes them into ffmpeg; see usage() for options.
+//     Here --width sets the render size itself, so a smaller width is faster.
 //
 // Exit code: 0 on success, 1 if the shader failed to compile, 2 on bad usage.
 namespace Capture
 {
 	bool requested(int argc, char* argv[]);
+
+	// For a --video capture with a reduced --width: the size to compile the
+	// shader for (Editor::setResolution). False when it stays XRES x YRES.
+	bool videoResolution(int argc, char* argv[], int& w, int& h);
 
 	// argv[1] must be "--capture". shaderProgram is the compiled editor program.
 	int run(int argc, char* argv[], int shaderProgram, bool compileFailed);

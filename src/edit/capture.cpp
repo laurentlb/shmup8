@@ -61,34 +61,55 @@ namespace Capture
 			"  --audio FILE       soundtrack, '-' for none (default: themusic.wav if present)\n"
 			"  --crf N            x264 quality, lower is better (default: 12)\n"
 			"  --ffmpeg PATH      ffmpeg executable (default: ffmpeg)\n"
-			"  --width, --set and --cam also apply.\n", XRES, DEMO_LENGTH_IN_S);
+			"  --width W          render width; the shader runs at that size (default: %d)\n"
+			"  --set and --cam also apply.\n", XRES, DEMO_LENGTH_IN_S, XRES);
 		return 2;
+	}
+
+	// Size of the video frames for --width: an even size with XRES:YRES aspect.
+	static void videoSize(int width, int& w, int& h)
+	{
+		w = width & ~1;
+		h = (int)((long long)YRES * width / XRES) & ~1;
+	}
+
+	bool videoResolution(int argc, char* argv[], int& w, int& h)
+	{
+		int width = XRES;
+		bool video = false;
+		for (int i = 2; i + 1 < argc; ++i)
+		{
+			if (!strcmp(argv[i], "--video")) video = true;
+			else if (!strcmp(argv[i], "--width")) width = atoi(argv[i + 1]);
+		}
+		if (!video || width <= 0 || width >= XRES)
+			return false;
+		videoSize(width, w, h);
+		return true;
 	}
 
 	// Render every frame from 'start' to 'end' and pipe them into ffmpeg.
 	static int renderVideo(PFNGLUNIFORM1FPROC glUniform1f, int timeLocation, const std::string& out, const std::string& ffmpeg,
-		std::string audio, float start, float end, int fps, int crf, int width)
+		std::string audio, float start, float end, int fps, int crf, int w, int h)
 	{
 		if (audio.empty() && GetFileAttributesA("themusic.wav") != INVALID_FILE_ATTRIBUTES)
 			audio = "themusic.wav";
 		if (audio == "-")
 			audio.clear();
-		const int height = (int)((long long)YRES * width / XRES) & ~1;
 
 		char cmd[2048];
 		int n = snprintf(cmd, sizeof(cmd),
 			"\"\"%s\" -y -loglevel warning -stats -f rawvideo -vcodec rawvideo -s %dx%d -pix_fmt bgra -r %d -i -",
-			ffmpeg.c_str(), XRES, YRES, fps);
+			ffmpeg.c_str(), w, h, fps);
 		if (!audio.empty())
 			n += snprintf(cmd + n, sizeof(cmd) - n, " -ss %.3f -i \"%s\"", start, audio.c_str());
 		// GL rows are bottom-up.
-		n += snprintf(cmd + n, sizeof(cmd) - n, " -vf vflip%s", width == XRES ? "" : ",scale=");
-		if (width != XRES)
-			n += snprintf(cmd + n, sizeof(cmd) - n, "%d:%d:flags=lanczos", width & ~1, height);
+		n += snprintf(cmd + n, sizeof(cmd) - n, " -vf vflip");
 		n += snprintf(cmd + n, sizeof(cmd) - n,
 			" -c:v libx264 -crf %d -preset slow -pix_fmt yuv420p", crf);
+		// Pad the audio with silence so the video length wins when the song is shorter.
 		if (!audio.empty())
-			n += snprintf(cmd + n, sizeof(cmd) - n, " -c:a aac -b:a 384k -shortest");
+			n += snprintf(cmd + n, sizeof(cmd) - n, " -af apad -c:a aac -b:a 384k -shortest");
 		snprintf(cmd + n, sizeof(cmd) - n, " \"%s\"\"", out.c_str());
 		printf("%s\n", cmd);
 
@@ -100,14 +121,14 @@ namespace Capture
 		}
 
 		const int frameCount = (int)ceilf((end - start) * fps);
-		std::vector<unsigned char> pixels(XRES * YRES * 4);
+		std::vector<unsigned char> pixels(w * h * 4);
 		DWORD startTick = GetTickCount();
 		int result = 0;
 		for (int i = 0; i < frameCount; ++i)
 		{
 			glUniform1f(timeLocation, start + (float)i / fps);
 			glRects(-1, -1, 1, 1);
-			glReadPixels(0, 0, XRES, YRES, GL_BGRA_EXT, GL_UNSIGNED_BYTE, &pixels[0]);
+			glReadPixels(0, 0, w, h, GL_BGRA_EXT, GL_UNSIGNED_BYTE, &pixels[0]);
 			if (fwrite(&pixels[0], 1, pixels.size(), pipe) != pixels.size())
 			{
 				printf("capture: ffmpeg stopped reading at frame %d\n", i);
@@ -246,6 +267,11 @@ namespace Capture
 		if ((times.empty() && videoPath.empty()) || width <= 0 || width > XRES || repeat < 1 || cols < 1 ||
 			fps < 1 || end <= start)
 			return usage();
+		// Videos render at the requested size (main compiled the shader for it);
+		// PNGs render at full size and are downscaled.
+		int renderW = XRES, renderH = YRES;
+		if (!videoPath.empty())
+			videoSize(width, renderW, renderH);
 
 		#define GLFN(type, name) auto name = (type)wglGetProcAddress(#name)
 		GLFN(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers);
@@ -268,14 +294,14 @@ namespace Capture
 		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 		glGenRenderbuffers(1, &rbo);
 		glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, XRES, YRES);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, renderW, renderH);
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rbo);
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		{
 			printf("capture: cannot create the offscreen framebuffer\n");
 			return 1;
 		}
-		glViewport(0, 0, XRES, YRES);
+		glViewport(0, 0, renderW, renderH);
 
 		glUseProgram(shaderProgram);
 		EditUI::Tweaks::apply(shaderProgram);
@@ -290,7 +316,7 @@ namespace Capture
 		}
 		const int timeLocation = glGetUniformLocation(shaderProgram, "iTime");
 		if (!videoPath.empty())
-			return renderVideo(glUniform1f, timeLocation, videoPath, ffmpeg, audio, start, end, fps, crf, width);
+			return renderVideo(glUniform1f, timeLocation, videoPath, ffmpeg, audio, start, end, fps, crf, renderW, renderH);
 
 		Gdiplus::GdiplusStartupInput gdiplusInput;
 		ULONG_PTR gdiplusToken;

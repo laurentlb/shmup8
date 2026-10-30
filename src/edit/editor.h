@@ -25,6 +25,9 @@ namespace Leviathan
 
 		void updateShaders(int* mainShaderPID, int* ppShaderPID, bool force_update = false);
 
+		// Compile the shaders for a w x h framebuffer instead of XRES x YRES.
+		void setResolution(int w, int h) { resolutionX = w; resolutionY = h; }
+
 		// Whether the last shader (re)compile failed.
 		bool compileFailed() const { return lastCompileFailed; }
 
@@ -46,6 +49,8 @@ namespace Leviathan
 		bool shaderUpdatePending = false;
 		int previousUpdateTime = 0;
 		bool lastCompileFailed = false;
+		int resolutionX = 0; // 0: keep the shader's XRES/YRES
+		int resolutionY = 0;
 
 		double trackPosition;
 		double trackEnd;

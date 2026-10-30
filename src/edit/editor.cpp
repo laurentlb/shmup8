@@ -48,6 +48,18 @@ static void rewriteTweakMacro(std::string& s, const char* macro)
 	}
 }
 
+// Change the value of the first 'const int name = ...;' in the source.
+static void replaceConstInt(std::string& s, const char* name, int value)
+{
+	std::string needle = std::string("const int ") + name + " = ";
+	size_t p = s.find(needle);
+	if (p == std::string::npos) return;
+	p += needle.size();
+	size_t end = s.find(';', p);
+	if (end != std::string::npos)
+		s.replace(p, end - p, std::to_string(value));
+}
+
 static std::string makeEditorSource(const char* source, const char* uniformDecls)
 {
 	std::string s = source ? source : "";
@@ -209,6 +221,11 @@ void Editor::reloadShaderSource(int* mainShaderPID, int* postShaderPID)
 	EditUI::Tweaks::scan(sourcePS);
 	std::string editorVS = makeEditorSource(sourceVS, nullptr);
 	std::string editorPS = makeEditorSource(sourcePS, EditUI::Tweaks::uniformDeclarations());
+	if (resolutionX > 0)
+	{
+		replaceConstInt(editorPS, "XRES", resolutionX);
+		replaceConstInt(editorPS, "YRES", resolutionY);
+	}
 	free(sourceVS);
 	free(sourcePS);
 
@@ -235,6 +252,11 @@ void Editor::reloadShaderSource(int* mainShaderPID, int* postShaderPID)
 		char* sourcePPS = textFileRead("src/shaders/preprocessed.postprocess.frag");
 		if (!sourcePPS) return;
 		std::string editorPPS = makeEditorSource(sourcePPS, nullptr);
+		if (resolutionX > 0)
+		{
+			replaceConstInt(editorPPS, "XRES", resolutionX);
+			replaceConstInt(editorPPS, "YRES", resolutionY);
+		}
 		free(sourcePPS);
 		int shaderPPS = compileShader(editorPPS.c_str(), GL_FRAGMENT_SHADER);
 		if (!shaderPPS) return;

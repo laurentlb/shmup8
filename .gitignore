@@ -287,3 +287,10 @@ __pycache__/
 *.odx.cs
 *.xsd.cs
 /out/
+
+# Capture, Crinkler
+/capture/
+/out.html
+dump*.dmp
+*.mp4
+__pycache__/

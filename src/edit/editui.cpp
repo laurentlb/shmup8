@@ -8,7 +8,6 @@
 
 #include <windows.h>
 #include <mmsystem.h>
-#include <cmath>
 #include <cstdio>
 
 HWND hwnd;
@@ -24,21 +23,26 @@ namespace EditUI {
 	static char  s_status[256] = "";   // last shader compile message
 	static int   s_statusLevel = 0;    // 0 info, 1 success, 2 error
 
-	static bool      s_playing = false;             // pushed by main each frame
-	static Transport s_transport = Transport::None; // pending transport request
+	static bool  s_playing = true;
+	static float s_speed = 1.f;
+	static bool  s_restart = false;
+	static bool  s_frameStep = false;
 
 	static unsigned char s_pickedColor[4] = { 0, 0, 0, 0 }; // last pipette sample (RGBA 0..255)
 
 	bool panelOpen() { return s_panelOpen; }
 	float volume() { return s_volume; }
 
-	void setPlaying(bool playing) { s_playing = playing; }
+	bool playing() { return s_playing; }
+	float speed() { return s_speed; }
 
-	Transport takeTransport() {
-		Transport t = s_transport;
-		s_transport = Transport::None;
-		return t;
+	static bool take(bool& flag) {
+		bool r = flag;
+		flag = false;
+		return r;
 	}
+	bool takeRestart() { return take(s_restart); }
+	bool takeFrameStep() { return take(s_frameStep); }
 
 	void setShaderStatus(const char* message, int level) {
 		if (!message) message = "";
@@ -68,9 +72,11 @@ namespace EditUI {
 					GetModuleHandle(NULL), NULL, NULL, NULL, NULL,
 					"DemoWindowClass", NULL };
 		RegisterClassEx(&wc);
-		hwnd = CreateWindowA(wc.lpszClassName, "Demo",
-			WS_CAPTION | WS_SYSMENU | (visible ? WS_VISIBLE : 0), 0, 0, XRES, YRES,
-			NULL, NULL, wc.hInstance, NULL);
+		const DWORD style = WS_CAPTION | WS_SYSMENU | (visible ? WS_VISIBLE : 0);
+		RECT rect = { 0, 0, XRES, YRES }; // client area
+		AdjustWindowRect(&rect, style, FALSE);
+		hwnd = CreateWindowA(wc.lpszClassName, "Shmup8 editor", style, 0, 0,
+			rect.right - rect.left, rect.bottom - rect.top, NULL, NULL, wc.hInstance, NULL);
 		return hwnd;
 	}
 
@@ -82,7 +88,7 @@ namespace EditUI {
 		ImGui::StyleColorsDark();
 	}
 
-	void drawStart(float& time) {
+	void drawStart() {
 		MSG msg;
 		while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
 		{
@@ -97,6 +103,13 @@ namespace EditUI {
 		// F1 toggles the whole control panel (uniforms still update when hidden).
 		if (ImGui::IsKeyPressed(ImGuiKey_F1, false))
 			s_panelOpen = !s_panelOpen;
+
+		if (!ImGui::GetIO().WantCaptureKeyboard)
+		{
+			if (ImGui::IsKeyPressed(ImGuiKey_P, false)) s_playing = !s_playing;
+			if (ImGui::IsKeyPressed(ImGuiKey_R, false)) s_restart = true;
+			if (ImGui::IsKeyPressed(ImGuiKey_O)) { s_playing = false; s_frameStep = true; }
+		}
 
 		s_windowBegun = false;
 		if (!s_panelOpen)
@@ -116,11 +129,13 @@ namespace EditUI {
 			ImGui::TextColored(col, "%s", s_status);
 		}
 
-		// Play/pause on the same line as the time slider.
-		if (ImGui::Button(s_playing ? "Pause" : "Play "))
-			s_transport = Transport::Toggle;
+		if (ImGui::Button(s_playing ? "Pause (P)" : "Play (P) "))
+			s_playing = !s_playing;
 		ImGui::SameLine();
-		ImGui::SliderFloat("Time", &time, 0.0f, DEMO_LENGTH_IN_S);
+		if (ImGui::Button("Step (O)")) { s_playing = false; s_frameStep = true; }
+		ImGui::SameLine();
+		if (ImGui::Button("Restart (R)")) s_restart = true;
+		ImGui::SliderFloat("Speed", &s_speed, 0.f, 4.f);
 		ImGui::SliderFloat("Volume", &s_volume, 0.0f, 1.0f);
 
 		// Pipette: hold the left mouse button over the render to sample a pixel.
@@ -150,71 +165,10 @@ namespace EditUI {
 		ImGui::Render();
 	}
 
-	// Free-fly (FPS-style) manual camera, editor only. Reads mouse/keyboard via
-	// ImGui and pushes the iCamPos/iCamTarget/iCamDir uniforms the shader reads
-	// when its manual-camera checkbox is enabled. Uses relative drag (right mouse
-	// button) so the cursor stays available for the ImGui widgets.
-	void updateManualCamera(int shaderProgram) {
-		ImGuiIO& io = ImGui::GetIO();
-
-		static const float defPx = 0.f, defPy = 1.f, defPz = -3.f;
-		static float px = defPx, py = defPy, pz = defPz; // position
-		static float yaw = 0.f, pitch = 0.f;             // orientation (radians)
-		static float speed = 5.f;                        // units per second
-
-		// Look: hold the right mouse button and drag.
-		if (!io.WantCaptureMouse && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-			yaw   -= io.MouseDelta.x * 0.005f;
-			pitch -= io.MouseDelta.y * 0.005f;
-			const float lim = 1.55f;
-			if (pitch >  lim) pitch =  lim;
-			if (pitch < -lim) pitch = -lim;
-		}
-
-		const float cp = cosf(pitch), sp = sinf(pitch);
-		const float cy = cosf(yaw),   sy = sinf(yaw);
-		const float fx = sy * cp, fy = sp, fz = cy * cp; // forward
-		const float rx = -cy,     rz = sy;               // right (horizontal)
-
-		if (!io.WantCaptureKeyboard) {
-			float v = speed * io.DeltaTime * (io.KeyShift ? 4.f : 1.f);
-			if (ImGui::IsKeyDown(ImGuiKey_W)) { px += fx * v; py += fy * v; pz += fz * v; }
-			if (ImGui::IsKeyDown(ImGuiKey_S)) { px -= fx * v; py -= fy * v; pz -= fz * v; }
-			if (ImGui::IsKeyDown(ImGuiKey_D)) { px += rx * v;               pz += rz * v; }
-			if (ImGui::IsKeyDown(ImGuiKey_A)) { px -= rx * v;               pz -= rz * v; }
-			if (ImGui::IsKeyDown(ImGuiKey_E)) { py += v; }
-			if (ImGui::IsKeyDown(ImGuiKey_Q)) { py -= v; }
-			if (io.MouseWheel != 0.f) speed *= (io.MouseWheel > 0.f ? 1.1f : 0.9f);
-		}
-
-		auto glGetUniformLocation = (PFNGLGETUNIFORMLOCATIONPROC)wglGetProcAddress("glGetUniformLocation");
-		auto glUniform3f = (PFNGLUNIFORM3FPROC)wglGetProcAddress("glUniform3f");
-
-		int lp = glGetUniformLocation(shaderProgram, "iCamPos");
-		int lt = glGetUniformLocation(shaderProgram, "iCamTarget");
-		int ld = glGetUniformLocation(shaderProgram, "iCamDir");
-		if (lp >= 0) glUniform3f(lp, px, py, pz);
-		if (lt >= 0) glUniform3f(lt, px + fx, py + fy, pz + fz);
-		if (ld >= 0) glUniform3f(ld, fx, fy, fz);
-
-		// Camera controls (widgets only issued when the panel is open).
-		if (s_windowBegun && ImGui::CollapsingHeader("Camera"))
-		{
-			ImGui::Text("Pos: %.2f %.2f %.2f", px, py, pz);
-			ImGui::SliderFloat("Speed", &speed, 0.1f, 50.f, "%.1f", ImGuiSliderFlags_Logarithmic);
-
-			char buf[96];
-			snprintf(buf, sizeof(buf), "vec3(%.3f, %.3f, %.3f)", px, py, pz);
-			if (ImGui::Button("Copy pos")) ImGui::SetClipboardText(buf);
-			ImGui::SameLine();
-			snprintf(buf, sizeof(buf), "vec3(%.3f, %.3f, %.3f)", px + fx, py + fy, pz + fz);
-			if (ImGui::Button("Copy target")) ImGui::SetClipboardText(buf);
-			ImGui::SameLine();
-			snprintf(buf, sizeof(buf), "vec3(%.3f, %.3f, %.3f)", fx, fy, fz);
-			if (ImGui::Button("Copy dir")) ImGui::SetClipboardText(buf);
-			ImGui::SameLine();
-			if (ImGui::Button("Reset")) { px = defPx; py = defPy; pz = defPz; yaw = pitch = 0.f; }
-		}
+	void drawEvents(const int* events, int count) {
+		if (!s_windowBegun || !ImGui::CollapsingHeader("Events")) return;
+		for (int i = 0; i < count; i++)
+			ImGui::Text("%d: %d", i, events[i]);
 	}
 
 	void pickColor()

@@ -6,152 +6,164 @@
 #endif
 
 #include <windows.h>
-#include <mmsystem.h>
-#include <mmreg.h>
 
-#include "definitions.h"
-
-#if EDITOR_CONTROLS
-#include "thirdparty/imgui/imgui.h"
-#endif
-
-// Global defines
-#define USE_CREATE_SHADER_PROGRAM // Save almost 40 bytes, require OpenGL 4.1 (Anat : doesn't work on my emulated windows)
-
-#include "glext.h"
-#pragma data_seg(".shader")
-#include "shaders/shaders.inl"
-
-#pragma data_seg(".pids")
-
-// Shaders
-static int shaderMain;
+#include "engine.h"
+#include "audio.h"
 
 #ifndef EDITOR_CONTROLS
-#pragma code_seg(".main")
-void entrypoint(void)
+#pragma data_seg(".shader")
+#include "shaders/shaders.inl"
+#pragma data_seg()
 #else
+#include "thirdparty/imgui/imgui.h"
 #include "edit/editor.h"
-#include "edit/song.h"
 #include "edit/editui.h"
 #include "edit/tweaks.h"
-int __cdecl main(int argc, char* argv[])
+#include "edit/capture.h"
+#include <cstdio>
 #endif
+
+static float key(int vk)
 {
-	// initialize window
+	return (float)((GetAsyncKeyState(vk) >> 15) & 1);
+}
+
+#ifndef EDITOR_CONTROLS
+
+#pragma code_seg(".main")
+void entrypoint(void)
+{
 	#if FULLSCREEN
-		ChangeDisplaySettings(&screenSettings, CDS_FULLSCREEN);
+		// Cover the screen at the desktop resolution (no display mode change).
+		#define xres GetSystemMetrics(SM_CXSCREEN)
+		#define yres GetSystemMetrics(SM_CYSCREEN)
 		ShowCursor(0);
 		HWND hwnd = CreateWindow((LPCSTR)0xC018, 0, WS_POPUP | WS_VISIBLE | WS_MAXIMIZE, 0, 0, 0, 0, 0, 0, 0, 0);
-	#elif EDITOR_CONTROLS
-		const bool capture = Capture::requested(argc, argv);
-		HWND hwnd = EditUI::createEditorWindow(!capture);
 	#else
+		#define xres XRES
+		#define yres YRES
 		HWND hwnd = CreateWindow((LPCSTR)0xC018, 0, WS_POPUP | WS_VISIBLE, 0, 0, XRES, YRES, 0, 0, 0, 0);
 	#endif
 
+	timeBeginPeriod(1); // precise timeGetTime and Sleep
 	HDC hDC = GetDC(hwnd);
-
-	// initalize opengl context
 	SetPixelFormat(hDC, ChoosePixelFormat(hDC, &pfd), &pfd);
 	wglMakeCurrent(hDC, wglCreateContext(hDC));
+	GLCALL(PFNWGLSWAPINTERVALEXTPROC, "wglSwapIntervalEXT")(1);
 
-	// create and compile shader programs
-	// Main shader
+	gameProgram = GLCALL(PFNGLCREATESHADERPROGRAMVPROC, "glCreateShaderProgramv")(GL_COMPUTE_SHADER, 1, &preprocessed_game_comp);
+	sceneProgram = GLCALL(PFNGLCREATESHADERPROGRAMVPROC, "glCreateShaderProgramv")(GL_FRAGMENT_SHADER, 1, &preprocessed_scene_frag);
+	initEngine(xres, yres);
 
-	shaderMain = ((PFNGLCREATESHADERPROGRAMVPROC)wglGetProcAddress("glCreateShaderProgramv"))(GL_FRAGMENT_SHADER, 1, &preprocessed_scene_frag);
+	CreateThread(0, 0, audioThread, stateCopy, 0, 0);
 
-#ifndef EDITOR_CONTROLS
-	long startTime = timeGetTime();
-#else
-	Leviathan::Editor editor = Leviathan::Editor();
-	editor.updateShaders(&shaderMain, nullptr, true);
-
-	Leviathan::NoSong track;
-
-	track.play();
-	EditUI::init();
-#endif
-
-	// main loop
+	long previousTime = timeGetTime(); // ms
+	int remainder = 0; // elapsed time that wasn't simulated yet, in 1/(1000 * STEPS_PER_SECOND) s
 	do
 	{
-#ifdef EDITOR_CONTROLS
-		editor.beginFrame(timeGetTime());
-		double position = track.getTime();
-		float time = (float)position;
-#else
-		long currentTime = timeGetTime();
-		float time = (float)(currentTime - startTime) * 0.001f;
-#endif
+		// minimal message handling so Windows doesn't consider the application as frozen
+		PeekMessage(0, 0, 0, 0, PM_REMOVE);
 
-		#if EDITOR_CONTROLS
-			EditUI::drawStart(time);
-			track.seek(time);
-		#else
-			// do minimal message handling so windows doesn't kill your application
-			// not always strictly necessary but increases compatibility and reliability a lot
-			// normally you'd pass an msg struct as the first argument but it's just an
-			// output parameter and the implementation presumably does a NULL check
-			PeekMessage(0, 0, 0, 0, PM_REMOVE);
-		#endif
+		long elapsed = timeGetTime() - previousTime;
+		previousTime += elapsed;
+		if (elapsed > 1000 * MAX_STEPS / STEPS_PER_SECOND)
+			elapsed = 1000 * MAX_STEPS / STEPS_PER_SECOND;
+		remainder += elapsed * STEPS_PER_SECOND;
 
-		// main renderer
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 0, 0, XRES, YRES, 0);
-		((PFNGLUSEPROGRAMPROC)wglGetProcAddress("glUseProgram"))(shaderMain);
-		
-		// game logic
-		static float previousTime = 0.0f;
-		extern float variables[4][256];
-		void exec();
-
-		variables[1][0] = time - previousTime;
-		exec();
-		previousTime = time;
-
-		((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(0, 200, variables[1]);
-		((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(200, 200, variables[2]);
-		((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(400, 200, variables[3]);
-		((PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv"))(600, 200, variables[4]);
-
-		((PFNGLUNIFORM1IPROC)wglGetProcAddress("glUniform1i"))(1, 0); // Previous frame
-		#if !EDITOR_CONTROLS
-			glUniform1f(0, time);
-		#else
-			glUniform1f(glGetUniformLocation(shaderMain, "iTime"), time);
-			EditUI::Tweaks::drawAndApply(shaderMain);
-			EditUI::updateManualCamera(shaderMain);
-
-			EditUI::drawEnd();
-		#endif
-
-		glRects(-1, -1, 1, 1);
-
-
-#ifdef EDITOR_CONTROLS
-		EditUI::pickColor();
-		EditUI::render();
-#endif
+		stepGame(key(VK_RIGHT) - key(VK_LEFT), key(VK_UP) - key(VK_DOWN), key(VK_SPACE), remainder / 1000);
+		remainder %= 1000;
+		drawGame(xres, yres, elapsed * 0.001f, 0);
 		SwapBuffers(hDC);
-
-		// handle functionality of the editor
-#ifdef EDITOR_CONTROLS
-		editor.endFrame(timeGetTime());
-		position = editor.handleEvents(&track, position);
-		editor.printFrameStatistics();
-
-		editor.updateShaders(&shaderMain, nullptr, false);
-#endif
-
-#ifdef EDITOR_CONTROLS // disable escape in editor mode
-	#define ESC false
-#else
-	#define ESC GetAsyncKeyState(VK_ESCAPE)
-#endif
-
-	} while (!ESC);
-
+	} while (!GetAsyncKeyState(VK_ESCAPE));
 
 	ExitProcess(0);
 }
+
+#else
+
+int __cdecl main(int argc, char* argv[])
+{
+	setvbuf(stdout, NULL, _IONBF, 0); // the log may be redirected
+	const bool capture = Capture::requested(argc, argv);
+	HWND hwnd = EditUI::createEditorWindow(!capture);
+	timeBeginPeriod(1); // precise timeGetTime and Sleep
+	HDC hDC = GetDC(hwnd);
+	SetPixelFormat(hDC, ChoosePixelFormat(hDC, &pfd), &pfd);
+	wglMakeCurrent(hDC, wglCreateContext(hDC));
+	GLCALL(PFNWGLSWAPINTERVALEXTPROC, "wglSwapIntervalEXT")(capture ? 0 : 1);
+
+	Leviathan::Editor editor;
+	editor.updateShaders(&gameProgram, &sceneProgram, true);
+
+	if (capture)
+	{
+		int width = XRES, height = YRES;
+		Capture::resolution(argc, argv, width, height);
+		initEngine(width, height);
+		Capture::Host host = { stepGame, drawGame, renderAudio, stateCopy, gameProgram, sceneProgram };
+		return Capture::run(argc, argv, host, width, height, editor.compileFailed());
+	}
+
+	initEngine(XRES, YRES);
+	EditUI::init();
+	CreateThread(0, 0, audioThread, stateCopy, 0, 0);
+
+	DWORD previousTime = timeGetTime();
+	float remainder = 0; // in steps
+	for (;;)
+	{
+		DWORD now = timeGetTime();
+		float elapsed = (now - previousTime) * 0.001f;
+		previousTime = now;
+
+		EditUI::drawStart();
+		if (audioDevice)
+		{
+			DWORD v = EditUI::playing() ? (DWORD)(EditUI::volume() * 0xFFFF) : 0;
+			waveOutSetVolume(audioDevice, v | v << 16);
+		}
+
+		if (editor.takeStateChanged() || EditUI::takeRestart())
+			resetState();
+
+		// gameplay
+		ImGuiIO& io = ImGui::GetIO();
+		const bool focus = GetForegroundWindow() == hwnd && !io.WantTextInput && !io.KeyCtrl;
+		float x = 0, y = 0, fire = 0;
+		if (focus)
+		{
+			x = key(VK_RIGHT) - key(VK_LEFT);
+			y = key(VK_UP) - key(VK_DOWN);
+			fire = key(VK_SPACE);
+		}
+		float gameElapsed = EditUI::playing() ? elapsed * EditUI::speed() : 0.f;
+		remainder += gameElapsed * STEPS_PER_SECOND;
+		int steps = (int)remainder;
+		remainder -= steps;
+		if (EditUI::takeFrameStep())
+		{
+			steps = STEPS_PER_SECOND / 60;
+			gameElapsed = 1.f / 60;
+		}
+		if (steps > MAX_STEPS) steps = MAX_STEPS;
+
+		GLCALL(PFNGLUSEPROGRAMPROC, "glUseProgram")(gameProgram);
+		EditUI::Tweaks::apply(gameProgram);
+		stepGame(x, y, fire, steps);
+
+		GLCALL(PFNGLUSEPROGRAMPROC, "glUseProgram")(sceneProgram);
+		EditUI::Tweaks::drawAndApply(sceneProgram);
+		EditUI::drawEvents(stateCopy, SU_SFX_COUNT);
+		EditUI::drawEnd();
+		drawGame(XRES, YRES, gameElapsed, 0);
+
+		EditUI::pickColor();
+		EditUI::render();
+		SwapBuffers(hDC);
+
+		editor.handleEvents();
+		editor.updateShaders(&gameProgram, &sceneProgram, false);
+	}
+}
+
+#endif

@@ -1,0 +1,817 @@
+{
+ "bpm": 150,
+ "rowsperbeat": 4,
+ "score": {
+  "tracks": [
+   {
+    "numvoices": 1,
+    "order": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "patterns": [
+     [
+      60,
+      1,
+      1,
+      1,
+      60,
+      1,
+      1,
+      1,
+      60,
+      1,
+      1,
+      1,
+      60,
+      1,
+      1,
+      1
+     ]
+    ]
+   },
+   {
+    "numvoices": 1,
+    "order": [
+     -1,
+     -1,
+     -1,
+     -1,
+     0,
+     0,
+     0,
+     0
+    ],
+    "patterns": [
+     [
+      1,
+      1,
+      72,
+      1,
+      1,
+      1,
+      72,
+      1,
+      1,
+      1,
+      72,
+      1,
+      1,
+      1,
+      72,
+      1
+     ]
+    ]
+   },
+   {
+    "numvoices": 1,
+    "order": [
+     0,
+     0,
+     1,
+     1,
+     2,
+     2,
+     3,
+     3
+    ],
+    "patterns": [
+     [
+      57,
+      1,
+      0,
+      57,
+      1,
+      0,
+      57,
+      1,
+      69,
+      1,
+      0,
+      57,
+      1,
+      0,
+      64,
+      1
+     ],
+     [
+      53,
+      1,
+      0,
+      53,
+      1,
+      0,
+      53,
+      1,
+      65,
+      1,
+      0,
+      53,
+      1,
+      0,
+      60,
+      1
+     ],
+     [
+      60,
+      1,
+      0,
+      60,
+      1,
+      0,
+      60,
+      1,
+      72,
+      1,
+      0,
+      60,
+      1,
+      0,
+      67,
+      1
+     ],
+     [
+      55,
+      1,
+      0,
+      55,
+      1,
+      0,
+      55,
+      1,
+      67,
+      1,
+      0,
+      55,
+      1,
+      0,
+      62,
+      1
+     ]
+    ]
+   },
+   {
+    "numvoices": 1,
+    "order": [
+     0,
+     0,
+     1,
+     1,
+     2,
+     2,
+     3,
+     3
+    ],
+    "patterns": [
+     [
+      81,
+      1,
+      88,
+      1,
+      81,
+      1,
+      88,
+      1,
+      81,
+      1,
+      88,
+      1,
+      81,
+      1,
+      88,
+      1
+     ],
+     [
+      77,
+      1,
+      84,
+      1,
+      77,
+      1,
+      84,
+      1,
+      77,
+      1,
+      84,
+      1,
+      77,
+      1,
+      84,
+      1
+     ],
+     [
+      79,
+      1,
+      88,
+      1,
+      79,
+      1,
+      88,
+      1,
+      79,
+      1,
+      88,
+      1,
+      79,
+      1,
+      88,
+      1
+     ],
+     [
+      79,
+      1,
+      86,
+      1,
+      79,
+      1,
+      86,
+      1,
+      79,
+      1,
+      86,
+      1,
+      79,
+      1,
+      86,
+      1
+     ]
+    ]
+   }
+  ],
+  "rowsperpattern": 16,
+  "length": 8
+ },
+ "patch": [
+  {
+   "name": "Kick",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "envelope",
+     "id": 2,
+     "parameters": {
+      "attack": 0,
+      "decay": 64,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "envelope",
+     "id": 3,
+     "parameters": {
+      "attack": 0,
+      "decay": 48,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "send",
+     "id": 4,
+     "parameters": {
+      "target": 1,
+      "amount": 96,
+      "port": 0,
+      "sendpop": 1,
+      "voice": 0,
+      "unit": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "oscillator",
+     "id": 1,
+     "parameters": {
+      "type": 0,
+      "transpose": 52,
+      "detune": 64,
+      "gain": 128,
+      "color": 128,
+      "shape": 64,
+      "phase": 0,
+      "lfo": 0,
+      "unison": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 5,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "pan",
+     "id": 6,
+     "parameters": {
+      "panning": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "outaux",
+     "id": 7,
+     "parameters": {
+      "outgain": 90,
+      "auxgain": 0,
+      "stereo": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "Hat",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "envelope",
+     "id": 8,
+     "parameters": {
+      "attack": 0,
+      "decay": 52,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "noise",
+     "id": 9,
+     "parameters": {
+      "gain": 128,
+      "shape": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 10,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "filter",
+     "id": 11,
+     "parameters": {
+      "frequency": 96,
+      "resonance": 128,
+      "lowpass": 0,
+      "bandpass": 0,
+      "highpass": 1,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "pan",
+     "id": 12,
+     "parameters": {
+      "panning": 80,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "outaux",
+     "id": 13,
+     "parameters": {
+      "outgain": 20,
+      "auxgain": 12,
+      "stereo": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "Bass",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "envelope",
+     "id": 14,
+     "parameters": {
+      "attack": 0,
+      "decay": 72,
+      "sustain": 0,
+      "release": 60,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "oscillator",
+     "id": 15,
+     "parameters": {
+      "type": 1,
+      "transpose": 64,
+      "detune": 64,
+      "gain": 128,
+      "color": 100,
+      "shape": 64,
+      "phase": 0,
+      "lfo": 0,
+      "unison": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 16,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "filter",
+     "id": 17,
+     "parameters": {
+      "frequency": 40,
+      "resonance": 64,
+      "lowpass": 1,
+      "bandpass": 0,
+      "highpass": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "pan",
+     "id": 18,
+     "parameters": {
+      "panning": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "outaux",
+     "id": 19,
+     "parameters": {
+      "outgain": 64,
+      "auxgain": 0,
+      "stereo": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "Arp",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "envelope",
+     "id": 20,
+     "parameters": {
+      "attack": 0,
+      "decay": 68,
+      "sustain": 0,
+      "release": 64,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "oscillator",
+     "id": 21,
+     "parameters": {
+      "type": 2,
+      "transpose": 64,
+      "detune": 64,
+      "gain": 128,
+      "color": 40,
+      "shape": 64,
+      "phase": 0,
+      "lfo": 0,
+      "unison": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 22,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "filter",
+     "id": 23,
+     "parameters": {
+      "frequency": 56,
+      "resonance": 90,
+      "lowpass": 1,
+      "bandpass": 0,
+      "highpass": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "pan",
+     "id": 24,
+     "parameters": {
+      "panning": 48,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "outaux",
+     "id": 25,
+     "parameters": {
+      "outgain": 22,
+      "auxgain": 40,
+      "stereo": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "Shot",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "envelope",
+     "id": 28,
+     "parameters": {
+      "attack": 0,
+      "decay": 62,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "envelope",
+     "id": 29,
+     "parameters": {
+      "attack": 0,
+      "decay": 60,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "send",
+     "id": 30,
+     "parameters": {
+      "target": 26,
+      "amount": 88,
+      "port": 0,
+      "sendpop": 1,
+      "voice": 0,
+      "unit": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "oscillator",
+     "id": 26,
+     "parameters": {
+      "type": 2,
+      "transpose": 70,
+      "detune": 64,
+      "gain": 128,
+      "color": 48,
+      "shape": 64,
+      "phase": 0,
+      "lfo": 0,
+      "unison": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 31,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "filter",
+     "id": 27,
+     "parameters": {
+      "frequency": 70,
+      "resonance": 128,
+      "lowpass": 1,
+      "bandpass": 0,
+      "highpass": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "pan",
+     "id": 32,
+     "parameters": {
+      "panning": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "outaux",
+     "id": 33,
+     "parameters": {
+      "outgain": 22,
+      "auxgain": 14,
+      "stereo": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "Boom",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "envelope",
+     "id": 34,
+     "parameters": {
+      "attack": 0,
+      "decay": 80,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "noise",
+     "id": 35,
+     "parameters": {
+      "gain": 128,
+      "shape": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 36,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "filter",
+     "id": 37,
+     "parameters": {
+      "frequency": 34,
+      "resonance": 80,
+      "lowpass": 1,
+      "bandpass": 0,
+      "highpass": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "pan",
+     "id": 38,
+     "parameters": {
+      "panning": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "outaux",
+     "id": 39,
+     "parameters": {
+      "outgain": 120,
+      "auxgain": 30,
+      "stereo": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "Hit",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "envelope",
+     "id": 41,
+     "parameters": {
+      "attack": 0,
+      "decay": 80,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "envelope",
+     "id": 42,
+     "parameters": {
+      "attack": 0,
+      "decay": 72,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "send",
+     "id": 43,
+     "parameters": {
+      "target": 40,
+      "amount": 88,
+      "port": 0,
+      "sendpop": 1,
+      "voice": 0,
+      "unit": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "oscillator",
+     "id": 40,
+     "parameters": {
+      "type": 1,
+      "transpose": 40,
+      "detune": 64,
+      "gain": 128,
+      "color": 20,
+      "shape": 64,
+      "phase": 0,
+      "lfo": 0,
+      "unison": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 44,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "pan",
+     "id": 45,
+     "parameters": {
+      "panning": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "outaux",
+     "id": 46,
+     "parameters": {
+      "outgain": 80,
+      "auxgain": 60,
+      "stereo": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "Global",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "in",
+     "id": 47,
+     "parameters": {
+      "channel": 2,
+      "stereo": 1
+     }
+    },
+    {
+     "type": "delay",
+     "id": 48,
+     "parameters": {
+      "stereo": 1,
+      "pregain": 80,
+      "dry": 128,
+      "feedback": 70,
+      "damp": 60,
+      "notetracking": 0
+     },
+     "varargs": [
+      13230,
+      17640
+     ]
+    },
+    {
+     "type": "out",
+     "id": 49,
+     "parameters": {
+      "gain": 60,
+      "stereo": 1
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,23 +1,92 @@
 #version 430
 
-layout (location = 0) uniform float state[200];
-layout (location = 200) uniform float missiles[200];
-layout (location = 400) uniform float enemies[200];
-layout (location = 600) uniform float explosions[200];
-layout (location = 1000) uniform sampler2D tex;
+layout(location = 0) uniform vec4 iFrame; 
+layout(binding = 0) uniform sampler2D tex; 
 
-// Include begin: shared.h
+// Include begin: tweaks.frag
 // --------------------------------------------------------------------
 
 
 
 
-const int XRES = 1280;
-const int YRES = 720;
 
-const int DEMO_LENGTH_IN_S = (60 + 47);
+#define _TV(name, value)  (value)
+#define _TVC(name, value) (value)
 // --------------------------------------------------------------------
-// Include end: shared.h
+// Include end: tweaks.frag
+
+// Include begin: state.glsl
+// --------------------------------------------------------------------
+
+
+
+
+
+
+
+#define MAX_ENEMIES 20
+#define MAX_SHOTS 32
+#define MAX_BOOMS 16
+
+layout(std430, binding = 0) buffer State {
+    
+    
+    int shotEvents, boomEvents, hitEvents, unusedEvents;
+
+    vec2 player;
+    float gameTime; 
+    float hurt;     
+    float coolDown;
+    int score, lives;
+    int enemyCount, shotCount, boomCount;
+
+    vec4 enemies[MAX_ENEMIES]; 
+    vec4 shots[MAX_SHOTS];     
+    vec4 booms[MAX_BOOMS];     
+};
+// --------------------------------------------------------------------
+// Include end: state.glsl
+
+// Include begin: world.glsl
+// --------------------------------------------------------------------
+
+
+const float PLAYER_RADIUS = 0.05;
+const float SHOT_RADIUS = 0.02;
+
+mat2 rot(float angle)
+{
+    float c = cos(angle);
+    float s = sin(angle);
+    return mat2(c, s, -s, c);
+}
+
+float triangleDist(vec2 p)
+{
+    return max(abs(p).x * 0.866025 + p.y * 0.5, -p.y);
+}
+
+float boxDist(vec2 p, vec2 size)
+{
+    vec2 d = abs(p) - size;
+    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+}
+
+
+float enemyDist(vec2 p, int i)
+{
+    vec3 e = enemies[i].xyz;
+    p -= e.xy;
+    vec2 q = rot(gameTime * 4. + float(i)) * p;
+    if (e.z < 0.5) 
+        return boxDist(rot(-gameTime * 4.) * p, vec2(0.03));
+    if (e.z < 1.5) 
+        return triangleDist(q) - 0.02;
+    return max(0.03 - length(p), triangleDist(q) - 0.03); 
+}
+// --------------------------------------------------------------------
+// Include end: world.glsl
+
 
 
 out vec4 fragColor;
@@ -41,7 +110,7 @@ float noise(vec3 x) {
 }
 
 
-const float TIME = state[8];
+#define TIME gameTime
 
 
 
@@ -120,7 +189,7 @@ vec3 explosion_2d(vec2 uv, float progress, vec3 backgroundcolor, float time) {
     
     float d = length(uv);
     
-    float radius = pow(sin(progress * 3.14159), 0.15) * MAX_RADIUS;
+    float radius = pow(sin(progress * 3.14159), 0.15) * MAX_RADIUS + 0.001;
     
     float noise_val = noise(vec3(uv * NOISE_SCALE, time * 0.5)); 
     float distortion_amp = NOISE_AMPLITUDE * (1.0 - progress);
@@ -146,12 +215,10 @@ vec3 explosion_2d(vec2 uv, float progress, vec3 backgroundcolor, float time) {
 
 float metaDiamond(vec2 p, vec2 pixel, float r) {
     vec2 d = abs(p - pixel);
-    return r / (d.x + d.y);
+    return r / (d.x + d.y + 1e-4);
 }
 
 vec3 background(vec2 uv) {
-    vec3 col = vec3(0);
-
     vec3 starColor = vec3(0.0);
     vec2 uvstars = uv * 3. + vec2(0, TIME * 0.1);
     vec2 grid = floor(uvstars);
@@ -164,100 +231,67 @@ vec3 background(vec2 uv) {
         }
     }
 
-    vec2 p  = uv*5.;
     float cloud1 = fbm(uv*5. + vec2(0., TIME*1.));
     vec3 c1 = cloud1 * palette(0.5);
-    c1 = pow(c1, vec3(1. + state[0]*0.5));
+    c1 = pow(c1, vec3(1. + hurt*0.5));
     float  cloud2 = fbm(uv*2. + vec2(10));
-    vec3 stars = vec3(0.1,0.1,0) * smoothstep(0.8, 0.98, fbm(uv*50. + vec2(0, TIME)));
     vec3 c2 = cloud2 * palette(0.0);
     vec3 cloudCol = mix(c1, c2, 0.5) + 0.2*starColor;
     return cloudCol;
 }
 
-mat2 rot(float angle)
-{
-    float c = cos(angle);
-    float s = sin(angle);
-    return mat2(c, s, -s, c);
-}
 
-float triangleDist(vec2 p)
+vec3 scene(vec2 uv, vec2 texCoord)
 {
-	return max(abs(p).x * 0.866025 + 
-			   p.y * 0.5, -p.y);
-}
+    vec3 col = background(uv);
+    col /= 1. + pow(length(uv), 4.) * 0.6;
 
-float boxDist(vec2 p, vec2 size)
-{
-	vec2 d = abs(p) - size;
-  	return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+    for (int i = 0; i < boomCount; i++) {
+        vec2 p = uv - booms[i].xy;
+        if (length(p) < 0.4)
+            col = explosion_2d(p, 1. - booms[i].z, col, TIME);
+    }
+
+    
+    float size = PLAYER_RADIUS + smoothstep(0., 1., hurt) * 0.1;
+    float mask = smoothstep(size, size + 0.01, length(uv - player));
+    mask *= pow(length(uv - player), 0.15);
+    col = mix(col, vec3(1) - hurt * vec3(0, 1, 1), 1. - sqrt(mask));
+
+    for (int i = 0; i < enemyCount; i++)
+        col = mix(vec3(sin(enemies[i].z), 1, 0.2), col, smoothstep(0., 0.01, enemyDist(uv, i)));
+
+    for (int i = 0; i < shotCount; i++)
+        col = mix(vec3(1, 1, 0.8), col, smoothstep(0.01, SHOT_RADIUS, length(uv - shots[i].xy)));
+
+    
+    col = clamp(col, 0., 1.);
+
+    
+    float coef = clamp(hash21(uv) * _TV(trail, 1.2), 0.5, 1.);
+    float frames = iFrame.z * 60.;
+    vec2 jitter = vec2(hash21(uv + vec2(1)), hash21(uv + vec2(2))) * 2. - 1.;
+    texCoord += jitter * 0.005 * sqrt(frames);
+    return mix(col, texture(tex, texCoord).rgb, pow(coef, frames));
 }
 
 void main()
 {
-    vec2 iResolution = vec2(XRES, YRES);
-    vec2 texCoord = gl_FragCoord.xy/iResolution.xy;
-    vec2 uv = (texCoord * 2. - 1.) * vec2(1., iResolution.y / iResolution.x);
+    vec2 texCoord = gl_FragCoord.xy / iFrame.xy;
+    vec2 uv = (gl_FragCoord.xy * 2. - iFrame.xy) / iFrame.x;
 
-    fragColor.rgb = vec3(0.5);
-
-    vec2 pos = vec2(state[1], state[2]);
-    fragColor.rgb = background(uv);
-    fragColor /= 1.+pow(length(uv),4.)*0.6;
-
-    int nExplo = int(explosions[0]);
-    for (int i = 0; i < nExplo; i++) {
-        vec2 pos2 = vec2(explosions[3*i+1], explosions[3*i + 2]);
-        float progress = 1. - explosions[3*i + 3];
-        fragColor.rgb = explosion_2d(uv - pos2, progress, fragColor.rgb, TIME);
+    if (iFrame.w < 0.5) {
+        fragColor = vec4(scene(uv, texCoord), 1);
+        return;
     }
 
     
-    {
-        float size = 0.05 + smoothstep(0., 1., state[4]) * 0.1;
-        float mask = smoothstep(size, size + 0.01, length(uv - pos));
-        mask *= pow(length(uv - pos), 0.15);
-        
-        fragColor.rgb = vec3(mix(fragColor.rgb, vec3(1)-state[4]*vec3(0,1,1), 1.0 - pow(mask, 0.5)));
-   }
-
-
-    int n = int(enemies[0]);
-    for (int i = 0; i < n; i++) {
-        vec2 pos2 = vec2(enemies[4*i+3], enemies[4*i+4]);
-        vec2 uvrot = rot(-TIME*4.)*(uv - pos2);
-        float kind = enemies[4*i+1];
-        float mask;
-        if (kind < 0.5) { 
-            mask = boxDist(uvrot, vec2(0.03));
-        } else if (kind < 1.5) { 
-            mask = triangleDist(rot(TIME*4.+float(i))*(uv - pos2)) - 0.02;
-        } else {
-            mask = length(uvrot) - 0.03; 
-            mask = max(-mask, triangleDist(rot(TIME*4.+float(i))*(uv - pos2)) - 0.03);
-        }
-        mask = smoothstep(0.0, 0.01, mask);
-        fragColor.rgb = mix(fragColor.rgb, vec3(sin(kind), 1, 0.2), 1.0 - mask);
-    }
-
-    int nMis = int(missiles[0]);
-    for (int i = 0; i < nMis; i++) {
-        vec2 pos2 = vec2(missiles[1 + 2*i], missiles[1 + 2*i + 1]);
-        float mask = smoothstep(0.01,  0.02, length(uv - pos2));
-        fragColor.rgb = mix(fragColor.rgb, vec3(1,1,0.8), 1.0 - mask);
-   }
-
-    float coef = hash21(uv) * 1.2;
-    coef = clamp(coef, 0.5, 1.);
-    texCoord += (vec2(hash21(uv+vec2(1)), hash21(uv+vec2(2))) * 2. - 1.)*0.005;
-    fragColor.rgb = mix(fragColor.rgb, texture(tex, texCoord).rgb, coef);
-
+    fragColor = texture(tex, texCoord);
     fragColor.rgb *= mix(1.2, 1., smoothstep(0., 2., TIME));
     if (TIME < 0.) {
-        digits7(fragColor, vec4(1.,.0,0,1), uv*5.-vec2(2,0), iResolution, uint(state[5]), 4);
+        digits7(fragColor, vec4(1, 0, 0, 1), uv * 5. - vec2(2, 0), iFrame.xy, uint(score), 4);
     } else {
-        digits7(fragColor, vec4(1.,.0,0,1), uv*20.-vec2(18,8.5), iResolution, uint(state[5]), 4);
-        digits7(fragColor, vec4(0,0.5,0,1), uv*20.-vec2(-19,8.5), iResolution, uint(state[6]), 1);
+        digits7(fragColor, vec4(1, 0, 0, 1), uv * 20. - vec2(18, 8.5), iFrame.xy, uint(score), 4);
+        digits7(fragColor, vec4(0, 0.5, 0, 1), uv * 20. - vec2(-19, 8.5), iFrame.xy, uint(max(lives, 0)), 1);
     }
 }

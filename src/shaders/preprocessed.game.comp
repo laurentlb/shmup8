@@ -1,0 +1,183 @@
+#version 430
+
+
+layout(local_size_x = 1) in;
+
+layout(location = 0) uniform vec4 iInput; 
+
+// Include begin: tweaks.frag
+// --------------------------------------------------------------------
+
+
+
+
+
+#define _TV(name, value)  (value)
+#define _TVC(name, value) (value)
+// --------------------------------------------------------------------
+// Include end: tweaks.frag
+
+// Include begin: state.glsl
+// --------------------------------------------------------------------
+
+
+
+
+
+
+
+#define MAX_ENEMIES 20
+#define MAX_SHOTS 32
+#define MAX_BOOMS 16
+
+layout(std430, binding = 0) buffer State {
+    
+    
+    int shotEvents, boomEvents, hitEvents, unusedEvents;
+
+    vec2 player;
+    float gameTime; 
+    float hurt;     
+    float coolDown;
+    int score, lives;
+    int enemyCount, shotCount, boomCount;
+
+    vec4 enemies[MAX_ENEMIES]; 
+    vec4 shots[MAX_SHOTS];     
+    vec4 booms[MAX_BOOMS];     
+};
+// --------------------------------------------------------------------
+// Include end: state.glsl
+
+// Include begin: world.glsl
+// --------------------------------------------------------------------
+
+
+const float PLAYER_RADIUS = 0.05;
+const float SHOT_RADIUS = 0.02;
+
+mat2 rot(float angle)
+{
+    float c = cos(angle);
+    float s = sin(angle);
+    return mat2(c, s, -s, c);
+}
+
+float triangleDist(vec2 p)
+{
+    return max(abs(p).x * 0.866025 + p.y * 0.5, -p.y);
+}
+
+float boxDist(vec2 p, vec2 size)
+{
+    vec2 d = abs(p) - size;
+    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+}
+
+
+float enemyDist(vec2 p, int i)
+{
+    vec3 e = enemies[i].xyz;
+    p -= e.xy;
+    vec2 q = rot(gameTime * 4. + float(i)) * p;
+    if (e.z < 0.5) 
+        return boxDist(rot(-gameTime * 4.) * p, vec2(0.03));
+    if (e.z < 1.5) 
+        return triangleDist(q) - 0.02;
+    return max(0.03 - length(p), triangleDist(q) - 0.03); 
+}
+// --------------------------------------------------------------------
+// Include end: world.glsl
+
+
+const float DT = 1. / 120.;
+
+void updateEnemies()
+{
+    
+    enemyCount = min(2 + int(ceil(max(gameTime, 0.) / 7.)), MAX_ENEMIES);
+    for (int i = 0; i < enemyCount; i++) {
+        float kind = enemies[i].z;
+        vec2 target = vec2(sin(gameTime + float(i)) * 0.8,
+                           float(i) * 0.1 + sin(gameTime + 1.5) * 0.5 - 0.1);
+        if (kind > 0.5) target = player;
+        if (kind > 1.5) target = vec2(sin(gameTime), player.y);
+        if (kind > 2.5) target = vec2(player.x, sin(gameTime));
+
+        
+        enemies[i].xy = mix(enemies[i].xy, target, _TV(enemySpeed, 0.0202));
+
+        if (length(enemies[i].xy - player) < PLAYER_RADIUS + 0.02) {
+            enemies[i].xy = vec2(sin(float(i)), 10); 
+            hurt = 1.;
+            lives--;
+            hitEvents++;
+        }
+    }
+}
+
+void updateShots()
+{
+    for (int i = shotCount - 1; i >= 0; i--) {
+        shots[i].y += DT;
+        for (int j = 0; j < enemyCount; j++) {
+            vec2 p = shots[i].xy;
+            
+            if (p.y < 1. && min(enemyDist(p, j), length(p - enemies[j].xy) - 0.03) < SHOT_RADIUS) {
+                score++;
+                boomEvents++;
+                if (boomCount < MAX_BOOMS)
+                    booms[boomCount++] = vec4(p, 1, 0);
+                enemies[j].y = -10.;
+                shots[i].y = 10.;
+            }
+        }
+        if (shots[i].y > 0.6)
+            shots[i] = shots[--shotCount];
+    }
+
+    if (iInput.z > 0. && gameTime - coolDown > _TV(fireDelay, 0.15) && shotCount < MAX_SHOTS) {
+        coolDown = gameTime;
+        shots[shotCount++] = vec4(player, 0, 0);
+        shotEvents++;
+    }
+}
+
+void update()
+{
+    gameTime += DT;
+    hurt = max(hurt - DT, 0.);
+    player = clamp(player + iInput.xy * DT * _TV(playerSpeed, 0.8), vec2(-1, -.5), vec2(1, .5));
+
+    for (int i = boomCount - 1; i >= 0; i--) {
+        booms[i].z -= DT;
+        if (booms[i].z <= 0.)
+            booms[i] = booms[--boomCount];
+    }
+
+    
+    if (gameTime >= 0. && gameTime < 1.) {
+        if (gameTime < 0.5)
+            player = mix(player, vec2(0, -0.3), 0.1056);
+        score = 0;
+        hurt = 0.;
+        lives = 3;
+        for (int i = 0; i < MAX_ENEMIES; i++)
+            enemies[i] = vec4(0, 10, i == 3 || i == 4 ? 1. : i == 5 ? 2. : i == 6 ? 3. : 0., 0);
+    }
+
+    updateEnemies();
+    updateShots();
+
+    
+    if (gameTime > 2. && lives <= 0) {
+        gameTime = -2.;
+        coolDown = gameTime;
+    }
+}
+
+void main()
+{
+    for (int i = 0; i < int(iInput.w); i++)
+        update();
+}

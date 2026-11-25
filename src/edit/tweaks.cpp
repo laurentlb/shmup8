@@ -300,19 +300,11 @@ namespace EditUI
 			auto glUniform3f = (PFNGLUNIFORM3FPROC)wglGetProcAddress("glUniform3f");
 			auto glUniform4f = (PFNGLUNIFORM4FPROC)wglGetProcAddress("glUniform4f");
 
-			// Uniform locations belong to a program; re-resolve when it changes
-			// (a hot reload creates a fresh program id).
-			static int cachedProgram = 0;
-			const bool refresh = shaderProgram != cachedProgram;
-			cachedProgram = shaderProgram;
-
 			for (int i = 0; i < tweakCount; ++i)
 			{
 				Tweak& t = tweaks[i];
-				// Re-resolve on program change, and keep trying while unresolved
-				// (guards against a first lookup against a not-yet-linked program).
-				if (refresh || t.location < 0)
-					t.location = glGetUniformLocation(shaderProgram, t.name.c_str());
+				// the tweaks are uploaded to several programs
+				t.location = glGetUniformLocation(shaderProgram, t.name.c_str());
 
 				switch (t.type)
 				{
@@ -411,19 +403,23 @@ namespace EditUI
 
 		void bake()
 		{
-			WIN32_FIND_DATAA fd;
-			HANDLE h = FindFirstFileA("src/shaders/*.frag", &fd);
-			if (h == INVALID_HANDLE_VALUE) return;
-			do
+			const char* patterns[] = { "src/shaders/*.frag", "src/shaders/*.comp", "src/shaders/*.glsl" };
+			for (const char* pattern : patterns)
 			{
-				if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
-				std::string name = fd.cFileName;
-				// skip generated / preprocessed / minified outputs
-				if (name.compare(0, 13, "preprocessed.") == 0) continue;
-				if (name.find(".min.") != std::string::npos) continue;
-				bakeFile("src/shaders/" + name);
-			} while (FindNextFileA(h, &fd));
-			FindClose(h);
+				WIN32_FIND_DATAA fd;
+				HANDLE h = FindFirstFileA(pattern, &fd);
+				if (h == INVALID_HANDLE_VALUE) continue;
+				do
+				{
+					if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+					std::string name = fd.cFileName;
+					// skip generated / preprocessed / minified outputs
+					if (name.compare(0, 13, "preprocessed.") == 0) continue;
+					if (name.find(".min.") != std::string::npos) continue;
+					bakeFile("src/shaders/" + name);
+				} while (FindNextFileA(h, &fd));
+				FindClose(h);
+			}
 
 			// The written literals are now the source-of-truth baseline for Revert.
 			for (int i = 0; i < tweakCount; ++i)

@@ -57,7 +57,7 @@ endstruc
 section .synth_object bss align=256
 su_synth_obj:
     resb    su_synthworkspace.size
-    resb    37*su_delayline_wrk.size
+    resb    2*su_delayline_wrk.size
 
 
 ;-------------------------------------------------------------------------------
@@ -67,29 +67,40 @@ su_synth_obj:
 ;   the output buffer. Renders the compile time hard-coded song to the buffer.
 ;   Stack:  output_ptr
 ;-------------------------------------------------------------------------------
-section .su_render_song code align=1
-global _su_render_song@4
-_su_render_song@4:    
-    pushad  ; Stack: edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
+section .su_stream_state data align=1
+su_globaltick: dd 0
+su_randseed: dd 1
+section .su_synth code align=1
+global _su_synth@0
+_su_synth@0:
+    mov     eax, dword su_synth_obj
+    ret
+section .su_tick code align=1
+global _su_tick@4
+_su_tick@4:
+    pushad
+    mov     eax, [esp + 36]
+    call    su_update_voices
+    popad
+    ret     4
+section .su_block code align=1
+global _su_block@8
+_su_block@8:
+    pushad
+    push    dword [su_randseed]
+    push    dword [su_globaltick]
+    push    eax                 ; stands for Row
     xor     eax, eax
-    push    1		; Stack: RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
-    push    eax		; Stack: GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
-su_render_rowloop:                      ; loop through every row in the song
-        push    eax		; Stack: Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
-        call    su_update_voices   ; update instruments for the new row
-        xor     eax, eax                ; ecx is the current sample within row
-su_render_sampleloop:                   ; loop through every sample in the row
+su_render_sampleloop:
             push    eax		; Stack: Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
-            push    6144		; Stack: PolyphonyBitmask, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr  ; does the next voice reuse the current opcodes?
-            push    19		; Stack: VoicesRemain, PolyphonyBitmask, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
+            push    8		; Stack: VoicesRemain, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
             mov     edx, dword su_synth_obj                       ; edx points to the synth object
             mov     ebx, dword su_patch_opcodes           ; COM points to vm code
             mov     esi, dword su_patch_operands             ; VAL points to unit params
             mov     ecx, dword su_synth_obj + su_synthworkspace.size - su_delayline_wrk.filtstate
             lea     ebp, [edx + su_synthworkspace.voices]            ; WRK points to the first voice
             call    su_run_vm ; run through the VM code
-            pop     eax      ; eax = VoicesRemain, Stack: PolyphonyBitmask, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
-            pop     eax      ; eax = PolyphonyBitmask, Stack: Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
+            pop     eax      ; eax = VoicesRemain, Stack: Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
             mov     edi, [esp + 52] ; edi containts ptr
             mov     esi, dword su_synth_obj + su_synthworkspace.left
             movsd   ; copy left channel to output buffer
@@ -103,18 +114,13 @@ su_render_sampleloop:                   ; loop through every sample in the row
             pop     eax      ; eax = Sample, Stack: Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
             inc     dword [esp + 4] ; increment global time, used by delays
             inc     eax
-            cmp     eax, 3445
+            cmp     eax, [esp + 52]
             jl      su_render_sampleloop
-        pop     eax      ; eax = Row, Stack: GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr                   ; Stack: pushad ptr
-        inc     eax
-        cmp     eax, 1408
-        jl      su_render_rowloop
-    ; rewind the stack the entropy of multiple pop eax is probably lower than add
-    pop     eax      ; eax = GlobalTick, Stack: RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
-    pop     eax      ; eax = RandSeed, Stack: edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr     
-    popad  ; Popped: eax, ecx, edx, ebx, esp, ebp, esi, edi. Stack: retaddr_su_render_song, OutputBufPtr
-    ret     4
-
+    pop     eax
+    pop     dword [su_globaltick]
+    pop     dword [su_randseed]
+    popad
+    ret     8
 ;-------------------------------------------------------------------------------
 ;   su_update_voices function: polyphonic & chord implementation
 ;-------------------------------------------------------------------------------
@@ -130,7 +136,7 @@ su_update_voices:
     div     ebx                                 ; eax = current pattern, edx = current row in pattern    
     lea     esi, [su_tracks+eax]; esi points to the pattern data for current track
     mov     edi, dword su_synth_obj+su_synthworkspace.voices
-    mov     bl, 18                      ; MAX_TRACKS is always <= 32 so this is ok
+    mov     bl, 4                      ; MAX_TRACKS is always <= 32 so this is ok
 su_update_voices_trackloop:
         movzx   eax, byte [esi]                     ; eax = current pattern
         imul    eax, 16           ; multiply by rows per pattern, eax = offset to current pattern data        
@@ -149,7 +155,7 @@ su_update_voices_retrigger:
 su_update_voices_nexttrack:
         add     edi, su_voice.size
 su_update_voices_skipadd:
-        add     esi, 88
+        add     esi, 8
         dec     ebx
         jnz     short su_update_voices_trackloop
     ret
@@ -170,7 +176,7 @@ su_update_voices_skipadd:
 ;-------------------------------------------------------------------------------
 section .su_run_vm code align=1
 su_run_vm:    
-    pushad  ; Stack: edi, OperandStream, Voice, esp, OpcodeStream, Synth, DelayWorkSpace, eax, retaddr_su_run_vm, VoicesRemain, PolyphonyBitmask, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
+    pushad  ; Stack: edi, OperandStream, Voice, esp, OpcodeStream, Synth, DelayWorkSpace, eax, retaddr_su_run_vm, VoicesRemain, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
 su_run_vm_loop:                                     ; loop until all voices done
     movzx   edi, byte [ebx]                         ; edi = command byte
     inc     ebx                                     ; move to next instruction
@@ -201,43 +207,13 @@ su_transform_operands_out:
     call    [su_vm_jumptable-4+edi*4]       ; call the function corresponding to the instruction
     jmp     su_run_vm_loop
 su_run_vm_advance:
-    mov     ebp, [esp + 8]         ; WRK points to start of current voice
-    add     ebp, su_voice.size              ; move to next voice
-    mov     [esp + 8], ebp         ; update the pointer in the stack to point to the new voice
-    mov     ecx, [esp + 36]     ; ecx = how many voices remain to process
-    dec     ecx                             ; decrement number of voices to process
-    bt      dword [esp + 40], ecx ; if voice bit of su_polyphonism not set
-    jnc     su_op_advance_next_instrument   ; goto next_instrument
-    mov     esi, [esp + 4] ; if it was set, then repeat the opcodes for the current voice
-    mov     ebx, [esp + 16]
-su_op_advance_next_instrument:
-    mov     [esp + 4], esi ; save current VAL as a checkpoint
-    mov     [esp + 16], ebx ; save current COM as a checkpoint
-su_op_advance_finish:
-    mov     [esp + 36], ecx
-    jne     su_run_vm_loop  ; ZF was set by dec ecx    
-    popad  ; Popped: eax, ecx = DelayWorkSpace, edx = Synth, ebx = OpcodeStream, esp, ebp = Voice, esi = OperandStream, edi. Stack: retaddr_su_run_vm, VoicesRemain, PolyphonyBitmask, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
+    mov     ebp, dword [esp + 8] ; load pointer to voice to register
+    add     ebp, su_voice.size              ; shift it to point to following voice
+    mov     dword [esp + 8], ebp ; save back to stack
+    dec     dword [esp + 36]  ; voices--
+    jne     su_run_vm_loop                          ;   if there's more voices to process, goto vm_loop    
+    popad  ; Popped: eax, ecx = DelayWorkSpace, edx = Synth, ebx = OpcodeStream, esp, ebp = Voice, esi = OperandStream, edi. Stack: retaddr_su_run_vm, VoicesRemain, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
     ret
-;-------------------------------------------------------------------------------
-;   POP opcode: remove (discard) the topmost signal from the stack
-;-------------------------------------------------------------------------------;   Mono:   a -> (empty)
-;-------------------------------------------------------------------------------
-section .su_op_pop code align=1
-su_op_pop:
-    fstp    st0
-    ret
-
-;-------------------------------------------------------------------------------
-;   ADDP opcode: add the two top most signals on the stack and pop
-;-------------------------------------------------------------------------------
-;   Mono:   a b -> a+b
-;   Stereo: a b c d -> a+c b+d
-;-------------------------------------------------------------------------------
-section .su_op_addp code align=1
-su_op_addp:
-    faddp   st1, st0
-    ret
-
 ;-------------------------------------------------------------------------------
 ;   MULP opcode: multiply the two top most signals on the stack and pop
 ;-------------------------------------------------------------------------------
@@ -249,71 +225,6 @@ su_op_mulp:
     fmulp   st1
     ret
 
-;-------------------------------------------------------------------------------
-;   PUSH opcode: push the topmost signal on the stack
-;-------------------------------------------------------------------------------
-;   Mono:   a -> a a
-;   Stereo: a b -> a b a b
-;-------------------------------------------------------------------------------
-section .su_op_push code align=1
-su_op_push:
-    fld     st0
-    ret
-
-;-------------------------------------------------------------------------------
-;   XCH opcode: exchange the signals on the stack
-;-------------------------------------------------------------------------------
-;   Mono:   a b -> b a
-;   stereo: a b c d -> c d a b
-;-------------------------------------------------------------------------------
-section .su_op_xch code align=1
-su_op_xch:
-    fxch    st0, st1
-    ret
-
-
-;-------------------------------------------------------------------------------
-;   HOLD opcode: sample and hold the signal, reducing sample rate
-;-------------------------------------------------------------------------------
-;   Mono version:   holds the signal at a rate defined by the freq parameter
-;   Stereo version: holds both channels
-;-------------------------------------------------------------------------------
-section .su_op_hold code align=1
-su_op_hold:
-    fld     dword [edx]    ; f x
-    fmul    st0, st0                        ; f^2 x
-    fchs                                    ; -f^2 x
-    fadd    dword [ebp]              ; p-f^2 x
-    fst     dword [ebp]              ; p <- p-f^2
-    fldz                                    ; 0 p x
-    fucomip st1                             ; p x
-    fstp    dword [esp-4]                   ; t=p, x
-    jc      short su_op_hold_holding        ; if (0 < p) goto holding
-    fld1                                    ; 1 x
-    fadd    dword [esp-4]                   ; 1+t x
-    fstp    dword [ebp]   ; x
-    fst     dword [ebp+4] ; save holded value
-    ret                                     ; x
-su_op_hold_holding:
-    fstp    st0                             ;
-    fld     dword [ebp+4] ; x
-    ret
-
-;-------------------------------------------------------------------------------
-;   CRUSH opcode: quantize the signal to finite number of levels
-;-------------------------------------------------------------------------------
-;   Mono:   x   ->  e*int(x/e)              where e=2**(-24*resolution)
-;   Stereo: l r ->  e*int(l/e) e*int(r/e)
-;-------------------------------------------------------------------------------
-section .su_op_crush code align=1
-su_op_crush:
-    xor     eax, eax
-    call    su_nonlinear_map
-    fxch    st0, st1
-    fdiv    st0, st1
-    frndint
-    fmulp   st1, st0
-    ret
 
 ;-------------------------------------------------------------------------------
 ;   FILTER opcode: perform low/high/band-pass/notch etc. filtering on the signal
@@ -324,7 +235,6 @@ su_op_crush:
 section .su_op_filter code align=1
 su_op_filter:
     lodsb ; load the flags to al
-    call    su_effects_stereohelper
     fld     dword [edx + 4] ; r x
     fld     dword [edx]; f r x
     fmul    st0, st0                        ; f2 x (square the input so we never get negative and also have a smoother behaviour in the lower frequencies)
@@ -346,26 +256,11 @@ su_op_filter:
     jz      short su_op_filter_skiplowpass
     fadd    dword [ebp]
 su_op_filter_skiplowpass:
-    test    al, byte 0x20
-    jz      short su_op_filter_skipbandpass
-    fadd    dword [ebp+8]
-su_op_filter_skipbandpass:
     test    al, byte 0x10
     jz      short su_op_filter_skiphighpass
     fadd    dword [ebp+4]
 su_op_filter_skiphighpass:
     ret
-
-;-------------------------------------------------------------------------------
-;   CLIP opcode: clips the signal into [-1,1] range
-;-------------------------------------------------------------------------------
-;   Mono:   x   ->  min(max(x,-1),1)
-;   Stereo: l r ->  min(max(l,-1),1) min(max(r,-1),1)
-;-------------------------------------------------------------------------------
-section .su_op_clip code align=1
-su_op_clip:
-    call    su_effects_stereohelper
-    jmp     su_clip
 ;-------------------------------------------------------------------------------
 ;   PAN opcode: pan the signal
 ;-------------------------------------------------------------------------------
@@ -396,12 +291,11 @@ su_op_pan:
 section .su_op_delay code align=1
 su_op_delay:
     lodsw                           ; al = delay index, ah = delay count    
-    pushad  ; Stack: edi, DelayVal, ebp, esp, DelayCom, edx, ecx, eax, retaddr_su_op_delay, edi, OperandStream, Voice, esp, OpcodeStream, Synth, DelayWorkSpace, eax, retaddr_su_run_vm, VoicesRemain, PolyphonyBitmask, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
+    pushad  ; Stack: edi, DelayVal, ebp, esp, DelayCom, edx, ecx, eax, retaddr_su_op_delay, edi, OperandStream, Voice, esp, OpcodeStream, Synth, DelayWorkSpace, eax, retaddr_su_run_vm, VoicesRemain, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
     movzx   ebx, al    
     lea     ebx,[su_delay_times + ebx*2]                  ; BX now points to the right position within delay time table
-    movzx   esi, word [esp + 88]          ; notice that we load word, so we wrap at 65536
+    movzx   esi, word [esp + 84]          ; notice that we load word, so we wrap at 65536
     mov     ecx, dword [esp + 60]   ; ebp is now the separate delay workspace, as they require a lot more space
-    jnc     su_op_delay_mono
     push    eax                 ; save _ah (delay count)
     fxch                        ; r l
     call    su_op_delay_do      ; D(r) l        process delay for the right channel
@@ -410,7 +304,7 @@ su_op_delay:
 su_op_delay_mono:               ; flow into mono delay
     call    su_op_delay_do      ; when stereo delay is not enabled, we could inline this to save 5 bytes, but I expect stereo delay to be farely popular so maybe not worth the hassle
     mov     dword [esp + 60],ecx   ; move delay workspace pointer back to stack.    
-    popad  ; Popped: eax, ecx, edx, ebx = DelayCom, esp, ebp, esi = DelayVal, edi. Stack: retaddr_su_op_delay, edi, OperandStream, Voice, esp, OpcodeStream, Synth, DelayWorkSpace, eax, retaddr_su_run_vm, VoicesRemain, PolyphonyBitmask, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
+    popad  ; Popped: eax, ecx, edx, ebx = DelayCom, esp, ebp, esi = DelayVal, edi. Stack: retaddr_su_op_delay, edi, OperandStream, Voice, esp, OpcodeStream, Synth, DelayWorkSpace, eax, retaddr_su_run_vm, VoicesRemain, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
     ret
 
 ;-------------------------------------------------------------------------------
@@ -515,12 +409,6 @@ section .su_op_send code align=1
 su_op_send:
     lodsw
     mov     ecx, [esp + 12]  ; load pointer to voice
-    pushf   ; uh ugly: we save the flags just for the stereo carry bit. Doing the .CX loading later crashed the synth for stereo sends as loading the synth address from stack was f'd up by the "call su_op_send_mono"
-    test    ah, 0x80
-    jz      su_op_send_skipglobal
-    mov     ecx, [esp + 24 + 4]
-su_op_send_skipglobal:
-    popf
     test    al, 0x8             ; if the SEND_POP bit is not set
     jnz     su_op_send_skippush
     fld     st0                 ; duplicate the signal on stack: s s
@@ -597,7 +485,7 @@ su_op_envelope_leave2:
 ;-------------------------------------------------------------------------------
 section .su_op_noise code align=1
 su_op_noise:
-    lea     ecx,[esp + 60]
+    lea     ecx,[esp + 56]
     imul    eax, [ecx],16007
     mov     [ecx],eax
     fild    dword [ecx]
@@ -619,69 +507,22 @@ su_op_oscillator:
     fld     dword [edx + 4] ; e, where e is the detune [0,1]
     fsub    dword [FCONST_0_500000]                 ; e-.5
     fadd    st0, st0                        ; d=2*e-.5, where d is the detune [-1,1]
-    
-pushad  ; Stack: edi, esi, OscWRK, esp, ebx, edx, ecx, , retaddr_su_op_oscillator, edi, OperandStream, Voice, esp, OpcodeStream, Synth, DelayWorkSpace, eax, retaddr_su_run_vm, VoicesRemain, PolyphonyBitmask, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
-    fldz                            ; 0 d
-    fxch                            ; d a=0, "accumulated signal"
-su_op_oscillat_unison_loop:
-    fst     dword [esp]             ; save the current detune, d. We could keep it in fpu stack but it was getting big.
-    call    su_op_oscillat_single   ; s a
-    faddp   st1, st0                ; a+=s
-    test    al, 3
-    je      su_op_oscillat_unison_out
-    add     ebp, 8   ; this is ok after all, as there's a pop in the end of unison loop
-    fld     dword [edx + 8] ; p s
-
-    fadd    dword [ICONST_1034594986]  ; 1/12 p s, add some little phase offset to unison oscillators so they don't start in sync
-    fstp    dword [edx + 8] ; s    note that this changes the phase for second, possible stereo run. That's probably ok
-    fld     dword [esp]             ; d s
-
-    fmul    dword [FCONST_0_500000]         ; .5*d s    // negate and halve the detune of each oscillator
-    fchs                            ; -.5*d s   // negate and halve the detune of each oscillator
-    dec     eax
-    jmp     short su_op_oscillat_unison_loop
-su_op_oscillat_unison_out:
-    
-popad  ; Popped: eax = , ecx, edx, ebx, esp, ebp = OscWRK, esi, edi. Stack: retaddr_su_op_oscillator, edi, OperandStream, Voice, esp, OpcodeStream, Synth, DelayWorkSpace, eax, retaddr_su_run_vm, VoicesRemain, PolyphonyBitmask, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
-    ret
-su_op_oscillat_single:
     fld     dword [edx]
     fsub    dword [FCONST_0_500000]
     fdiv    dword [FCONST_0_00781250]
     faddp   st1
-    test    al, byte 0x08
-    jnz     su_op_oscillat_skipnote
     fiadd   dword [edx-su_voice.inputs+su_voice.note]   ; // st0 is note, st1 is t+d offset
-su_op_oscillat_skipnote:
     fmul    dword [ICONST_1034594986]
     call    su_power
-    test    al, byte 0x08
-    jz      short su_op_oscillat_normalize_note
-    fmul    dword [FCONST_3_80000em05]  ; // st0 is now frequency for lfo
-    jmp     short su_op_oscillat_normalized
-su_op_oscillat_normalize_note:
     fmul    dword [FCONST_9_269614em05]   ; // st0 is now frequency
 su_op_oscillat_normalized:
     fadd    dword [ebp]
-    test    al, byte 0x80
-    jz      short su_op_oscillat_not_sample
-    fst     dword [ebp]  ; for samples, we store the phase without mod(p,1)
-    fadd    dword [edx + 8]
-    call    su_oscillat_sample
-    jmp     su_op_oscillat_shaping ; skip the rest to avoid color phase normalization and colorloading
-su_op_oscillat_not_sample:
     fld1                     ; we need to take mod(p,1) so the frequency does not drift as the float
     fadd    st1, st0         ; make no mistake: without this, there is audible drifts in oscillator pitch
     fxch                     ; as the actual period changes once the phase becomes too big
     fprem                    ; we actually computed mod(p+1,1) instead of mod(p,1) as the fprem takes mod
     fstp    st1              ; towards zero
     fst     dword [ebp] ; store back the updated phase
-    fadd    dword [edx + 8]
-    fld1                    ; this is a bit stupid, but we need to take mod(x,1) again after phase modulations
-    fadd    st1, st0        ; as the actual oscillator functions expect x in [0,1]
-    fxch
-    fprem
-    fstp    st1
     fld     dword [edx + 12]               ; // c      p
     ; every oscillator test included if needed
     test    al, byte 0x40
@@ -718,7 +559,10 @@ su_oscillat_pulse_up:
 section .su_oscillat_trisaw code align=1
 su_oscillat_trisaw:
     fucomi  st1                             ; // c      p
-    jnc     short su_oscillat_trisaw_up
+    ; we do jnbe instead of jnc to avoid NaN. phase cannot be < 0 or >= 1, so the important cases are
+    ; c = 0 => the branch is never taken, because c > p can never happen, and thus results in .../(1-c)    
+    ; c = 1 => the branch is always taken, because p < c and thus always gives .../c
+    jnbe    short su_oscillat_trisaw_up     
     fld1                                    ; // 1      c       p
     fsubr   st2, st0                        ; // 1      c       1-p
     fsubrp  st1, st0                        ; // 1-c    1-p
@@ -744,30 +588,6 @@ su_oscillat_sine_do:
     fsin                                    ; // sin(2*pi*p)
     ret
 
-section .su_oscillat_sample code align=1
-su_oscillat_sample:    
-    pushad  ; Stack: SampleDi, esi, ebp, esp, SampleBx, SampleDx, SampleCx, SampleAx, retaddr_su_oscillat_sample, retaddr_su_op_oscillator, edi, OperandStream, Voice, esp, OpcodeStream, Synth, DelayWorkSpace, eax, retaddr_su_run_vm, VoicesRemain, PolyphonyBitmask, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr                              ; edx must be saved, eax & ecx if this is stereo osc
-    push    eax
-    mov     al, byte [esi-4]                                ; reuse "color" as the sample number    
-    lea     edi, [su_sample_offsets + eax*8]; edi points now to the sample table entry    
-    fmul    dword [FCONST_84_28075]                  ; p*r
-    fistp   dword [esp]
-    pop     edx                                             ; edx is now the sample number
-    movzx   ebx, word [edi + 4]    ; ecx = loopstart
-    sub     edx, ebx                                        ; if sample number < loop start
-    jl      su_oscillat_sample_not_looping                  ;   then we're not looping yet
-    mov     eax, edx                                        ; eax = sample number
-    movzx   ecx, word [edi + 6]   ; edi is now the loop length
-    xor     edx, edx                                        ; div wants edx to be empty
-    div     ecx                                             ; edx is now the remainder
-su_oscillat_sample_not_looping:
-    add     edx, ebx                                        ; sampleno += loopstart
-    add     edx, dword [edi]    
-    fild    word [su_sample_table + edx*2]    
-    fdiv    dword [FCONST_32767_0]    
-    popad  ; Popped: eax = SampleAx, ecx = SampleCx, edx = SampleDx, ebx = SampleBx, esp, ebp, esi, edi = SampleDi. Stack: retaddr_su_oscillat_sample, retaddr_su_op_oscillator, edi, OperandStream, Voice, esp, OpcodeStream, Synth, DelayWorkSpace, eax, retaddr_su_run_vm, VoicesRemain, PolyphonyBitmask, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
-    ret
-
 ;-------------------------------------------------------------------------------
 ;   IN opcode: inputs and clears a global port
 ;-------------------------------------------------------------------------------
@@ -785,37 +605,6 @@ su_op_in:
     mov     dword [edi + su_synthworkspace.left + eax*4], ecx
     ret
 
-
-section .su_load_gmdls code align=1
-global _su_load_gmdls@0
-_su_load_gmdls@0:
-    mov     eax, su_sample_table
-    ; these are the arguments for ReadFile
-    push    0                       ; NULL
-    push    eax                     ; &bytes_read, reusing sample table again; it does not matter that the first four bytes are trashed
-    push    3440660                 ; number of bytes to read
-    push    eax                     ; here we actually pass the sample table to readfile
-    ; these are for OpenFile
-    push    0                   ; OF_READ
-    push    eax                 ; &ofstruct, blatantly reuse the sample table
-    push    su_gmdls_path1      ; path
-    call    dword [__imp__OpenFile@12]; eax = OpenFile(path,&ofstruct,OF_READ)
-    push    eax                     ; handle to file
-    call    dword [__imp__ReadFile@20] ; Readfile(handle,&su_sample_table,SAMPLE_TABLE_SIZE,&bytes_read,NULL)
-    ret
-extern __imp__OpenFile@12 ; requires windows
-extern __imp__ReadFile@20
- ; requires windows
-
-
-section .su_gmdls_path1 data align=1
-su_gmdls_path1:
-    db 'drivers/gm.dls',0
-
-
-section .susamtable bss align=256
-su_sample_table:
-    resb    3440660    ; size of gmdls.
 
 
 ;-------------------------------------------------------------------------------
@@ -854,19 +643,7 @@ su_power:
     ret
 
 
-;-------------------------------------------------------------------------------
-;   DISTORT opcode: apply distortion on the signal
-;-------------------------------------------------------------------------------
-;   Mono:   x   ->  x*a/(1-a+(2*a-1)*abs(x))            where x is clamped first
-;   Stereo: l r ->  l*a/(1-a+(2*a-1)*abs(l)) r*a/(1-a+(2*a-1)*abs(r))
-;   This is placed here to be able to flow into waveshaper & also include
-;   wave shaper if needed by some other function; need to investigate the
-;   best way to do this
-;-------------------------------------------------------------------------------
-section .su_op_distort code align=1
-su_op_distort:
-    fld     dword [edx]
-
+section .su_waveshaper code align=1
 su_waveshaper:
     fld     st0                             ; a a x
     
@@ -882,35 +659,6 @@ su_waveshaper:
     fmulp   st1                             ; x*a/(1-a+(2*a-1)*abs(x))
     ret
 
-;-------------------------------------------------------------------------------
-;   su_effects_stereohelper: moves the workspace to next, does the filtering for
-;   right channel (pulling the calling address from stack), rewinds the
-;   workspace and returns
-;-------------------------------------------------------------------------------
-section .su_effects_stereohelper code align=1
-su_effects_stereohelper:
-    jnc     su_effects_stereohelper_mono ; carry is still the stereo bit
-    add     ebp, 16
-    fxch                  ; r l
-    call    [esp]         ; call whoever called me...
-    fxch                  ; l r
-    sub     ebp, 16       ; move WRK back to where it was
-su_effects_stereohelper_mono:
-    ret                   ; return to process l/mono sound
-
-
-section .su_clip code align=1
-su_clip:
-    fld1                                    ; 1 x a
-    fucomi  st1                             ; if (1 <= x)
-    jbe     short su_clip_do                ;   goto Clip_Do
-    fchs                                    ; -1 x a
-    fucomi  st1                             ; if (-1 < x)
-    fcmovb  st0, st1                        ;   x x a
-su_clip_do:
-    fstp    st1                             ; x' a, where x' = clamp(x)
-    ret
-
 
 ;-------------------------------------------------------------------------------
 ; The opcode table jump table. This is constructed to only include the opcodes
@@ -919,24 +667,16 @@ su_clip_do:
 section .su_vm_jumptable data align=1
 su_vm_jumptable:
     dd    su_op_envelope
+    dd    su_op_send
     dd    su_op_oscillator
     dd    su_op_mulp
-    dd    su_op_crush
-    dd    su_op_send
-    dd    su_op_addp
-    dd    su_op_distort
     dd    su_op_pan
     dd    su_op_outaux
-    dd    su_op_pop
     dd    su_op_noise
     dd    su_op_filter
-    dd    su_op_delay
-    dd    su_op_hold
-    dd    su_op_push
-    dd    su_op_xch
     dd    su_op_in
+    dd    su_op_delay
     dd    su_op_out
-    dd    su_op_clip
 
 ;-------------------------------------------------------------------------------
 ; The number of transformed parameters each opcode takes
@@ -944,24 +684,16 @@ su_vm_jumptable:
 section .su_vm_transformcounts data align=1
 su_vm_transformcounts:
     db    5
+    db    1
     db    6
     db    0
     db    1
-    db    1
-    db    0
-    db    1
-    db    1
+    db    2
+    db    2
     db    2
     db    0
-    db    2
-    db    2
     db    4
     db    1
-    db    0
-    db    0
-    db    0
-    db    1
-    db    0
 
 
 ;-------------------------------------------------------------------------------
@@ -970,177 +702,32 @@ su_vm_transformcounts:
 section .su_patterns data align=1
 su_patterns:
     db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 60,1,1,1,1,1,60,1,60,1,1,1,1,1,60,1
-    db 1,1,60,1,1,1,60,1,60,1,1,1,1,1,1,1
-    db 60,1,1,1,1,1,1,1,0,0,0,0,60,1,1,1
-    db 60,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0
-    db 60,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 1,1,60,1,1,1,60,1,60,1,1,1,60,1,60,1
-    db 1,1,60,1,1,1,60,1,60,1,60,1,1,1,60,1
-    db 1,1,60,1,1,1,60,1,0,0,0,0,0,0,0,0
-    db 36,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 60,1,60,1,1,1,1,1,60,1,1,1,60,1,60,60
-    db 60,60,1,1,1,1,60,1,60,1,1,1,1,1,60,1
-    db 1,60,60,1,1,1,60,1,60,1,60,1,1,1,60,1
-    db 1,60,60,1,1,1,60,1,60,1,1,1,60,1,60,60
-    db 60,60,1,1,0,0,0,0,0,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,60,1,1,1,60,1,60,60
-    db 60,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,60,1,1,1,0,0,0,0
-    db 0,0,0,0,0,0,0,0,60,1,1,1,1,1,1,1
-    db 0,0,0,0,60,1,1,1,1,1,1,1,60,1,1,1
-    db 1,1,1,1,60,1,1,1,1,1,1,1,60,1,1,1
-    db 1,1,1,1,60,1,1,1,1,1,60,1,60,1,1,1
-    db 1,1,1,1,60,1,1,1,1,1,1,1,1,1,1,1
-    db 0,0,0,0,60,1,1,1,1,1,60,60,60,1,60,60
-    db 1,1,1,1,60,1,1,1,1,1,60,60,60,1,1,60
-    db 1,1,1,1,60,1,1,1,1,1,60,1,60,1,60,1
-    db 1,1,1,1,1,1,1,1,1,1,60,1,60,60,60,1
-    db 60,1,60,1,60,1,60,1,60,1,60,1,60,1,60,1
-    db 60,1,1,1,60,1,60,1,1,1,1,1,60,1,1,1
-    db 60,1,1,1,60,1,60,1,1,1,1,1,60,1,60,60
-    db 60,1,60,1,60,1,60,1,60,1,60,1,60,1,60,60
-    db 60,1,60,1,60,1,60,1,0,0,0,0,0,0,0,0
-    db 72,1,72,1,72,1,72,1,80,1,80,1,80,1,80,1
-    db 77,1,77,1,77,1,77,1,72,1,72,1,72,1,72,1
-    db 77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1
-    db 77,1,77,1,77,1,77,1,0,0,0,0,0,0,0,0
-    db 72,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0
-    db 67,1,0,0,0,0,65,1,0,0,0,0,64,1,0,0
-    db 62,1,0,0,0,0,0,0,0,0,0,0,59,1,0,0
-    db 55,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 33,40,45,58,53,1,1,1,1,1,1,1,1,1,1,1
-    db 1,1,1,1,53,41,53,41,53,41,65,41,62,1,1,1
-    db 61,49,61,49,61,49,61,53,53,53,61,61,61,61,53,1
-    db 72,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 74,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0
-    db 84,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0
-    db 79,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0
-    db 0,0,0,0,80,1,1,1,1,1,1,1,1,1,1,1
-    db 79,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0
-    db 0,0,0,0,84,1,1,1,0,0,0,0,0,0,0,0
-    db 64,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 71,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 0,0,0,0,79,1,1,1,80,1,1,1,1,1,1,1
-    db 0,0,0,0,84,1,1,1,75,1,1,1,1,1,1,1
-    db 0,0,0,0,77,1,1,1,1,1,1,1,1,1,1,1
-    db 67,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 48,1,0,0,55,1,0,0,60,1,0,0,67,1,0,0
-    db 72,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 55,1,0,0,62,1,0,0,67,1,0,0,74,1,0,0
-    db 79,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 53,1,0,0,57,1,0,0,65,1,0,0,69,1,0,0
-    db 77,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 55,1,0,0,62,1,0,0,67,1,0,0,74,1,1,0
-    db 67,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 48,1,55,1,60,1,67,1,68,1,67,1,65,1,60,1
-    db 48,1,55,1,60,1,67,1,72,1,67,1,60,1,55,1
-    db 1,1,1,1,1,1,72,1,74,1,77,1,84,1,86,1
-    db 87,1,86,1,87,1,86,1,87,1,84,1,80,1,82,1
-    db 79,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 1,1,1,1,1,1,75,1,77,1,75,1,77,1,75,1
-    db 0,0,0,0,53,1,1,1,1,1,1,1,1,1,1,1
-    db 1,1,1,1,53,0,53,0,53,53,56,55,62,1,1,1
-    db 1,1,1,1,1,1,1,1,1,1,62,0,50,0,62,0
-    db 0,0,61,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 0,0,0,0,36,41,43,48,55,1,1,1,1,1,1,1
-    db 1,1,1,1,52,1,53,1,54,1,55,1,57,1,58,1
-    db 65,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 0,0,60,1,1,1,0,0,68,1,1,1,1,1,1,1
-    db 0,0,65,1,1,1,0,0,60,1,1,1,1,1,1,1
-    db 0,0,65,1,1,1,0,0,67,0,65,0,67,0,65,0
-    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,1
-    db 60,1,1,1,1,1,1,1,56,1,1,1,1,1,1,1
-    db 48,0,48,0,60,1,48,1,56,0,56,1,68,1,1,0
-    db 53,0,0,0,65,0,53,0,48,1,1,1,1,1,1,0
-    db 48,0,48,0,60,0,48,0,56,0,56,0,68,0,56,0
-    db 53,0,0,0,65,0,53,0,67,0,65,0,67,0,65,0
-    db 53,0,0,0,65,0,53,0,48,1,1,1,1,1,1,1
-    db 1,1,84,1,1,1,72,1,1,1,1,1,1,1,1,1
-    db 1,1,1,1,1,1,79,81,83,1,88,1,88,1,1,88
-    db 0,0,0,0,84,1,72,1,1,1,1,1,1,1,1,1
-    db 1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0
-    db 84,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0
-    db 48,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 79,1,1,1,0,0,77,1,1,0,0,0,76,1,1,1
-    db 74,1,1,1,1,1,1,1,0,0,0,0,71,1,1,1
-    db 67,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0
-    db 79,1,1,1,0,0,77,1,1,0,0,0,76,1,0,0
-    db 43,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 55,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-    db 48,1,1,1,1,1,1,1,44,1,1,1,1,1,1,1
-    db 53,1,1,1,1,1,1,1,1,1,1,1,65,0,63,0
-    db 60,1,1,1,1,1,1,1,56,0,68,0,68,1,0,0
-    db 53,1,1,1,1,1,1,1,1,1,65,0,53,0,0,0
-    db 65,1,1,1,1,1,1,1,1,1,1,1,65,0,63,0
-    db 60,61,1,1,1,1,1,1,56,0,68,0,68,1,0,0
-    db 65,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0
-    db 0,0,0,0,29,1,1,1,1,1,1,1,41,1,1,1
-    db 65,1,1,1,1,1,1,1,1,1,53,0,53,0,0,0
-    db 0,0,0,0,0,0,0,0,0,0,0,0,65,0,63,0
-    db 60,0,60,0,72,1,60,1,68,1,1,1,1,1,1,1
-    db 65,0,0,0,77,0,65,0,60,1,1,1,1,1,1,0
-    db 60,0,60,0,72,0,60,0,68,0,68,0,80,0,68,0
-    db 65,0,0,0,77,0,65,0,79,0,77,0,79,0,77,0
-    db 65,1,1,1,77,1,65,1,79,1,77,1,79,1,77,1
+    db 60,1,1,1,60,1,1,1,60,1,1,1,60,1,1,1
+    db 1,1,72,1,1,1,72,1,1,1,72,1,1,1,72,1
+    db 57,1,0,57,1,0,57,1,69,1,0,57,1,0,64,1
+    db 53,1,0,53,1,0,53,1,65,1,0,53,1,0,60,1
+    db 60,1,0,60,1,0,60,1,72,1,0,60,1,0,67,1
+    db 55,1,0,55,1,0,55,1,67,1,0,55,1,0,62,1
+    db 81,1,88,1,81,1,88,1,81,1,88,1,81,1,88,1
+    db 77,1,84,1,77,1,84,1,77,1,84,1,77,1,84,1
+    db 79,1,88,1,79,1,88,1,79,1,88,1,79,1,88,1
+    db 79,1,86,1,79,1,86,1,79,1,86,1,79,1,86,1
 
 ;-------------------------------------------------------------------------------
 ;    Tracks
 ;-------------------------------------------------------------------------------
 section .su_tracks data align=1
 su_tracks:
-    db 0,0,0,0,0,0,0,0,1,2,1,2,3,4,3,4,1,2,1,2,3,4,3,5,1,2,1,2,0,0,1,2,1,2,1,2,1,2,1,6,1,7,1,6,1,7,1,8,9,10,10,10,0,0,0,0,0,0,0,11,1,2,1,2,1,2,1,6,12,13,1,14,12,13,1,14,15,0,0,16,17,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,0,0,0,0,18,19,18,19,20,21,21,22,18,19,18,0,20,21,21,23,0,0,0,24,21,10,21,22,21,21,21,25,21,25,21,25,21,25,21,25,0,0,0,0,0,0,0,0,0,0,20,26,21,21,21,22,21,21,21,25,21,25,21,25,21,25,21,25,23,10,10,27,5,10,10,10,0,0,0,0
-    db 0,0,0,0,0,0,0,0,28,28,28,28,29,29,29,30,28,28,28,28,29,29,29,5,28,28,28,28,29,29,28,31,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,32,0,0,0,0,0,0,0,0,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,10,10,10,5,10,10,10,0,0,0,0
-    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,33,34,33,35,0,0,0,0,33,34,33,36,0,0,0,0,0,0,33,35,33,34,33,35,33,34,33,35,33,34,33,36,0,0,0,0,0,0,0,0,33,34,33,35,33,34,33,35,33,34,33,35,0,0,33,35,33,35,33,35,33,0,0,0,37,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,0,0,0,0,0,38,39,0,0,0,0,0,0,38,39,0,0,0,0,0,0,38,40,0,0,38,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,41,42,10,43,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,0,0,0,0,44,10,45,10,0,0,0,0,44,10,45,46,47,48,49,44,0,0,0,0,47,50,49,44,47,48,49,44,47,48,49,44,47,48,49,44,0,0,0,0,0,0,0,0,47,48,49,44,47,48,49,44,47,48,49,44,47,48,49,44,47,48,49,44,47,48,51,0,0,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,0,0,0,0,52,10,53,10,0,0,0,0,52,10,53,46,54,44,55,56,0,0,0,0,54,37,55,56,54,44,55,56,54,44,55,56,54,44,55,56,0,0,0,0,0,0,0,0,54,44,55,56,54,44,55,56,54,44,55,56,54,44,55,56,54,44,55,56,54,44,0,0,0,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,0,0,0,0,57,10,10,10,0,0,0,0,57,10,10,46,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 58,59,60,61,62,63,64,65,0,0,0,0,58,59,60,61,0,0,0,0,58,59,60,61,0,0,0,0,62,63,0,0,66,67,0,0,66,67,66,67,66,67,66,67,66,67,66,67,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,68,69,70,71,68,69,70,71,68,69,70,71,5,10,10,10,0,0,0,0
-    db 0,0,0,0,0,0,0,0,72,73,74,75,0,0,0,0,76,10,77,78,79,0,0,0,80,81,80,82,0,0,80,82,0,83,84,78,0,0,80,82,80,81,80,82,80,81,80,82,0,0,0,0,0,0,0,0,85,86,87,88,80,81,80,82,80,81,80,82,85,86,87,88,85,86,87,88,85,89,0,0,5,10,10,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,68,69,70,71,68,69,70,71,68,69,50,71,59,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,0,0,0,0,90,10,90,10,0,0,0,0,90,10,90,91,0,0,0,0,0,0,0,0,92,93,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,94,10,10,0,0,0,0,0,44,10,10,95,0,0,0,0,96,10,10,10,44,10,10,10,0,0,0,0,9,10,0,0,96,10,10,10,96,10,10,10,44,10,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 0,97,98,95,0,97,99,0,0,0,0,0,0,97,98,95,0,0,0,0,0,97,98,0,0,0,0,0,0,97,99,0,0,100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,17,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    db 0,0,0,0,0,0,0,0,101,10,102,5,0,0,0,0,103,104,105,106,0,0,0,0,84,107,108,109,0,110,108,111,0,0,84,107,0,0,108,109,0,112,108,109,0,112,108,109,0,0,0,0,0,0,0,0,113,114,115,116,113,114,115,117,113,114,115,117,113,114,115,116,113,114,115,116,113,0,0,0,0,0,0,0,0,0,0,0
-;-------------------------------------------------------------------------------
-;    Sample offsets
-;-------------------------------------------------------------------------------
-section .su_sample_offsets data align=1
-su_sample_offsets:
-    dd 741926
-    dw 1034
-    dw 1
-    dd 785962
-    dw 1166
-    dw 1
-    dd 697714
-    dw 2237
-    dw 1660
-    dd 692876
-    dw 2901
-    dw 1852
-    dd 1719591
-    dw 545
-    dw 49
-    dd 1718423
-    dw 959
-    dw 125
-
+    db 1,1,1,1,1,1,1,1
+    db 0,0,0,0,2,2,2,2
+    db 3,3,4,4,5,5,6,6
+    db 7,7,8,8,9,9,10,10
 ;-------------------------------------------------------------------------------
 ;    Delay times
 ;-------------------------------------------------------------------------------
 section .su_delay_times data align=1
 su_delay_times:
-    dw 10335,13781,256,18375,20671,224,6890,1116,1191,1276,1356,1422,1492,1556,1618,1140,1212,1300,1380,1446,1516,1580,1642
+    dw 13230,17640
 
 
 ;-------------------------------------------------------------------------------
@@ -1148,14 +735,14 @@ su_delay_times:
 ;-------------------------------------------------------------------------------
 section .su_patch_opcodes data align=1
 su_patch_opcodes:
-    db 2,4,6,8,2,10,10,4,6,12,14,16,19,0,2,10,2,10,10,20,4,4,22,24,12,12,6,24,16,19,0,2,4,6,2,22,24,6,12,26,16,19,0,2,10,4,4,14,12,6,16,19,0,2,22,14,28,4,12,10,10,20,4,22,24,12,30,24,32,24,12,6,26,16,19,0,2,2,10,20,4,4,4,12,12,24,6,26,26,16,19,0,2,10,4,8,4,12,4,12,6,24,24,16,26,32,26,19,0,2,4,6,16,26,32,26,19,0,2,2,10,10,20,4,4,4,12,12,24,14,28,6,16,26,32,26,32,19,0,2,4,8,4,12,6,16,26,32,26,19,0,2,4,6,26,16,19,0,2,4,10,10,10,20,22,24,24,24,6,16,19,0,2,4,6,26,16,19,0,2,22,10,20,4,10,20,4,10,20,4,4,22,24,12,12,24,14,28,6,26,16,19,0,2,4,10,20,4,6,24,16,19,0,2,4,10,10,20,4,10,4,4,6,6,30,24,32,24,12,24,6,16,26,32,26,32,19,0,35,25,27,37,35,25,39,37,4,10,10,10,4,10,0
+    db 2,2,4,6,8,10,13,0,2,14,8,16,10,13,0,2,6,8,16,10,13,0,2,6,8,16,10,13,0,2,2,4,6,8,16,10,13,0,2,14,8,16,10,13,0,2,2,4,6,8,10,13,0,19,21,23,0
 
 ;-------------------------------------------------------------------------------
 ;    The parameters / inputs to each opcode
 ;-------------------------------------------------------------------------------
 section .su_patch_operands data align=1
 su_patch_operands:
-    db 0,68,0,0,89,78,64,0,0,64,88,128,60,0,68,0,64,128,80,128,0,128,208,0,28,64,0,128,64,24,64,100,64,128,0,0,72,0,72,128,128,20,0,0,56,0,0,92,108,112,0,72,128,0,32,64,0,128,32,64,64,64,64,0,128,80,64,64,64,64,104,128,64,22,32,16,64,25,0,0,70,0,0,5,63,64,0,1,64,128,128,0,64,0,64,64,64,64,128,128,16,62,128,96,0,0,1,64,44,0,0,71,16,64,63,128,52,0,40,47,0,100,62,128,35,28,64,0,101,64,128,32,118,64,80,0,48,80,64,64,128,64,64,64,0,16,64,0,64,64,128,40,40,192,0,58,193,0,88,64,0,128,64,128,64,64,5,77,24,32,32,128,32,96,128,32,64,128,64,64,1,1,64,64,64,0,64,96,64,128,0,72,64,64,128,104,160,0,64,68,0,0,64,128,32,64,60,0,0,64,128,32,76,64,0,6,64,128,32,32,128,64,96,16,96,16,2,1,64,128,64,64,1,1,64,13,32,80,0,128,0,48,80,1,1,64,61,0,64,64,64,65,10,76,64,0,110,32,0,32,33,62,0,2,64,128,128,32,128,16,60,123,96,64,64,128,40,0,1,1,64,128,40,0,3,1,42,4,0,71,0,64,64,57,67,0,3,61,102,129,53,67,128,48,0,1,1,67,128,48,0,4,1,80,48,0,64,64,74,128,0,88,16,64,128,96,133,0,32,176,0,64,68,0,64,64,128,32,52,58,32,32,64,128,32,88,62,48,128,32,32,64,64,64,16,120,128,64,96,96,64,64,5,1,96,96,64,64,5,1,64,64,0,72,25,64,100,64,55,0,64,64,29,19,7,31,64,0,4,64,128,128,54,64,128,65,0,6,1,64,128,65,0,1,1,64,12,0,64,0,64,64,52,64,0,5,64,64,128,40,128,96,0,1,1,86,128,32,96,96,96,96,96,16,64,0,128,64,64,72,68,128,0,66,144,0,65,160,0,64,128,64,16,64,96,16,80,32,16,16,64,0,48,64,64,64,64,64,64,64,0,64,64,64,64,40,128,96,0,1,1,64,64,64,80,64,96,80,18,64,128,128,130,0,32,64,0,64,64,128,40,88,32,1,12,64,0,64,64,128,40,128,193,0,64,64,64,128,64,128,64,64,68,64,128,32,128,64,64,8,64,64,64,56,8,64,64,128,64,128,64,64,1,1,80,32,48,0,96,0,64,95,64,73,0,128,64,128,64,96,82,0,64,64,64,128,64,128,64,48,64,64,64,96,4,0,88,128,6,16,17,64,88,128,64,91,72,72,208,0,48,240,0,40,67,0,56,64,128,32,112,130,0,68,77,0,128,124,128,64,64,72,0,128,124,128,64,32,64,32,96,79,32,19,37,16,64,64,128,64,64,6,1,64,128,64,64,6,1,128,128,2,44,128,16,40,128,125,64,7,15,128,0,0,64,16,128,26,64,0,128,64,64,72,128,67,152,128,67,156,128,75,160,22,64,0,128,64,64,64,106,59,172
+    db 0,64,0,0,128,0,48,0,0,128,96,72,0,52,64,0,128,64,128,64,64,90,0,0,52,0,0,128,64,128,96,128,16,80,20,12,0,72,0,60,128,64,64,0,100,64,128,32,40,64,64,64,64,0,0,68,0,64,128,64,64,0,40,64,128,16,56,90,64,48,22,40,0,62,0,0,128,0,60,0,0,128,88,72,0,70,64,0,48,64,128,16,70,128,64,64,22,14,0,80,0,0,128,64,128,34,80,64,64,120,30,0,80,0,0,128,0,72,0,0,128,88,72,0,40,64,0,20,64,128,32,64,80,60,2,80,128,70,60,0,1,60
 
 ;-------------------------------------------------------------------------------
 ;    Constants
@@ -1164,10 +751,7 @@ section .constants data align=1
 FCONST_0_00781250       dd 0x3c000000
 FCONST_0_500000         dd 0x3f000000
 FCONST_0_99609375       dd 0x3f7f0000
-FCONST_3_80000em05      dd 0x381f6230
 FCONST_9_269614em05     dd 0x38c265dc
-FCONST_84_28075         dd 0x42a88fbe
-FCONST_32767_0          dd 0x46fffe00
 ICONST_2147483648       dd 0x80000000
 ICONST_1034594986       dd 0x3daaaaaa
 ICONST_24               dd 0x18

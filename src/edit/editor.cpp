@@ -1,11 +1,11 @@
 #include "editor.h"
-#include "song.h"
 #include "tweaks.h"
 #include "editui.h"
 
 #include "thirdparty/imgui/imgui.h"
 
 #include "stdio.h"
+#include <cstring>
 #include "glext.h"
 
 #include <string>
@@ -48,18 +48,6 @@ static void rewriteTweakMacro(std::string& s, const char* macro)
 	}
 }
 
-// Change the value of the first 'const int name = ...;' in the source.
-static void replaceConstInt(std::string& s, const char* name, int value)
-{
-	std::string needle = std::string("const int ") + name + " = ";
-	size_t p = s.find(needle);
-	if (p == std::string::npos) return;
-	p += needle.size();
-	size_t end = s.find(';', p);
-	if (end != std::string::npos)
-		s.replace(p, end - p, std::to_string(value));
-}
-
 static std::string makeEditorSource(const char* source, const char* uniformDecls)
 {
 	std::string s = source ? source : "";
@@ -70,15 +58,10 @@ static std::string makeEditorSource(const char* source, const char* uniformDecls
 		rewriteTweakMacro(s, "_TV");
 		rewriteTweakMacro(s, "_TVC");
 
-		// Editor-only preamble: define EDITOR (guards editor-only code such as
-		// the manual camera in selectShot), inject the manual-camera uniforms,
-		// then the scanned _TV uniform declarations. Inserted right after the
-		// mandatory #version line.
-		std::string preamble =
-			"#define EDITOR 1\n"
-			"uniform vec3 iCamPos;\n"
-			"uniform vec3 iCamTarget;\n"
-			"uniform vec3 iCamDir;\n";
+		// Editor-only preamble: define EDITOR (guards editor-only code), then the
+		// scanned _TV uniform declarations. Inserted right after the mandatory
+		// #version line.
+		std::string preamble = "#define EDITOR 1\n";
 		preamble += uniformDecls;
 
 		size_t nl = s.find('\n');
@@ -88,190 +71,166 @@ static std::string makeEditorSource(const char* source, const char* uniformDecls
 	return s;
 }
 
-Editor::Editor() : lastFrameStart(0), lastFrameStop(0), trackPosition(0.0), trackEnd(0.0), state(Playing)
+// The interface block of the game state, to detect layout changes.
+static std::string findStateDeclaration(const std::string& source)
+{
+	size_t begin = source.find("buffer State");
+	size_t end = source.find("};", begin);
+	if (begin == std::string::npos || end == std::string::npos) return "";
+	// include the constants (array sizes)
+	std::string decl = source.substr(begin, end - begin);
+	for (size_t p = source.find("#define MAX_"); p < begin; p = source.find("#define MAX_", p + 1))
+		decl += source.substr(p, source.find(char(10), p) - p);
+	return decl;
+}
+
+Editor::Editor()
 {
 	printf("Editor opened...\n");
 }
 
-void Editor::beginFrame(const unsigned long time)
+// Time of the last change in the shader sources.
+static unsigned long long lastShaderChange()
 {
-	lastFrameStart = time;
-}
-
-void Editor::endFrame(const unsigned long time)
-{
-	lastFrameStop = time;
-}
-
-void Editor::printFrameStatistics()
-{
-	const int frameTime = lastFrameStop - lastFrameStart;
-
-	// keep a sliding window of the last 'windowSize' frame durations
-	int totalTime = 0;
-	for (int i = 0; i < windowSize - 1; ++i)
+	unsigned long long last = 0;
+	const char* patterns[] = { "src/shaders/*.frag", "src/shaders/*.comp", "src/shaders/*.glsl", "src/shaders/*.h" };
+	for (const char* pattern : patterns)
 	{
-		timeHistory[i] = timeHistory[i + 1];
-		totalTime += timeHistory[i];
-	}
-	timeHistory[windowSize - 1] = frameTime;
-	totalTime += frameTime;
-
-	// average fps = frames / elapsed seconds
-	const float fps = totalTime > 0 ? 1000.0f * windowSize / static_cast<float>(totalTime) : 0.0f;
-
-	printf("%s: %0.2i:%0.2i (%i%%), frame duration: %i ms (running fps average: %2.2f) \r",
-		state == Playing ? "Playing" : " Paused",
-		// assuming y'all won't be making intros more than an hour long
-		int(trackPosition/60.0), int(trackPosition) % 60, int(100.0f*trackPosition/trackEnd),
-		frameTime, fps);
-}
-
-double Editor::handleEvents(Leviathan::Song* track, double position)
-{
-	ImGuiIO& io = ImGui::GetIO();
-
-	// Play/pause toggle requested from the ImGui transport button.
-	if (EditUI::takeTransport() == EditUI::Transport::Toggle)
-		track->toggle();
-
-	// Scrub with the arrow keys while the demo window is focused (ImGui only
-	// receives keys then) and no widget is capturing the keyboard. Hold to
-	// scrub continuously; shift for a slower, finer rate.
-	if (!io.WantCaptureKeyboard)
-	{
-		const double rate = io.KeyShift ? 1.0 : 10.0; // seconds per second held
-		double seek = 0.0;
-		if (ImGui::IsKeyDown(ImGuiKey_RightArrow)) seek += rate * io.DeltaTime;
-		if (ImGui::IsKeyDown(ImGuiKey_LeftArrow))  seek -= rate * io.DeltaTime;
-		if (seek != 0.0)
+		WIN32_FIND_DATAA fd;
+		HANDLE h = FindFirstFileA(pattern, &fd);
+		if (h == INVALID_HANDLE_VALUE) continue;
+		do
 		{
-			position += seek;
-			track->seek(position);
-		}
+			if (strncmp(fd.cFileName, "preprocessed.", 13) == 0 || strstr(fd.cFileName, ".min.")) continue;
+			unsigned long long t = (unsigned long long)fd.ftLastWriteTime.dwHighDateTime << 32 | fd.ftLastWriteTime.dwLowDateTime;
+			if (t > last) last = t;
+		} while (FindNextFileA(h, &fd));
+		FindClose(h);
+	}
+	return last;
+}
 
-		// Space toggles play/pause.
-		if (ImGui::IsKeyPressed(ImGuiKey_Space, false))
-			track->toggle();
+void Editor::handleEvents()
+{
+	// Reload when a source file changes.
+	if (timeGetTime() - lastCheck > 250)
+	{
+		lastCheck = timeGetTime();
+		unsigned long long t = lastShaderChange();
+		if (t != shaderTime)
+		{
+			shaderUpdatePending = shaderTime != 0;
+			shaderTime = t;
+		}
 	}
 
 	if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState('S') & 0x8000))
 		shaderUpdatePending = true;
-
-	state = track->is_playing() ? Playing : Paused;
-
-	trackPosition = position;
-	trackEnd = track->getLength();
-
-	return position;
 }
 
-void Editor::updateShaders(int* mainShaderPID, int* ppShaderPID, bool force_update)
+bool Editor::takeStateChanged()
 {
-	if (shaderUpdatePending || force_update)
+	bool r = stateChanged;
+	stateChanged = false;
+	return r;
+}
+
+void Editor::updateShaders(int* gamePID, int* scenePID, bool force_update)
+{
+	if (!shaderUpdatePending && !force_update)
+		return;
+
+	// make sure the file has finished writing to disk
+	if (timeGetTime() - previousUpdateTime > 200)
 	{
-		// make sure the file has finished writing to disk
-		if (timeGetTime() - previousUpdateTime > 200)
+		printf("Refreshing shaders...\n");
+		EditUI::setShaderStatus("Compiling...", 0);
+
+		Sleep(100);
+		lastCompileFailed = false;
+		if (system(".\\preprocess_shaders.bat") != 0)
 		{
-			// only way i can think of to clear the line without "status line" residue
-			printf("Refreshing shaders...                                                   \n");
-			EditUI::setShaderStatus("Compiling...", 0);
-
-			system("preprocess_shaders.bat");
-
-			void exec_file(const char* filename);
-			system("Compiler\\bin\\Release\\net9.0\\Compiler.exe game.source");
-			Sleep(100);
-			exec_file("game.bytes");
-
-
-			reloadShaderSource(mainShaderPID, ppShaderPID);
+			printf("Shader preprocessing failed\n");
+			EditUI::setShaderStatus("Shader preprocessing failed", 2);
+			lastCompileFailed = true;
+		}
+		else
+		{
+			DWORD compileStart = timeGetTime();
+			reloadShaderSource(gamePID, scenePID);
 			if (!lastCompileFailed)
 			{
-				printf("Shader preprocessing failed\n");
-				EditUI::setShaderStatus("Shader preprocessing failed", 2);
-				lastCompileFailed = true;
-			}
-			else
-			{
-				lastCompileFailed = false;
-				DWORD compileStart = timeGetTime();
-				reloadShaderSource(mainShaderPID, ppShaderPID);
-				if (!lastCompileFailed)
-				{
-					char msg[64];
-					snprintf(msg, sizeof(msg), "Compiled in %lu ms", (unsigned long)(timeGetTime() - compileStart));
-					EditUI::setShaderStatus(msg, 1);
-				}
+				char msg[64];
+				snprintf(msg, sizeof(msg), "Compiled in %lu ms", (unsigned long)(timeGetTime() - compileStart));
+				EditUI::setShaderStatus(msg, 1);
 			}
 		}
-
-		previousUpdateTime = timeGetTime();
-		shaderUpdatePending = false;
 	}
+
+	previousUpdateTime = timeGetTime();
+	shaderUpdatePending = false;
 }
 
-void Editor::reloadShaderSource(int* mainShaderPID, int* postShaderPID)
+void Editor::reloadShaderSource(int* gamePID, int* scenePID)
 {
-	char* sourceVS = textFileRead("src/shaders/preprocessed.scene.vert");
-	char* sourcePS = textFileRead("src/shaders/preprocessed.scene.frag");
-	if (!sourceVS || !sourcePS) { free(sourceVS); free(sourcePS); lastCompileFailed = true; return; }
+	char* sourceGame = textFileRead("src/shaders/preprocessed.game.comp");
+	char* sourceScene = textFileRead("src/shaders/preprocessed.scene.frag");
+	if (!sourceGame || !sourceScene) { free(sourceGame); free(sourceScene); lastCompileFailed = true; return; }
 
-	// Discover the _TV() constants and turn them into live uniforms.
-	EditUI::Tweaks::scan(sourcePS);
-	std::string editorVS = makeEditorSource(sourceVS, nullptr);
-	std::string editorPS = makeEditorSource(sourcePS, EditUI::Tweaks::uniformDeclarations());
-	if (resolutionX > 0)
+	// Discover the _TV() constants of both shaders and turn them into live uniforms.
+	EditUI::Tweaks::scan((std::string(sourceGame) + sourceScene).c_str());
+	std::string game = makeEditorSource(sourceGame, EditUI::Tweaks::uniformDeclarations());
+	std::string scene = makeEditorSource(sourceScene, EditUI::Tweaks::uniformDeclarations());
+	free(sourceGame);
+	free(sourceScene);
+
+	// Both programs must agree on the state layout: replace both or none.
+	int newGame = linkProgram(game.c_str(), GL_COMPUTE_SHADER);
+	int newScene = newGame ? linkProgram(scene.c_str(), GL_FRAGMENT_SHADER) : 0;
+	auto glDeleteProgram = (PFNGLDELETEPROGRAMPROC)wglGetProcAddress("glDeleteProgram");
+	if (!newScene)
 	{
-		replaceConstInt(editorPS, "XRES", resolutionX);
-		replaceConstInt(editorPS, "YRES", resolutionY);
+		if (newGame) glDeleteProgram(newGame);
+		lastCompileFailed = true;
+		return;
 	}
-	free(sourceVS);
-	free(sourcePS);
+	if (*gamePID) glDeleteProgram(*gamePID);
+	if (*scenePID) glDeleteProgram(*scenePID);
+	*gamePID = newGame;
+	*scenePID = newScene;
 
-	int shaderVS = compileShader(editorVS.c_str(), GL_VERTEX_SHADER);
-	int shaderPS = compileShader(editorPS.c_str(), GL_FRAGMENT_SHADER);
-	if (!shaderVS || !shaderPS) return;
-
-	int newMainShaderPID = ((PFNGLCREATEPROGRAMPROC)wglGetProcAddress("glCreateProgram"))();
-	((PFNGLATTACHSHADERPROC)wglGetProcAddress("glAttachShader"))(newMainShaderPID, shaderVS);
-	((PFNGLATTACHSHADERPROC)wglGetProcAddress("glAttachShader"))(newMainShaderPID, shaderPS);
-	((PFNGLLINKPROGRAMPROC)wglGetProcAddress("glLinkProgram"))(newMainShaderPID);
-
-	((PFNGLDELETESHADERPROC)wglGetProcAddress("glDeleteShader"))(shaderVS);
-	((PFNGLDELETESHADERPROC)wglGetProcAddress("glDeleteShader"))(shaderPS);
-
-	if (newMainShaderPID > 0) {
-		((PFNGLDELETESHADERPROC)wglGetProcAddress("glDeleteShader"))(*mainShaderPID);
-		*mainShaderPID = newMainShaderPID;
-	}
-
-	// Postprocess shader
-	if (postShaderPID != nullptr)
+	std::string declaration = findStateDeclaration(game);
+	if (!stateDeclaration.empty() && declaration != stateDeclaration)
 	{
-		char* sourcePPS = textFileRead("src/shaders/preprocessed.postprocess.frag");
-		if (!sourcePPS) return;
-		std::string editorPPS = makeEditorSource(sourcePPS, nullptr);
-		if (resolutionX > 0)
-		{
-			replaceConstInt(editorPPS, "XRES", resolutionX);
-			replaceConstInt(editorPPS, "YRES", resolutionY);
-		}
-		free(sourcePPS);
-		int shaderPPS = compileShader(editorPPS.c_str(), GL_FRAGMENT_SHADER);
-		if (!shaderPPS) return;
-		int newPostShaderPID = ((PFNGLCREATEPROGRAMPROC)wglGetProcAddress("glCreateProgram"))();
-		((PFNGLATTACHSHADERPROC)wglGetProcAddress("glAttachShader"))(newPostShaderPID, shaderPPS);
-		((PFNGLLINKPROGRAMPROC)wglGetProcAddress("glLinkProgram"))(newPostShaderPID);
-
-		((PFNGLDELETESHADERPROC)wglGetProcAddress("glDeleteShader"))(shaderPPS);
-		if (newPostShaderPID > 0) {
-			((PFNGLDELETESHADERPROC)wglGetProcAddress("glDeleteShader"))(*postShaderPID);
-			*postShaderPID = newPostShaderPID;
-		}
+		printf("The state declaration changed, restarting the game\n");
+		stateChanged = true;
 	}
+	stateDeclaration = declaration;
 }
 
+int Editor::linkProgram(const char* source, GLenum shaderType)
+{
+	int shader = compileShader(source, shaderType);
+	if (!shader) return 0;
+
+	int pid = ((PFNGLCREATEPROGRAMPROC)wglGetProcAddress("glCreateProgram"))();
+	((PFNGLATTACHSHADERPROC)wglGetProcAddress("glAttachShader"))(pid, shader);
+	((PFNGLLINKPROGRAMPROC)wglGetProcAddress("glLinkProgram"))(pid);
+	((PFNGLDELETESHADERPROC)wglGetProcAddress("glDeleteShader"))(shader);
+
+	int result = 0;
+	((PFNGLGETPROGRAMIVPROC)wglGetProcAddress("glGetProgramiv"))(pid, GL_LINK_STATUS, &result);
+	if (result == GL_FALSE)
+	{
+		static char errorBuffer[shaderErrorBufferLength];
+		((PFNGLGETPROGRAMINFOLOGPROC)wglGetProcAddress("glGetProgramInfoLog"))(pid, shaderErrorBufferLength - 1, NULL, errorBuffer);
+		printf("Link errors in %s\n", errorBuffer);
+		EditUI::setShaderStatus(errorBuffer, 2);
+		((PFNGLDELETEPROGRAMPROC)wglGetProcAddress("glDeleteProgram"))(pid);
+		return 0;
+	}
+	return pid;
+}
 
 int Editor::compileShader(const char* source, GLenum shaderType) {
 	int pid = ((PFNGLCREATESHADERPROC)wglGetProcAddress("glCreateShader"))(shaderType);

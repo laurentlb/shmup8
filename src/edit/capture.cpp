@@ -8,6 +8,7 @@
 #include <gdiplus.h>
 #pragma comment(lib, "gdiplus.lib")
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -47,106 +48,21 @@ namespace Capture
 		printf(
 			"usage: cat-debug.exe --capture [options] t1 [t2 ...]\n"
 			"  --out DIR          output directory (default: capture)\n"
-			"  --width W          saved image width (default: %d)\n"
-			"  --set NAME=VALUE   override a _TV value (repeatable)\n"
-			"  --cam px,py,pz,tx,ty,tz  use the manual camera at this position/target\n"
-			"  --repeat N         timed renders per frame (default: 3)\n"
 			"  --sheet FILE       also write a contact sheet of all frames\n"
 			"  --cols N           contact sheet columns (default: 3)\n"
 			"\n"
 			"usage: cat-debug.exe --capture --video OUT.mp4 [options]\n"
-			"  --fps N            frame rate (default: 60)\n"
-			"  --start S          first frame time in seconds (default: 0)\n"
-			"  --end S            end time in seconds (default: %d)\n"
-			"  --audio FILE       soundtrack, '-' for none (default: themusic.wav if present)\n"
+			"  --end S            duration in seconds (default: %d)\n"
 			"  --crf N            x264 quality, lower is better (default: 12)\n"
 			"  --ffmpeg PATH      ffmpeg executable (default: ffmpeg)\n"
-			"  --width W          render width; the shader runs at that size (default: %d)\n"
-			"  --set and --cam also apply.\n", XRES, DEMO_LENGTH_IN_S, XRES);
+			"\n"
+			"common options:\n"
+			"  --width W          render width (default: %d)\n"
+			"  --set NAME=VALUE   override a _TV value (repeatable)\n"
+			"  --fps N            frame rate: 30, 60 or 120 (default: 60)\n"
+			"  --keys auto|none   scripted inputs (default: auto)\n"
+			"  --wav FILE         also save the sound (60 fps only)\n", DEMO_LENGTH_IN_S, XRES);
 		return 2;
-	}
-
-	// Size of the video frames for --width: an even size with XRES:YRES aspect.
-	static void videoSize(int width, int& w, int& h)
-	{
-		w = width & ~1;
-		h = (int)((long long)YRES * width / XRES) & ~1;
-	}
-
-	bool videoResolution(int argc, char* argv[], int& w, int& h)
-	{
-		int width = XRES;
-		bool video = false;
-		for (int i = 2; i + 1 < argc; ++i)
-		{
-			if (!strcmp(argv[i], "--video")) video = true;
-			else if (!strcmp(argv[i], "--width")) width = atoi(argv[i + 1]);
-		}
-		if (!video || width <= 0 || width >= XRES)
-			return false;
-		videoSize(width, w, h);
-		return true;
-	}
-
-	// Render every frame from 'start' to 'end' and pipe them into ffmpeg.
-	static int renderVideo(PFNGLUNIFORM1FPROC glUniform1f, int timeLocation, const std::string& out, const std::string& ffmpeg,
-		std::string audio, float start, float end, int fps, int crf, int w, int h)
-	{
-		if (audio.empty() && GetFileAttributesA("themusic.wav") != INVALID_FILE_ATTRIBUTES)
-			audio = "themusic.wav";
-		if (audio == "-")
-			audio.clear();
-
-		char cmd[2048];
-		int n = snprintf(cmd, sizeof(cmd),
-			"\"\"%s\" -y -loglevel warning -stats -f rawvideo -vcodec rawvideo -s %dx%d -pix_fmt bgra -r %d -i -",
-			ffmpeg.c_str(), w, h, fps);
-		if (!audio.empty())
-			n += snprintf(cmd + n, sizeof(cmd) - n, " -ss %.3f -i \"%s\"", start, audio.c_str());
-		// GL rows are bottom-up.
-		n += snprintf(cmd + n, sizeof(cmd) - n, " -vf vflip");
-		n += snprintf(cmd + n, sizeof(cmd) - n,
-			" -c:v libx264 -crf %d -preset slow -pix_fmt yuv420p", crf);
-		// Pad the audio with silence so the video length wins when the song is shorter.
-		if (!audio.empty())
-			n += snprintf(cmd + n, sizeof(cmd) - n, " -af apad -c:a aac -b:a 384k -shortest");
-		snprintf(cmd + n, sizeof(cmd) - n, " \"%s\"\"", out.c_str());
-		printf("%s\n", cmd);
-
-		FILE* pipe = _popen(cmd, "wb");
-		if (!pipe)
-		{
-			printf("capture: cannot start ffmpeg\n");
-			return 1;
-		}
-
-		const int frameCount = (int)ceilf((end - start) * fps);
-		std::vector<unsigned char> pixels(w * h * 4);
-		DWORD startTick = GetTickCount();
-		int result = 0;
-		for (int i = 0; i < frameCount; ++i)
-		{
-			glUniform1f(timeLocation, start + (float)i / fps);
-			glRects(-1, -1, 1, 1);
-			glReadPixels(0, 0, w, h, GL_BGRA_EXT, GL_UNSIGNED_BYTE, &pixels[0]);
-			if (fwrite(&pixels[0], 1, pixels.size(), pipe) != pixels.size())
-			{
-				printf("capture: ffmpeg stopped reading at frame %d\n", i);
-				result = 1;
-				break;
-			}
-			if (i % fps == 0)
-				fprintf(stderr, "frame %d/%d (t=%.1f, %.0fs elapsed)\n", i, frameCount,
-					start + (float)i / fps, (GetTickCount() - startTick) / 1000.0);
-		}
-		if (_pclose(pipe) != 0)
-		{
-			printf("capture: ffmpeg failed\n");
-			result = 1;
-		}
-		if (result == 0)
-			printf("video: %s\n", out.c_str());
-		return result;
 	}
 
 	bool requested(int argc, char* argv[])
@@ -154,24 +70,43 @@ namespace Capture
 		return argc > 1 && strcmp(argv[1], "--capture") == 0;
 	}
 
-	// Save the BGRA, bottom-up GL readback as a PNG of the given width.
-	static bool savePng(const std::vector<unsigned char>& pixels, const std::string& path, int width)
+	void resolution(int argc, char* argv[], int& w, int& h)
 	{
-		const int stride = XRES * 4;
+		for (int i = 2; i + 1 < argc; ++i)
+			if (!strcmp(argv[i], "--width") && atoi(argv[i + 1]) >= 16)
+			{
+				w = atoi(argv[i + 1]) & ~1;
+				h = (int)((long long)YRES * w / XRES) & ~1;
+			}
+	}
+
+	// 16-bit stereo, 44.1 kHz
+	static bool saveWav(const std::string& path, const std::vector<float>& samples)
+	{
+		std::vector<short> pcm(samples.size());
+		for (size_t i = 0; i < samples.size(); ++i)
+		{
+			float v = samples[i];
+			pcm[i] = (short)(32767 * (v > 1 ? 1 : v < -1 ? -1 : v));
+		}
+		const unsigned bytes = (unsigned)(pcm.size() * 2);
+		const unsigned header[] = {
+			0x46464952 /* RIFF */, 36 + bytes, 0x45564157 /* WAVE */, 0x20746d66 /* fmt */, 16,
+			1 | 2 << 16, 44100, 44100 * 4, 4 | 16 << 16, 0x61746164 /* data */, bytes };
+		FILE* f = fopen(path.c_str(), "wb");
+		if (!f) return false;
+		bool ok = fwrite(header, sizeof(header), 1, f) == 1 && (!bytes || fwrite(&pcm[0], bytes, 1, f) == 1);
+		return fclose(f) == 0 && ok;
+	}
+
+	// Save the BGRA, bottom-up GL readback as a PNG.
+	static bool savePng(const std::vector<unsigned char>& pixels, const std::string& path, int width, int height)
+	{
+		const int stride = width * 4;
 		// A negative stride starting at the last row flips GL's bottom-up rows.
-		Gdiplus::Bitmap full(XRES, YRES, -stride, PixelFormat32bppRGB,
-			const_cast<BYTE*>(&pixels[(YRES - 1) * stride]));
-
-		std::wstring wpath = widen(path);
-		if (width == XRES)
-			return full.Save(wpath.c_str(), &pngClsid, NULL) == Gdiplus::Ok;
-
-		const int height = (int)((long long)YRES * width / XRES);
-		Gdiplus::Bitmap scaled(width, height, PixelFormat32bppRGB);
-		Gdiplus::Graphics g(&scaled);
-		g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
-		g.DrawImage(&full, 0, 0, width, height);
-		return scaled.Save(wpath.c_str(), &pngClsid, NULL) == Gdiplus::Ok;
+		Gdiplus::Bitmap full(width, height, -stride, PixelFormat32bppRGB,
+			const_cast<BYTE*>(&pixels[(height - 1) * stride]));
+		return full.Save(widen(path).c_str(), &pngClsid, NULL) == Gdiplus::Ok;
 	}
 
 	static bool saveSheet(const std::vector<Frame>& frames, const std::string& path, int cols)
@@ -203,7 +138,7 @@ namespace Capture
 		return sheet.Save(widen(path).c_str(), &pngClsid, NULL) == Gdiplus::Ok;
 	}
 
-	int run(int argc, char* argv[], int shaderProgram, bool compileFailed)
+	int run(int argc, char* argv[], const Host& host, int width, int height, bool compileFailed)
 	{
 		if (compileFailed)
 		{
@@ -211,44 +146,26 @@ namespace Capture
 			return 1;
 		}
 
-		std::string outDir = "capture";
-		std::string sheetPath;
-		int width = XRES;
-		int repeat = 3;
-		int cols = 3;
+		std::string outDir = "capture", sheetPath, videoPath, wavPath, keys = "auto", ffmpeg = "ffmpeg";
+		int cols = 3, fps = 60, crf = 12;
 		std::vector<float> times;
-		float cam[6];
-		bool hasCam = false;
-		std::string videoPath, audio, ffmpeg = "ffmpeg";
-		int fps = 60, crf = 12;
-		float start = 0.f, end = (float)DEMO_LENGTH_IN_S;
+		float end = (float)DEMO_LENGTH_IN_S;
 
 		for (int i = 2; i < argc; ++i)
 		{
 			const char* a = argv[i];
 			const bool hasValue = i + 1 < argc;
 			if (!strcmp(a, "--out") && hasValue) outDir = argv[++i];
-			else if (!strcmp(a, "--width") && hasValue) width = atoi(argv[++i]);
-			else if (!strcmp(a, "--repeat") && hasValue) repeat = atoi(argv[++i]);
+			else if (!strcmp(a, "--width") && hasValue) ++i; // see resolution()
 			else if (!strcmp(a, "--sheet") && hasValue) sheetPath = argv[++i];
 			else if (!strcmp(a, "--cols") && hasValue) cols = atoi(argv[++i]);
 			else if (!strcmp(a, "--video") && hasValue) videoPath = argv[++i];
+			else if (!strcmp(a, "--wav") && hasValue) wavPath = argv[++i];
 			else if (!strcmp(a, "--fps") && hasValue) fps = atoi(argv[++i]);
-			else if (!strcmp(a, "--start") && hasValue) start = (float)atof(argv[++i]);
 			else if (!strcmp(a, "--end") && hasValue) end = (float)atof(argv[++i]);
-			else if (!strcmp(a, "--audio") && hasValue) audio = argv[++i];
 			else if (!strcmp(a, "--crf") && hasValue) crf = atoi(argv[++i]);
+			else if (!strcmp(a, "--keys") && hasValue) keys = argv[++i];
 			else if (!strcmp(a, "--ffmpeg") && hasValue) ffmpeg = argv[++i];
-			else if (!strcmp(a, "--cam") && hasValue)
-			{
-				hasCam = sscanf(argv[++i], "%f,%f,%f,%f,%f,%f",
-					&cam[0], &cam[1], &cam[2], &cam[3], &cam[4], &cam[5]) == 6;
-				if (!hasCam || !EditUI::Tweaks::set("manualCam", "true"))
-				{
-					printf("capture: --cam needs px,py,pz,tx,ty,tz and a _TV(manualCam, ...) in the shader\n");
-					return 2;
-				}
-			}
 			else if (!strcmp(a, "--set") && hasValue)
 			{
 				std::string kv = argv[++i];
@@ -261,17 +178,19 @@ namespace Capture
 					return 2;
 				}
 			}
-			else if (a[0] == '-' && !(a[1] >= '0' && a[1] <= '9')) return usage();
+			else if (a[0] == '-') return usage();
 			else times.push_back((float)atof(a));
 		}
-		if ((times.empty() && videoPath.empty()) || width <= 0 || width > XRES || repeat < 1 || cols < 1 ||
-			fps < 1 || end <= start)
+		const bool video = !videoPath.empty();
+		if ((times.empty() && !video) || cols < 1 || (fps != 30 && fps != 60 && fps != 120) || end <= 0)
 			return usage();
-		// Videos render at the requested size (main compiled the shader for it);
-		// PNGs render at full size and are downscaled.
-		int renderW = XRES, renderH = YRES;
-		if (!videoPath.empty())
-			videoSize(width, renderW, renderH);
+		if (!wavPath.empty() && fps != 60)
+		{
+			printf("capture: --wav needs 60 fps\n");
+			return 2;
+		}
+		std::sort(times.begin(), times.end());
+		if (!video) end = times.back();
 
 		#define GLFN(type, name) auto name = (type)wglGetProcAddress(#name)
 		GLFN(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers);
@@ -282,9 +201,6 @@ namespace Capture
 		GLFN(PFNGLFRAMEBUFFERRENDERBUFFERPROC, glFramebufferRenderbuffer);
 		GLFN(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus);
 		GLFN(PFNGLUSEPROGRAMPROC, glUseProgram);
-		GLFN(PFNGLGETUNIFORMLOCATIONPROC, glGetUniformLocation);
-		GLFN(PFNGLUNIFORM1FPROC, glUniform1f);
-		GLFN(PFNGLUNIFORM3FPROC, glUniform3f);
 		#undef GLFN
 
 		// Render offscreen so the result doesn't depend on the window's size,
@@ -294,80 +210,134 @@ namespace Capture
 		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 		glGenRenderbuffers(1, &rbo);
 		glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, renderW, renderH);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, width, height);
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rbo);
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		{
 			printf("capture: cannot create the offscreen framebuffer\n");
 			return 1;
 		}
-		glViewport(0, 0, renderW, renderH);
 
-		glUseProgram(shaderProgram);
-		EditUI::Tweaks::apply(shaderProgram);
-		if (hasCam)
-		{
-			float d[3] = { cam[3] - cam[0], cam[4] - cam[1], cam[5] - cam[2] };
-			float len = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
-			if (len > 0.f) { d[0] /= len; d[1] /= len; d[2] /= len; }
-			glUniform3f(glGetUniformLocation(shaderProgram, "iCamPos"), cam[0], cam[1], cam[2]);
-			glUniform3f(glGetUniformLocation(shaderProgram, "iCamTarget"), cam[3], cam[4], cam[5]);
-			glUniform3f(glGetUniformLocation(shaderProgram, "iCamDir"), d[0], d[1], d[2]);
-		}
-		const int timeLocation = glGetUniformLocation(shaderProgram, "iTime");
-		if (!videoPath.empty())
-			return renderVideo(glUniform1f, timeLocation, videoPath, ffmpeg, audio, start, end, fps, crf, renderW, renderH);
+		glUseProgram(host.gameProgram);
+		EditUI::Tweaks::apply(host.gameProgram);
+		glUseProgram(host.sceneProgram);
+		EditUI::Tweaks::apply(host.sceneProgram);
 
 		Gdiplus::GdiplusStartupInput gdiplusInput;
 		ULONG_PTR gdiplusToken;
 		Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusInput, NULL);
-		makeDirs(outDir);
 
-		LARGE_INTEGER freq;
+		FILE* pipe = NULL;
+		const std::string rawVideo = video ? videoPath + ".silent.mp4" : "";
+		if (video)
+		{
+			char cmd[2048];
+			// GL rows are bottom-up.
+			snprintf(cmd, sizeof(cmd),
+				"\"\"%s\" -y -loglevel warning -f rawvideo -vcodec rawvideo -s %dx%d -pix_fmt bgra -r %d -i - "
+				"-vf vflip -c:v libx264 -crf %d -preset slow -pix_fmt yuv420p \"%s\"\"",
+				ffmpeg.c_str(), width, height, fps, crf, fps == 60 ? rawVideo.c_str() : videoPath.c_str());
+			pipe = _popen(cmd, "wb");
+			if (!pipe)
+			{
+				printf("capture: cannot start ffmpeg\n");
+				return 1;
+			}
+		}
+		else
+			makeDirs(outDir);
+
+		std::vector<unsigned char> pixels(width * height * 4);
+		std::vector<float> sound;
+		std::vector<Frame> frames;
+		size_t nextShot = 0;
+		int result = 0;
+		LARGE_INTEGER freq, start, stop;
 		QueryPerformanceFrequency(&freq);
 
-		std::vector<unsigned char> pixels(XRES * YRES * 4);
-		std::vector<Frame> frames;
-		int result = 0;
-		for (float t : times)
+		const int frameCount = (int)ceilf(end * fps);
+		for (int i = 1; i <= frameCount; ++i)
 		{
-			glUniform1f(timeLocation, t);
-
-			// One untimed render to warm up, then average 'repeat' timed ones.
-			glRects(-1, -1, 1, 1);
-			glFinish();
-			LARGE_INTEGER start, stop;
-			QueryPerformanceCounter(&start);
-			for (int r = 0; r < repeat; ++r)
-				glRects(-1, -1, 1, 1);
-			glFinish();
-			QueryPerformanceCounter(&stop);
-			const double ms = 1000.0 * (stop.QuadPart - start.QuadPart) / freq.QuadPart / repeat;
-
-			glReadPixels(0, 0, XRES, YRES, GL_BGRA_EXT, GL_UNSIGNED_BYTE, &pixels[0]);
-
-			char name[64];
-			snprintf(name, sizeof(name), "/t%06.2f.png", t);
-			Frame frame = { t, outDir + name };
-			if (!savePng(pixels, frame.path, width))
+			const float t = (float)i / fps;
+			float x = 0, y = 0, fire = 0;
+			if (keys == "auto")
 			{
-				printf("capture: cannot write %s\n", frame.path.c_str());
-				result = 1;
-				continue;
+				// keyboard-like: -1, 0 or 1
+				x = floorf(sinf(t * 1.7f) * 1.5f + .5f);
+				y = floorf(sinf(t * 0.9f + 1.f) * 1.5f + .5f);
+				fire = 1;
 			}
-			frames.push_back(frame);
-			printf("t=%7.2f  %7.2f ms  %s\n", t, ms, frame.path.c_str());
+			QueryPerformanceCounter(&start);
+			host.step(x, y, fire, 120 / fps);
+			host.draw(width, height, 1.f / fps, fbo);
+
+			if (fps == 60)
+			{
+				sound.resize(sound.size() + 735 * 2);
+				host.audio(&sound[sound.size() - 735 * 2], host.events);
+			}
+
+			if (video)
+			{
+				glReadPixels(0, 0, width, height, GL_BGRA_EXT, GL_UNSIGNED_BYTE, &pixels[0]);
+				if (fwrite(&pixels[0], 1, pixels.size(), pipe) != pixels.size())
+				{
+					printf("capture: ffmpeg stopped reading at frame %d\n", i);
+					result = 1;
+					break;
+				}
+			}
+			bool read = false;
+			while (nextShot < times.size() && t >= times[nextShot] - 0.001f)
+			{
+				if (!read)
+				{
+					glFinish();
+					QueryPerformanceCounter(&stop);
+					glReadPixels(0, 0, width, height, GL_BGRA_EXT, GL_UNSIGNED_BYTE, &pixels[0]);
+					read = true;
+				}
+				char name[64];
+				snprintf(name, sizeof(name), "/t%06.2f.png", times[nextShot]);
+				Frame frame = { times[nextShot++], outDir + name };
+				if (!savePng(pixels, frame.path, width, height))
+				{
+					printf("capture: cannot write %s\n", frame.path.c_str());
+					result = 1;
+					continue;
+				}
+				frames.push_back(frame);
+				printf("t=%7.2f  %7.2f ms  events: shots %d, explosions %d, hits %d  %s\n", frame.time,
+					1000.0 * (stop.QuadPart - start.QuadPart) / freq.QuadPart,
+					host.events[0], host.events[1], host.events[2], frame.path.c_str());
+			}
 		}
 
-		if (!sheetPath.empty())
+		if (video && fps == 60 && wavPath.empty())
+			wavPath = videoPath + ".wav";
+		if (!wavPath.empty() && !saveWav(wavPath, sound))
 		{
-			if (saveSheet(frames, sheetPath, cols))
-				printf("sheet: %s\n", sheetPath.c_str());
-			else
+			printf("capture: cannot write %s\n", wavPath.c_str());
+			result = 1;
+		}
+		if (video)
+		{
+			if (_pclose(pipe) != 0) result = 1;
+			if (result == 0 && fps == 60)
 			{
-				printf("capture: cannot write %s\n", sheetPath.c_str());
-				result = 1;
+				char cmd[2048];
+				snprintf(cmd, sizeof(cmd), "\"\"%s\" -y -loglevel warning -i \"%s\" -i \"%s\" -c:v copy -c:a aac -b:a 256k \"%s\"\"",
+					ffmpeg.c_str(), rawVideo.c_str(), wavPath.c_str(), videoPath.c_str());
+				result = system(cmd) != 0;
+				DeleteFileA(rawVideo.c_str());
+				if (wavPath == videoPath + ".wav") DeleteFileA(wavPath.c_str());
 			}
+			printf(result ? "capture: ffmpeg failed\n" : "video: %s\n", videoPath.c_str());
+		}
+		if (!sheetPath.empty() && !saveSheet(frames, sheetPath, cols))
+		{
+			printf("capture: cannot write %s\n", sheetPath.c_str());
+			result = 1;
 		}
 
 		Gdiplus::GdiplusShutdown(gdiplusToken);

@@ -221,7 +221,8 @@
     </ProjectReference>
     <PreBuildEvent>
       <Message>Minify user-supplied shader files.</Message>
-      <Command>preprocess_shaders.bat --minify</Command>
+      <Command>src\music\nasm.exe -f win32 -o src\music\music.obj src\music\music.asm
+call preprocess_shaders.bat --minify</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Editor|Win32'">
@@ -267,7 +268,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>winmm.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>winmm.lib;opengl32.lib;src/music/music.obj;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>out/cat-debug.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -296,7 +297,8 @@
     </ProjectReference>
     <PreBuildEvent>
       <Message>Minify user-supplied shader files.</Message>
-      <Command>preprocess_shaders.bat</Command>
+      <Command>src\music\nasm.exe -f win32 -o src\music\music.obj src\music\music.asm
+call preprocess_shaders.bat</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Video|Win32'">
@@ -371,7 +373,8 @@
     </ProjectReference>
     <PreBuildEvent>
       <Message>Minify user-supplied shader files.</Message>
-      <Command>preprocess_shaders.bat</Command>
+      <Command>src\music\nasm.exe -f win32 -o src\music\music.obj src\music\music.asm
+call preprocess_shaders.bat</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -384,7 +387,7 @@
       <HeaderFileName />
     </Midl>
     <ClCompile>
-      <Optimization>Disabled</Optimization>
+      <Optimization>MinSpace</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Size</FavorSizeOrSpeed>
@@ -461,7 +464,8 @@
     </ProjectReference>
     <PreBuildEvent>
       <Message>Minify user-supplied shader files.</Message>
-      <Command>preprocess_shaders.bat --minify</Command>
+      <Command>src\music\nasm.exe -f win32 -o src\music\music.obj src\music\music.asm
+call preprocess_shaders.bat --minify</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Heavy Release|Win32'">
@@ -476,7 +480,7 @@
     </Midl>
     <ClCompile>
       <AdditionalOptions>/GR- /EHa- %(AdditionalOptions)</AdditionalOptions>
-      <Optimization>Disabled</Optimization>
+      <Optimization>MinSpace</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Size</FavorSizeOrSpeed>
@@ -554,7 +558,8 @@
     </ProjectReference>
     <PreBuildEvent>
       <Message>Minify user-supplied shader files.</Message>
-      <Command>preprocess_shaders.bat --minify</Command>
+      <Command>src\music\nasm.exe -f win32 -o src\music\music.obj src\music\music.asm
+call preprocess_shaders.bat --minify</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Snapshot|Win32'">
@@ -568,7 +573,7 @@
       </HeaderFileName>
     </Midl>
     <ClCompile>
-      <Optimization>Disabled</Optimization>
+      <Optimization>MinSpace</Optimization>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Size</FavorSizeOrSpeed>
@@ -653,7 +658,8 @@
     </ProjectReference>
     <PreBuildEvent>
       <Message>Minify user-supplied shader files.</Message>
-      <Command>preprocess_shaders.bat --minify</Command>
+      <Command>src\music\nasm.exe -f win32 -o src\music\music.obj src\music\music.asm
+call preprocess_shaders.bat --minify</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -685,7 +691,8 @@
     </ClInclude>
     <ClInclude Include="src\glext.h" />
     <ClInclude Include="src\music\music.h" />
-    <ClInclude Include="src\edit\song.h" />
+    <ClInclude Include="src\audio.h" />
+    <ClInclude Include="src\engine.h" />
     <ClInclude Include="src\thirdparty\imgui\imconfig.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Snapshot|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
@@ -760,9 +767,8 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Snapshot|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="src\interp.cpp" />
     <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\edit\song.cpp">
+    <ClCompile Include="src\edit\tweaks.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Heavy Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Editor|Win32'">false</ExcludedFromBuild>
@@ -817,7 +823,10 @@
     <None Include="preprocess_shaders.bat" />
     <None Include="src\shaders\shared.h" />
     <None Include="src\shaders\scene.frag" />
-    <None Include="src\shaders\scene.vert" />
+    <None Include="src\shaders\game.comp" />
+    <None Include="src\shaders\state.glsl" />
+    <None Include="src\shaders\world.glsl" />
+    <None Include="src\shaders\tweaks.frag" />
     <None Include="src\shaders\shaders.inl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

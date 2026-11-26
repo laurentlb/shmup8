@@ -15,7 +15,12 @@ layout(std430, binding = 0)buffer State{
   float plunger;
   float shake;
   float gameOver;
+  float ballSave;
+  float hitStop;
+  float drainFlash;
   int score,balls;
+  int mult;
+  int lanesLit;
 };
 out vec4 fragColor;
 vec2 planets[3];
@@ -140,13 +145,13 @@ vec2 map(vec3 p)
   for(int i=0;i<2;i++)
     q=hit(q,extrude(flipperDist(p.xy,i),p.z-.002,.024),4.+float(i));
   vec3 s=p-vec3(vec2(-.019,.13),0);
-  q=hit(q,min(extrude(length(s.xy)-.03,p.z,.03),length(s-vec3(0,0,.068))-.036),6.);
+  q=hit(q,min(extrude(length(s.xy)-.03,p.z,.03),length(s-vec3(0,0,.068))-.036*(1.+.15*flash.x)),6.);
   area=1e9;
   for(int i=0;i<3;i++)
     {
       float r=planetRadius(i),z=planetHeight(i);
       vec3 d=p-vec3(planets[i],0);
-      float body=min(extrude(length(d.xy)-r*.8,p.z,.034),length(d-vec3(0,0,z))-r*1.3);
+      float body=min(extrude(length(d.xy)-r*.8,p.z,.034),length(d-vec3(0,0,z))-r*1.3*(1.+.25*flash[i+1]));
       if(i==1)
         d.z-=z,d.xz*=rot(),body=min(body,length(vec2(length(d.xy)-r*2.2,d.z))-.0015);
       q=hit(q,body,7.+float(i));
@@ -216,6 +221,21 @@ vec3 material(vec3 p,float m,out float metal,out vec3 glow,out float gloss)
       float r=length(s),a=atan(s.y,s.x),x=p.x+.004*sin(p.y*25.+floor(p.x/.065)*3.),k=floor(a/(3.14159/6.)+.5);
       if(min(min(abs(r-.075),abs(r-.14))-.0012,abs(r-.195-.006*clamp(sin(a*24.)*4.,-1.,1.))-.0018)<0.)
         return metal=1.,brass;
+      vec3 insert;
+      r=-1.;
+      for(int i=0;i<4;i++)
+        {
+          if(i<3&&length(p.xy-vec2(-.019+.06*float(i-1),.37))<.009)
+            r=float(lanesLit>>i&1),insert=vec3(1,.5,.1);
+          if(length(p.xy-vec2(-.064+.03*float(i),-.1))<.007)
+            r=float(mult>=i+2),insert=vec3(.2,.6,1);
+        }
+      if(length(p.xy-vec2(-.019,-.37))<.01)
+        r=float(ballSave>0.&&fract(time*(ballSave<2.?
+          4.:
+          1.5))<.6),insert=vec3(1,.15,.1);
+      if(r>=0.)
+        return glow=insert*r*3.,insert*.06;
       if(length(s-.052*vec2(cos(k*3.14159/6.),sin(k*3.14159/6.)))-.006<0.)
         {
           float lit=step(fract((k-time*4.)/12.),.3);
@@ -325,7 +345,8 @@ void main()
     bloom+=textureLod(tex,texCoord,float(i)).xyz;
   col+=bloom*bloom*.02;
   col=pow(clamp(col*(2.51*col+.03)/(col*(2.43*col+.59)+.14),0.,1.),vec3(1./2.2))*(1.-.3*dot(uv,uv));
-  bloom=vec3(1,.45,.1);
+  col=mix(col,col.x*vec3(.9,.1,.05),drainFlash*.8);
+  bloom=vec3(1,.45,.1)*(1.+2.*max(max(flash.x,flash.y),max(flash.z,flash.w)));
   if(balls>0)
     digits7(col,bloom,uv*18.-vec2(16.5,8),18.,uint(score),7),digits7(col,bloom*.6,uv*18.-vec2(-16.5,8),18.,uint(balls),1);
   else
@@ -350,7 +371,12 @@ layout(std430, binding = 0)buffer State{
   float plunger;
   float shake;
   float gameOver;
+  float ballSave;
+  float hitStop;
+  float drainFlash;
   int score,balls;
+  int mult;
+  int lanesLit;
 };
 const float DT=1./120.;
 float boxDist(vec2 p,vec2 size)
@@ -447,7 +473,15 @@ vec2 surfaceVelocity(vec2 p,float m)
 void bumper(int i,vec2 n,int points)
 {
   if(flash[i]<.8)
-    vel+=n*.9,flash[i]=1.,score+=points,bumperEvents++,shake=max(shake,.4);
+    {
+      if(i==0)
+        hitStop=.05;
+      vel+=n*.9;
+      flash[i]=1.;
+      score+=points*mult;
+      bumperEvents++;
+      shake=max(shake,.4);
+    }
 }
 void collide()
 {
@@ -480,16 +514,31 @@ void collide()
       if((side>0?
         -n.x:
         n.x)>.5&&slingFlash[side]<.5)
-        vel+=n*1.1,slingFlash[side]=1.,score+=10,slingEvents++,shake=max(shake,.3);
+        vel+=n*1.1,slingFlash[side]=1.,score+=10*mult,slingEvents++,shake=max(shake,.3);
     }
 }
 void serve()
 {
   ball=vec2(.244,-.4865);
   vel=vec2(0);
+  ballSave=8.;
+}
+void lanes()
+{
+  int k=int(floor((ball.x+.019+.09)/.06));
+  if(ball.y>.4&&ball.y<.44&&k>=0&&k<3&&(lanesLit&1<<k)==0)
+    lanesLit|=1<<k,score+=100*mult,slingEvents++;
+  if(lanesLit==7)
+    lanesLit=0,mult=min(mult+1,5),score+=1000*mult,flash=vec4(1),bumperEvents++,shake=1.,hitStop=.15;
 }
 void update()
 {
+  drainFlash=max(drainFlash-DT*2.,0.);
+  if(hitStop>0.)
+    {
+      hitStop-=DT;
+      return;
+    }
   time+=DT;
   flash=max(flash-DT*4.,0.);
   slingFlash=max(slingFlash-DT*4.,0.);
@@ -499,12 +548,14 @@ void update()
       ball=vec2(0,-2);
       gameOver-=DT;
       if(gameOver<=0.)
-        score=0,balls=3,serve();
+        score=0,balls=3,mult=1,lanesLit=0,serve();
     }
   vec2 up=iInput.xy;
   for(int i=0;i<2;i++)
     if(up[i]>prevInput[i])
-      flipperEvents++;
+      flipperEvents++,lanesLit=(i>0?
+        lanesLit<<1|lanesLit>>2:
+        lanesLit>>1|lanesLit<<2)&7;
   const float h=DT/float(8);
   for(int s=0;s<8;s++)
     {
@@ -522,6 +573,9 @@ void update()
       if(balls>0)
         vel.y-=1.8*h,ball+=vel*h,collide();
     }
+  lanes();
+  if(ball.x<.22)
+    ballSave=max(ballSave-DT,0.);
   vel*=1.-.1*DT;
   float speed=length(vel);
   if(speed>4.5)
@@ -541,10 +595,17 @@ void update()
     {
       drainEvents++;
       shake=1.;
-      if(--balls>0)
-        serve();
+      drainFlash=1.;
+      if(ballSave>0.)
+        serve(),ballSave=0.,flash=vec4(1);
       else
-         gameOver=3.;
+        {
+          mult=1;
+          if(--balls>0)
+            serve();
+          else
+             gameOver=3.;
+        }
     }
   up=vec2(-.019+(ball.x+.019)*.25,clamp(ball.y,-.25,.25));
   cam+=(up-cam)*DT*3.;

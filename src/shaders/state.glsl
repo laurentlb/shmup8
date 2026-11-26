@@ -19,5 +19,10 @@ layout(std430, binding = 0) buffer State {
     float plunger;      // 0 to 1 while pulling
     float shake;        // camera shake
     float gameOver;     // > 0: waiting for a new game
+    float ballSave;     // > 0: a drain gives the ball back
+    float hitStop;      // > 0: the game freezes for a moment on big hits
+    float drainFlash;   // 1 on a drain, then decreases
     int score, balls;   // balls left, including the one in play
+    int mult;           // score multiplier, 1 to 5
+    int lanesLit;       // top lanes, one bit each
 };

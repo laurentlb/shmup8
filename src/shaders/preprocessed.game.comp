@@ -41,7 +41,12 @@ layout(std430, binding = 0) buffer State {
     float plunger;      
     float shake;        
     float gameOver;     
+    float ballSave;     
+    float hitStop;      
+    float drainFlash;   
     int score, balls;   
+    int mult;           
+    int lanesLit;       
 };
 // --------------------------------------------------------------------
 // Include end: state.glsl
@@ -237,9 +242,11 @@ vec2 surfaceVelocity(vec2 p, float m)
 void bumper(int i, vec2 n, int points)
 {
     if (flash[i] < 0.8) {
+        if (i == 0)
+            hitStop = _TV(sunHitStop, 0.05);
         vel += n * _TV(bumperKick, 0.9);
         flash[i] = 1.;
-        score += points;
+        score += points * mult;
         bumperEvents++;
         shake = max(shake, 0.4);
     }
@@ -271,21 +278,48 @@ void collide()
         if ((side > 0 ? -n.x : n.x) > 0.5 && slingFlash[side] < 0.5) {
             vel += n * _TV(slingKick, 1.1);
             slingFlash[side] = 1.;
-            score += 10;
+            score += 10 * mult;
             slingEvents++;
             shake = max(shake, 0.3);
         }
     }
 }
 
+
 void serve()
 {
     ball = vec2(LANE_X, -0.5 + BALL_R);
     vel = vec2(0);
+    ballSave = _TV(ballSaveTime, 8.);
+}
+
+
+void lanes()
+{
+    int k = int(floor((ball.x - CX + 0.09) / 0.06));
+    if (ball.y > 0.4 && ball.y < 0.44 && k >= 0 && k < 3 && (lanesLit & 1 << k) == 0) {
+        lanesLit |= 1 << k;
+        score += 100 * mult;
+        slingEvents++;
+    }
+    if (lanesLit == 7) {
+        lanesLit = 0;
+        mult = min(mult + 1, 5);
+        score += 1000 * mult;
+        flash = vec4(1);
+        bumperEvents++;
+        shake = 1.;
+        hitStop = 0.15;
+    }
 }
 
 void update()
 {
+    drainFlash = max(drainFlash - DT * 2., 0.);
+    if (hitStop > 0.) {
+        hitStop -= DT;
+        return;
+    }
     time += DT;
     flash = max(flash - DT * 4., 0.);
     slingFlash = max(slingFlash - DT * 4., 0.);
@@ -297,14 +331,19 @@ void update()
         if (gameOver <= 0.) {
             score = 0;
             balls = 3;
+            mult = 1;
+            lanesLit = 0;
             serve();
         }
     }
 
     vec2 up = iInput.xy;
     for (int i = 0; i < 2; i++)
-        if (up[i] > prevInput[i])
+        if (up[i] > prevInput[i]) {
             flipperEvents++;
+            
+            lanesLit = (i > 0 ? lanesLit << 1 | lanesLit >> 2 : lanesLit >> 1 | lanesLit << 2) & 7;
+        }
 
     const float h = DT / float(SUBSTEPS);
     for (int s = 0; s < SUBSTEPS; s++) {
@@ -320,6 +359,9 @@ void update()
             collide();
         }
     }
+    lanes();
+    if (ball.x < 0.22)
+        ballSave = max(ballSave - DT, 0.); 
     vel *= 1. - _TV(rollingDamping, 0.1) * DT;
     float speed = length(vel);
     if (speed > 4.5)
@@ -344,10 +386,18 @@ void update()
     if (balls > 0 && ball.y < -0.53) {
         drainEvents++;
         shake = 1.;
-        if (--balls > 0)
+        drainFlash = 1.;
+        if (ballSave > 0.) {
             serve();
-        else
-            gameOver = 3.;
+            ballSave = 0.;
+            flash = vec4(1);
+        } else {
+            mult = 1;
+            if (--balls > 0)
+                serve();
+            else
+                gameOver = 3.;
+        }
     }
 
     vec2 target = vec2(CX + (ball.x - CX) * 0.25, clamp(ball.y, -0.25, 0.25));

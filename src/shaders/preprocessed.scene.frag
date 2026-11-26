@@ -38,7 +38,12 @@ layout(std430, binding = 0) buffer State {
     float plunger;      
     float shake;        
     float gameOver;     
+    float ballSave;     
+    float hitStop;      
+    float drainFlash;   
     int score, balls;   
+    int mult;           
+    int lanesLit;       
 };
 // --------------------------------------------------------------------
 // Include end: state.glsl
@@ -277,14 +282,14 @@ vec2 map(vec3 p)
 
     
     vec3 s = p - vec3(SUN, 0);
-    h = hit(h, min(extrude(length(s.xy) - 0.03, p.z, 0.03), length(s - vec3(0, 0, 0.068)) - 0.036), M_SUN);
+    h = hit(h, min(extrude(length(s.xy) - 0.03, p.z, 0.03), length(s - vec3(0, 0, 0.068)) - 0.036 * (1. + 0.15 * flash.x)), M_SUN);
 
     
     float arms = 1e9;
     for (int i = 0; i < 3; i++) {
         float r = planetRadius(i), z = planetHeight(i);
         vec3 d = p - vec3(planets[i], 0);
-        float body = min(extrude(length(d.xy) - r * 0.8, p.z, 0.034), length(d - vec3(0, 0, z)) - r * 1.3);
+        float body = min(extrude(length(d.xy) - r * 0.8, p.z, 0.034), length(d - vec3(0, 0, z)) - r * 1.3 * (1. + 0.25 * flash[i + 1]));
         if (i == 1) { 
             d.z -= z;
             d.xz *= rot(0.4);
@@ -380,6 +385,27 @@ vec3 material(vec3 p, float m, out float metal, out vec3 glow, out float gloss)
         if (d < 0.) {
             metal = 1.;
             return brass;
+        }
+        
+        vec3 insert;
+        float on = -1.;
+        for (int i = 0; i < 4; i++) {
+            if (i < 3 && length(p.xy - vec2(CX + 0.06 * float(i - 1), 0.37)) < 0.009) {
+                on = float(lanesLit >> i & 1);
+                insert = vec3(1, 0.5, 0.1);
+            }
+            if (length(p.xy - vec2(CX - 0.045 + 0.03 * float(i), -0.1)) < 0.007) {
+                on = float(mult >= i + 2);
+                insert = vec3(0.2, 0.6, 1);
+            }
+        }
+        if (length(p.xy - vec2(CX, -0.37)) < 0.01) {
+            on = float(ballSave > 0. && fract(time * (ballSave < 2. ? 4. : 1.5)) < 0.6);
+            insert = vec3(1, 0.15, 0.1);
+        }
+        if (on >= 0.) {
+            glow = insert * on * 3.;
+            return insert * 0.06;
         }
         if (lamp < 0.) {
             float lit = step(fract((k - time * 4.) / 12.), 0.3);
@@ -494,8 +520,10 @@ void main()
     col = col * (2.51 * col + 0.03) / (col * (2.43 * col + 0.59) + 0.14);
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
     col *= 1. - 0.3 * dot(uv, uv);
+    
+    col = mix(col, col.r * vec3(0.9, 0.1, 0.05), drainFlash * 0.8);
 
-    vec3 amber = vec3(1, 0.45, 0.1);
+    vec3 amber = vec3(1, 0.45, 0.1) * (1. + 2. * max(max(flash.x, flash.y), max(flash.z, flash.w)));
     if (balls > 0) {
         digits7(col, amber, uv * 18. - vec2(16.5, 8.), 18., uint(score), 7);
         digits7(col, amber * 0.6, uv * 18. - vec2(-16.5, 8.), 18., uint(balls), 1);

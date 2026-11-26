@@ -14,3 +14,4 @@
 2026-11-26 88c91d7+ 6535 Release: HASHTRIES 100; check.ps1 retries a crashed Crinkler link
 # From here: the Snapshot configuration (Crinkler 3.0b, instant mode). Release
 # was 6526 bytes with Crinkler 3.0b at this point, Snapshot 6695.
+2026-11-26 bf9c9d3 6695 Crinkler 3.0b; check.ps1 builds Snapshot by default

@@ -7,3 +7,4 @@
 2026-10-23 edd930a 6538 Use shiny newest Minifier
 2026-11-25 d378d99 4083 Move the game to shaders: compute gameplay, reactive audio
 2026-11-26 df83765 4083 Editor: rewind, replay inputs, game state panel, self-test
+2026-11-26 424f17d 4130 README: timeline, game state panel, inputs, tools/check.ps1

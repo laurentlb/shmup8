@@ -1,25 +1,29 @@
-# Shmup8
+# Orrery pinball (work in progress)
 
-A tiny shoot 'em up for Windows, released at https://laurentlb.itch.io/shmup8
+A pinball game for Windows in 8 kB: a clockwork orrery under glass, raymarched in
+3D, with 2D physics. The table is one set of distance functions: the physics and
+the rendering use the same shapes, including the planets that orbit the sun.
 
-The first version was made in a few days for https://langjamgamejam.com with a
-custom language, a bytecode VM and a fullscreen pixel shader (3 kB). It is in the
-git history, up to commit `ffca300`.
+Left / right arrows: flippers. Down: pull the plunger, release to launch. Up: nudge.
 
-The game is now made of shaders only, with a 8 kB target:
+This branch started from the engine of the shoot 'em up released at
+https://laurentlb.itch.io/shmup8 (branch `main`, 3 kB, made for
+https://langjamgamejam.com with a custom language and a bytecode VM).
+
+The game is made of shaders only:
 
 | File | Content |
 | --- | --- |
 | `src/shaders/game.comp` | Gameplay, with fixed steps of 1/120 s |
-| `src/shaders/scene.frag` | Rendering (pass 0: scene with trails, pass 1: final image) |
+| `src/shaders/scene.frag` | Rendering (pass 0: raymarched scene, pass 1: bloom, tone mapping, score) |
 | `src/shaders/state.glsl` | Game state, a GPU buffer shared by both shaders |
-| `src/shaders/world.glsl` | Shapes, shared by the collisions and the rendering |
+| `src/shaders/world.glsl` | The table's shapes, shared by the physics and the rendering |
 | `src/engine.h` | Runs the two shaders |
 | `src/audio.h` | Streams the music, triggers the sound effects |
 | `src/music/song.py` | Song and sound effects |
 | `src/main.cpp` | Window and main loop (release and editor) |
 
-The host sends the inputs, and reads back event counters (shots, explosions, hits).
+The host sends the inputs, and reads back event counters (bumpers, flippers, drains, slingshots).
 When a counter changes, the matching sound effect is played.
 
 ## Building
@@ -34,7 +38,7 @@ development, Snapshot or Release for the final executable.
 
 Run `out\cat-debug.exe` from the root of the repository.
 
-* Arrows and space: play. F1: show/hide the panel.
+* Arrows: play. F1: show/hide the panel.
 * P: pause, O: advance by one frame, R: restart.
 * Shaders are reloaded when a file changes, and the game goes on. If the
   state declaration changed, it restarts.
@@ -56,7 +60,11 @@ out\cat-debug.exe --capture --width 640 --sheet sheet.png 2 7 22
 out\cat-debug.exe --capture --video game.mp4 --end 30
 out\cat-debug.exe --capture --wav game.wav 30
 out\cat-debug.exe --capture --video replay.mp4 --keys inputs.txt
+out\cat-debug.exe --capture --end 10 --trace 0.1
 ```
+
+`--trace` prints the state (the fields that are not arrays) at an interval:
+handy to follow the ball.
 
 See `src/edit/capture.h` for the options.
 
@@ -68,7 +76,9 @@ powershell -ExecutionPolicy Bypass -File tools\check.ps1 -Log
 
 Builds the release and the editor, prints the size, and runs a self-test
 (`out\cat-debug.exe --check`): rewinding gives the same state as playing straight,
-and the minified shaders of the release play and render like the editor's.
+and the minified shaders of the release play and render like the editor's
+(gameplay over 3 s, within a float tolerance since pinball is chaotic; rendering
+of the same state).
 A successful release build doesn't prove that: the shaders are only compiled
 when the game starts. `-Log` appends the size to `tools/sizes.txt`.
 

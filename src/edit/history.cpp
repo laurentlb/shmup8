@@ -26,14 +26,14 @@ namespace History
 
 	Input encode(float x, float y, float fire)
 	{
-		return (Input)((x < 0) | (x > 0) << 1 | (y > 0) << 2 | (y < 0) << 3 | (fire > 0) << 4);
+		return (Input)((x < 0) | (x > 0) << 1 | (y > 0) << 2 | (y < 0) << 3 | (fire > 0) << 4 | (fire < 0) << 5);
 	}
 
 	void decode(Input input, float& x, float& y, float& fire)
 	{
 		x = (float)((input >> 1 & 1) - (input & 1));
 		y = (float)((input >> 2 & 1) - (input >> 3 & 1));
-		fire = (float)(input >> 4 & 1);
+		fire = (float)((input >> 4 & 1) - (input >> 5 & 1));
 	}
 
 	static void takeSnapshot()

@@ -45,7 +45,7 @@ static void initEngine(int width, int height)
 		glBindTexture(GL_TEXTURE_2D, i);
 		// floats, otherwise trails don't fade out completely at high frame rates
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, 0);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); // mipmaps: bloom
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	}
@@ -67,7 +67,7 @@ static void limitFrameRate(HDC hDC, long frameStart)
 		Sleep(wait);
 }
 
-// input: direction (x, y), fire
+// input: left flipper, right flipper, plunger (1) or nudge (-1)
 static void stepGame(float x, float y, float fire, int steps)
 {
 	GLCALL(PFNGLUSEPROGRAMPROC, "glUseProgram")(gameProgram);
@@ -85,6 +85,7 @@ static void drawGame(int width, int height, float frameTime, int target)
 	GLCALL(PFNGLBINDFRAMEBUFFERPROC, "glBindFramebuffer")(GL_FRAMEBUFFER, sceneFramebuffer);
 	glRects(-1, -1, 1, 1);
 	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+	GLCALL(PFNGLGENERATEMIPMAPPROC, "glGenerateMipmap")(GL_TEXTURE_2D);
 
 	GLCALL(PFNGLUNIFORM4FPROC, "glUniform4f")(0, (float)width, (float)height, frameTime, 1);
 	GLCALL(PFNGLBINDFRAMEBUFFERPROC, "glBindFramebuffer")(GL_FRAMEBUFFER, target);

@@ -73,7 +73,7 @@ void entrypoint(void)
 			elapsed = 1000 * MAX_STEPS / STEPS_PER_SECOND;
 		remainder += elapsed * STEPS_PER_SECOND;
 
-		stepGame(key(VK_RIGHT) - key(VK_LEFT), key(VK_UP) - key(VK_DOWN), key(VK_SPACE), remainder / 1000);
+		stepGame(key(VK_LEFT), key(VK_RIGHT), key(VK_DOWN) - key(VK_UP), remainder / 1000);
 		remainder %= 1000;
 		drawGame(xres, yres, elapsed * 0.001f, 0);
 		SwapBuffers(hDC);
@@ -147,9 +147,9 @@ int __cdecl main(int argc, char* argv[])
 		float x = 0, y = 0, fire = 0;
 		if (focus)
 		{
-			x = key(VK_RIGHT) - key(VK_LEFT);
-			y = key(VK_UP) - key(VK_DOWN);
-			fire = key(VK_SPACE);
+			x = key(VK_LEFT);
+			y = key(VK_RIGHT);
+			fire = key(VK_DOWN) - key(VK_UP);
 		}
 		float gameElapsed = EditUI::playing() ? elapsed * EditUI::speed() : 0.f;
 		remainder += gameElapsed * STEPS_PER_SECOND;

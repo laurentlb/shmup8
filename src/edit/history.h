@@ -14,7 +14,7 @@
 // replaying from an earlier point uses the new code with the same inputs.
 namespace History
 {
-	// One byte per step: 1 left, 2 right, 4 up, 8 down, 16 fire.
+	// One byte per step: 1 x < 0, 2 x > 0, 4 y > 0, 8 y < 0, 16 fire > 0, 32 fire < 0.
 	typedef unsigned char Input;
 	Input encode(float x, float y, float fire);
 	void decode(Input input, float& x, float& y, float& fire);

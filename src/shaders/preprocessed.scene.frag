@@ -254,10 +254,12 @@ void digits7(inout vec3 o, vec3 c, vec2 q, float scale, uint value, int digits)
 
 vec2 planets[3];
 
-float extrude(float d, float z, float height)
+
+
+float extrude(float d, float z, float height, float r)
 {
-    vec2 w = vec2(d, abs(z - height * .5) - height * .5);
-    return min(max(w.x, w.y), 0.) + length(max(w, 0.));
+    vec2 w = vec2(d + r, abs(z - height * .5) - height * .5 + r);
+    return min(max(w.x, w.y), 0.) + length(max(w, 0.)) - r;
 }
 
 float seg3(vec3 p, vec3 a, vec3 b)
@@ -276,25 +278,27 @@ vec2 map(vec3 p)
     vec2 q = mirror(p.xy);
     float area = areaDist(p.xy);
     vec2 h = vec2(p.z, M_FLOOR);
-    h = hit(h, extrude(min(max(-area, area - 0.03), laneDist(p.xy)), p.z, 0.05), M_WALL);
-    h = hit(h, extrude(boxDist(p.xy - vec2(CX, -0.56), vec2(0.245, 0.07)), p.z, 0.022), M_APRON);
-    h = hit(h, extrude(railDist(q), p.z, 0.03), M_RAIL);
-    h = hit(h, extrude(slingDist(q), p.z, 0.032), M_SLING);
-    h = hit(h, extrude(postDist(q), p.z, 0.032), M_POST);
-    h = hit(h, extrude(gateDist(p.xy), p.z - 0.01, 0.025), M_ARM);
+    h = hit(h, extrude(min(max(-area, area - 0.03), laneDist(p.xy)), p.z, 0.05, 0.004), M_WALL);
+    h = hit(h, extrude(boxDist(p.xy - vec2(CX, -0.56), vec2(0.245, 0.07)), p.z, 0.022, 0.006), M_APRON);
+    h = hit(h, extrude(railDist(q), p.z, 0.026, 0.005), M_RAIL);
+    
+    float sling = slingDist(q);
+    h = hit(h, min(extrude(sling, p.z, 0.024, 0.004), extrude(sling - 0.003, p.z - 0.025, 0.005, 0.002)), M_SLING);
+    h = hit(h, extrude(postDist(q), p.z, 0.032, 0.003), M_POST);
+    h = hit(h, extrude(gateDist(p.xy), p.z - 0.01, 0.025, 0.001), M_ARM);
     for (int i = 0; i < 2; i++)
-        h = hit(h, extrude(flipperDist(p.xy, i), p.z - 0.002, 0.024), M_FLIP + float(i));
+        h = hit(h, extrude(flipperDist(p.xy, i), p.z - 0.002, 0.022, 0.005), M_FLIP + float(i));
 
     
     vec3 s = p - vec3(SUN, 0);
-    h = hit(h, min(extrude(length(s.xy) - 0.03, p.z, 0.03), length(s - vec3(0, 0, 0.068)) - 0.036 * (1. + 0.15 * flash.x)), M_SUN);
+    h = hit(h, min(extrude(length(s.xy) - 0.03, p.z, 0.03, 0.004), length(s - vec3(0, 0, 0.068)) - 0.036 * (1. + 0.15 * flash.x)), M_SUN);
 
     
     float arms = 1e9;
     for (int i = 0; i < 3; i++) {
         float r = planetRadius(i), z = planetHeight(i);
         vec3 d = p - vec3(planets[i], 0);
-        float body = min(extrude(length(d.xy) - r * 0.8, p.z, 0.034), length(d - vec3(0, 0, z)) - r * 1.3 * (1. + 0.25 * flash[i + 1]));
+        float body = min(extrude(length(d.xy) - r * 0.8, p.z, 0.034, 0.003), length(d - vec3(0, 0, z)) - r * 1.3 * (1. + 0.25 * flash[i + 1]));
         if (i == 1) { 
             d.z -= z;
             d.xz *= rot(0.4);
@@ -372,6 +376,19 @@ float hash(vec2 p)
     return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
+float noise(vec2 p)
+{
+    vec2 i = floor(p), f = fract(p);
+    f *= f * (3. - 2. * f);
+    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + 1.), f.x), f.y);
+}
+
+
+float fbm(vec2 p)
+{
+    return noise(p) * 0.5 + noise(p * 2.13 + 7.) * 0.3 + noise(p * 4.37 + 3.) * 0.2;
+}
+
 
 float stars(vec2 p, float density)
 {
@@ -384,28 +401,36 @@ float stars(vec2 p, float density)
 
 vec3 material(vec3 p, float m, out float metal, out vec3 glow, out float rough)
 {
-    const vec3 brass = vec3(0.9, 0.62, 0.3);
+    
+    float wear = fbm(p.xy * 300. + p.z * 200.);
+    vec3 brass = vec3(0.85, 0.6, 0.3) * (0.75 + 0.35 * wear);
+    vec3 rubber = vec3(0.02, 0.018, 0.017) * (0.8 + 0.4 * wear);
     metal = 0.;
     glow = vec3(0);
-    rough = 0.3;
+    rough = 0.15 + 0.2 * wear;
     if (m == M_FLOOR) {
         if (areaDist(p.xy) > 0.) {
             
             rough = 1.;
-            glow = vec3(0.8, 0.85, 1) * stars(p.xy, 40.) * 2. + vec3(0.02, 0.005, 0.035) * (1. + sin(p.x * 7. + sin(p.y * 5.) * 2.));
+            glow = vec3(0.8, 0.85, 1) * stars(p.xy, 40.) * 2. + vec3(0.02, 0.005, 0.04) * fbm(p.xy * 4.) * 2.;
             return vec3(0);
         }
         vec2 s = p.xy - SUN;
         float r = length(s), a = atan(s.y, s.x);
         
-        float x = p.x + 0.004 * sin(p.y * 25. + floor(p.x / 0.065) * 3.);
-        float grain = sin(x * 700. + sin(p.y * 9. + x * 90.) * 3.) * 0.5 + sin(x * 2300.) * 0.25;
-        vec3 c = vec3(0.17, 0.06, 0.02) * (0.85 + 0.15 * grain) * (1. - 0.6 * smoothstep(0.0305, 0.0322, abs(fract(p.x / 0.065) - 0.5) * 0.065));
-        rough = 0.12;
+        float plank = floor(p.x / 0.065);
+        float x = p.x + 0.004 * sin(p.y * 25. + plank * 3.) + 0.002 * fbm(p.xy * 60.);
+        float grain = sin(x * 700. + fbm(vec2(x * 90., p.y * 6.)) * 8.) * 0.5 + sin(x * 2300.) * 0.25;
+        vec3 c = vec3(0.17, 0.06, 0.02) * (0.85 + 0.15 * grain) * (0.8 + 0.4 * hash(vec2(plank)))
+               * (0.85 + 0.3 * fbm(p.xy * vec2(20, 4)))
+               * (1. - 0.6 * smoothstep(0.0305, 0.0322, abs(fract(p.x / 0.065) - 0.5) * 0.065));
+        
+        rough = 0.05 + 0.15 * smoothstep(0.4, 0.8, fbm(p.xy * 25.));
         
         float gear = r - 0.195 - 0.006 * clamp(sin(a * 24.) * 4., -1., 1.);
         if (gear < 0.) {
-            c = mix(vec3(0.005, 0.01, 0.04), vec3(0.03, 0.015, 0.06), r / 0.2);
+            float cloud = fbm(p.xy * 30.);
+            c = mix(vec3(0.004, 0.008, 0.035), vec3(0.05, 0.015, 0.07), cloud * cloud * 1.5) * (1. - r * 2.);
             glow = vec3(0.9, 0.9, 1) * stars(p.xy, 90.) * 0.6;
         }
         
@@ -414,8 +439,9 @@ vec3 material(vec3 p, float m, out float metal, out vec3 glow, out float rough)
         float k = floor(a / (PI / 6.) + 0.5);
         float lamp = length(s - 0.052 * vec2(cos(k * PI / 6.), sin(k * PI / 6.))) - 0.006;
         if (d < 0.) {
-            metal = 1.;
-            rough = 0.2;
+            
+            metal = 0.5;
+            rough = 0.3;
             return brass;
         }
         
@@ -448,58 +474,66 @@ vec3 material(vec3 p, float m, out float metal, out vec3 glow, out float rough)
         if (dist < 1.) {
             
             rough = 0.05;
-            glow = insert * on * (4. - 2.5 * dist * dist);
+            glow = insert * on * (4. - 2.5 * dist * dist) * (0.8 + 0.4 * noise(p.xy * 3000.));
             return insert * 0.08;
         }
         return c;
     }
     if (m == M_WALL) {
-        if (p.z > 0.0495) { metal = 1.; return brass; }
-        return vec3(0.1, 0.04, 0.015);
+        if (p.z > 0.045) { metal = 1.; return brass; } 
+        rough = 0.3;
+        return vec3(0.09, 0.035, 0.012) * (0.7 + 0.6 * fbm(vec2(p.x + p.y, p.z) * vec2(40, 300)));
     }
     if (m == M_APRON) {
-        rough = 0.4;
-        return vec3(0.04, 0.03, 0.05);
+        
+        rough = 0.35;
+        return mix(vec3(0.03, 0.025, 0.05), brass * 0.5, smoothstep(0.75, 0.9, wear));
     }
     if (m == M_RAIL || m == M_ARM) {
         metal = 1.;
-        rough = 0.15;
-        return m == M_ARM ? brass : vec3(0.85);
+        rough *= 0.6;
+        return m == M_ARM ? brass : vec3(0.7, 0.7, 0.72) * (0.85 + 0.2 * wear);
     }
-    if (m == M_SLING || m == M_POST) {
-        int side = p.x > CX ? 1 : 0;
-        if (m == M_SLING)
-            glow = vec3(1, 0.7, 0.4) * slingFlash[side] * 4.;
+    if (m == M_SLING) {
+        if (p.z > 0.024) {
+            
+            int side = p.x > CX ? 1 : 0;
+            glow = vec3(1, 0.25, 0.08) * slingFlash[side] * 3.;
+            rough = 0.05;
+            return vec3(0.12, 0.012, 0.01);
+        }
+        rough = 0.5;
+        return rubber;
+    }
+    if (m == M_POST || m == M_FLIP || m == M_FLIP + 1.) {
         
-        rough = p.z < 0.026 ? 0.6 : 0.2;
-        return p.z < 0.026 ? vec3(0.6, 0.03, 0.02) : vec3(0.8, 0.75, 0.65);
-    }
-    if (m == M_FLIP || m == M_FLIP + 1.) {
-        rough = p.z < 0.016 ? 0.6 : 0.2;
-        return p.z < 0.016 ? vec3(0.6, 0.03, 0.02) : vec3(0.85, 0.8, 0.7);
+        if (p.z > 0.004 && p.z < 0.02) {
+            rough = 0.5;
+            return rubber;
+        }
+        metal = 1.;
+        return brass;
     }
     if (m == M_SUN) {
         metal = 1.;
-        rough = 0.25;
         if (p.z > 0.035)
-            glow = vec3(1, 0.5, 0.15) * (1.5 + flash.x * 8.);
+            glow = vec3(1, 0.5, 0.15) * (1.5 + flash.x * 8.) * (0.8 + 0.4 * fbm(p.xy * 400. + time));
         return brass;
     }
     if (m >= M_PLANET && m < M_BALL) {
         int i = int(m - M_PLANET);
-        if (p.z < 0.034) { rough = 0.6; return vec3(0.03, 0.02, 0.02); }
+        if (p.z < 0.034) { rough = 0.5; return rubber; }
         if (i == 1 && abs(length(p.xy - planets[1]) - 0.044) < 0.004) { metal = 1.; return brass; }
         
-        float band = sin((p.z - planetHeight(i)) * 300. / planetRadius(i) * 0.02);
-        vec3 c = i == 0 ? vec3(0.8, 0.25, 0.08) : i == 1 ? vec3(0.1, 0.3, 0.8) : vec3(0.75);
-        c *= 0.85 + 0.15 * band;
+        vec3 c = i == 0 ? vec3(0.7, 0.2, 0.06) : i == 1 ? vec3(0.08, 0.25, 0.7) : vec3(0.6);
+        c *= 0.6 + 0.6 * fbm(vec2(p.z * 600., p.x * 60.));
         glow = c * flash[i + 1] * 4.;
-        rough = 0.15;
+        rough = 0.1;
         return c;
     }
     
     metal = 1.;
-    rough = 0.02;
+    rough = 0.01 + 0.03 * wear;
     return vec3(0.95);
 }
 
@@ -559,7 +593,7 @@ vec3 render(vec3 ro, vec3 rd)
         float metal, rough;
         vec3 glow;
         vec3 albedo = material(p, h.y, metal, glow, rough);
-        vec3 f0 = mix(vec3(0.04), albedo, metal);
+        vec3 f0 = mix(vec3(h.y == M_FLOOR ? 0.07 : 0.04), albedo, metal); 
         albedo *= 1. - metal;
 
         float shade = bounce == 0 ? shadow(p + n * 0.001, key) : 1.;
@@ -571,6 +605,11 @@ vec3 render(vec3 ro, vec3 rd)
                + light(n, v, normalize(toSun), vec3(1, 0.5, 0.15) * sunPower, albedo, f0, rough)
                
                + albedo * mix(vec3(0.12, 0.06, 0.03), vec3(0.08, 0.1, 0.2), n.z * 0.5 + 0.5) * ao;
+        
+        for (int i = 0; i < 4; i++) {
+            vec3 l = vec3(CX + (i % 2 > 0 ? 0.215 : -0.215), i > 1 ? 0.2 : -0.15, 0.04) - p;
+            c += light(n, v, normalize(l), vec3(1, 0.6, 0.3) * 0.0005 / dot(l, l), albedo, f0, rough) * ao;
+        }
         col += weight * (c + glow);
 
         float fresnel = pow(1. - max(dot(n, v), 0.), 5.);
@@ -578,7 +617,9 @@ vec3 render(vec3 ro, vec3 rd)
         if (max(weight.x, max(weight.y, weight.z)) < 0.02)
             break;
         ro = p + n * 0.002;
-        rd = reflect(rd, n);
+        
+        vec2 f = gl_FragCoord.xy;
+        rd = normalize(reflect(rd, n) + rough * 0.5 * (vec3(hash(f), hash(f + 1.), hash(f + 2.)) - 0.5));
     }
     return col + trailGlow(ro0, rd0, tHit);
 }
@@ -605,7 +646,7 @@ void main()
     }
 
     
-    vec2 ca = (texCoord - 0.5) * 0.003; 
+    vec2 ca = (texCoord - 0.5) * 0.0015; 
     vec3 col = vec3(texture(tex, texCoord + ca).r, texture(tex, texCoord).g, texture(tex, texCoord - ca).b);
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)

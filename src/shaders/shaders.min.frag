@@ -124,10 +124,10 @@ void digits7(inout vec3 o,vec3 c,vec2 q,float scale,uint value,int digits)
     }
   o+=c*(clamp(.5-iFrame.x/scale*d*.5,0.,1.)+.3*exp(-30.*max(d,0.)));
 }
-float extrude(float d,float z,float height)
+float extrude(float d,float z,float height,float r)
 {
-  vec2 w=vec2(d,abs(z-height*.5)-height*.5);
-  return min(max(w.x,w.y),0.)+length(max(w,0.));
+  vec2 w=vec2(d+r,abs(z-height*.5)-height*.5+r);
+  return min(max(w.x,w.y),0.)+length(max(w,0.))-r;
 }
 float seg3(vec3 p,vec3 a,vec3 b)
 {
@@ -143,26 +143,28 @@ vec2 map(vec3 p)
 {
   vec2 q=mirror(p.xy);
   float area=areaDist(p.xy);
-  q=hit(hit(hit(hit(hit(hit(vec2(p.z,0),extrude(min(max(-area,area-.03),segDist(p.xy,vec2(.224,-.6),vec2(.224,.2))-.004),p.z,.05),1.),extrude(boxDist(p.xy-vec2(-.019,-.56),vec2(.245,.07)),p.z,.022),12.),extrude(min(segDist(q,vec2(-.219,-.2),vec2(-.219,-.33)),segDist(q,vec2(-.219,-.33),vec2(-.114,-.415)))-.006,p.z,.03),2.),extrude(triDist(q,vec2(-.174,-.2),vec2(-.174,-.305),vec2(-.119,-.345))-.005,p.z,.032),3.),extrude(min(triDist(q,vec2(-.262,.08),vec2(-.212,-.03),vec2(-.262,-.06)),min(segDist(q,vec2(-.109,.4),vec2(-.109,.44)),segDist(q,vec2(-.049,.4),vec2(-.049,.44))))-.005,p.z,.032),13.),extrude(segDist(p.xy,vec2(.222,.2),vec2(.262,.235))-.002,p.z-.01,.025),11.);
+  vec2 h=hit(hit(hit(vec2(p.z,0),extrude(min(max(-area,area-.03),segDist(p.xy,vec2(.224,-.6),vec2(.224,.2))-.004),p.z,.05,.004),1.),extrude(boxDist(p.xy-vec2(-.019,-.56),vec2(.245,.07)),p.z,.022,.006),12.),extrude(min(segDist(q,vec2(-.219,-.2),vec2(-.219,-.33)),segDist(q,vec2(-.219,-.33),vec2(-.114,-.415)))-.006,p.z,.026,.005),2.);
+  area=triDist(q,vec2(-.174,-.2),vec2(-.174,-.305),vec2(-.119,-.345))-.005;
+  h=hit(hit(hit(h,min(extrude(area,p.z,.024,.004),extrude(area-.003,p.z-.025,.005,.002)),3.),extrude(min(triDist(q,vec2(-.262,.08),vec2(-.212,-.03),vec2(-.262,-.06)),min(segDist(q,vec2(-.109,.4),vec2(-.109,.44)),segDist(q,vec2(-.049,.4),vec2(-.049,.44))))-.005,p.z,.032,.003),13.),extrude(segDist(p.xy,vec2(.222,.2),vec2(.262,.235))-.002,p.z-.01,.025,.001),11.);
   for(int i=0;i<2;i++)
-    q=hit(q,extrude(flipperDist(p.xy,i),p.z-.002,.024),4.+float(i));
+    h=hit(h,extrude(flipperDist(p.xy,i),p.z-.002,.022,.005),4.+float(i));
   vec3 s=p-vec3(vec2(-.019,.13),0);
-  q=hit(q,min(extrude(length(s.xy)-.03,p.z,.03),length(s-vec3(0,0,.068))-.036*(1.+.15*flash.x)),6.);
+  h=hit(h,min(extrude(length(s.xy)-.03,p.z,.03,.004),length(s-vec3(0,0,.068))-.036*(1.+.15*flash.x)),6.);
   area=1e9;
   for(int i=0;i<3;i++)
     {
       float r=planetRadius(i),z=planetHeight(i);
       vec3 d=p-vec3(planets[i],0);
-      float body=min(extrude(length(d.xy)-r*.8,p.z,.034),length(d-vec3(0,0,z))-r*1.3*(1.+.25*flash[i+1]));
+      float body=min(extrude(length(d.xy)-r*.8,p.z,.034,.003),length(d-vec3(0,0,z))-r*1.3*(1.+.25*flash[i+1]));
       if(i==1)
         d.z-=z,d.xz*=rot(),body=min(body,length(vec2(length(d.xy)-r*2.2,d.z))-.0015);
-      q=hit(q,body,7.+float(i));
+      h=hit(h,body,7.+float(i));
       d=i>1?
         vec3(planets[1],planetHeight(1)):
         vec3(vec2(-.019,.13),.068);
       area=min(area,seg3(p,d,vec3(planets[i],z)));
     }
-  return hit(hit(hit(q,area-.0022,11.),seg3(p,vec3(.244,-.502-plunger*.04,.0135),vec3(.244,-.7,.0135))-.008,11.),length(p-vec3(ball,.0135))-.0135,10.);
+  return hit(hit(hit(h,area-.0022,11.),seg3(p,vec3(.244,-.502-plunger*.04,.0135),vec3(.244,-.7,.0135))-.008,11.),length(p-vec3(ball,.0135))-.0135,10.);
 }
 vec3 normal(vec3 p)
 {
@@ -213,6 +215,17 @@ float hash(vec2 p)
 {
   return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);
 }
+float noise(vec2 p)
+{
+  vec2 i=floor(p);
+  p=fract(p);
+  p*=p*(3.-2.*p);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),p.x),mix(hash(i+vec2(0,1)),hash(i+1.),p.x),p.y);
+}
+float fbm(vec2 p)
+{
+  return noise(p)*.5+noise(p*2.13+7.)*.3+noise(p*4.37+3.)*.2;
+}
 float stars(vec2 p,float density)
 {
   float h=hash(floor(p*density));
@@ -220,102 +233,106 @@ float stars(vec2 p,float density)
 }
 vec3 material(vec3 p,float m,out float metal,out vec3 glow,out float rough)
 {
-  const vec3 brass=vec3(.9,.62,.3);
+  float wear=fbm(p.xy*3e2+p.z*2e2);
+  vec3 brass=vec3(.85,.6,.3)*(.75+.35*wear),rubber=vec3(.02,.018,.017)*(.8+.4*wear);
   metal=0.;
   glow=vec3(0);
-  rough=.3;
+  rough=.15+.2*wear;
   if(m==0.)
     {
       if(areaDist(p.xy)>0.)
-        return rough=1.,glow=vec3(.8,.85,1)*stars(p.xy,40.)*2.+vec3(.02,.005,.035)*(1.+sin(p.x*7.+sin(p.y*5.)*2.)),vec3(0);
+        return rough=1.,glow=vec3(.8,.85,1)*stars(p.xy,40.)*2.+vec3(.02,.005,.04)*fbm(p.xy*4.)*2.,vec3(0);
       vec2 s=p.xy-vec2(-.019,.13);
-      float r=length(s),a=atan(s.y,s.x),x=p.x+.004*sin(p.y*25.+floor(p.x/.065)*3.);
-      vec3 c=vec3(.17,.06,.02)*(.85+.15*(sin(x*7e2+sin(p.y*9.+x*90.)*3.)*.5+sin(x*23e2)*.25))*(1.-.6*smoothstep(.0305,.0322,abs(fract(p.x/.065)-.5)*.065));
-      rough=.12;
-      x=r-.195-.006*clamp(sin(a*24.)*4.,-1.,1.);
-      if(x<0.)
-        c=mix(vec3(.005,.01,.04),vec3(.03,.015,.06),r/.2),glow=vec3(.9,.9,1)*stars(p.xy,90.)*.6;
+      float r=length(s),a=atan(s.y,s.x),plank=floor(p.x/.065),x=p.x+.004*sin(p.y*25.+plank*3.)+.002*fbm(p.xy*60.);
+      vec3 c=vec3(.17,.06,.02)*(.85+.15*(sin(x*7e2+fbm(vec2(x*90.,p.y*6.))*8.)*.5+sin(x*23e2)*.25))*(.8+.4*hash(vec2(plank)))*(.85+.3*fbm(p.xy*vec2(20,4)))*(1.-.6*smoothstep(.0305,.0322,abs(fract(p.x/.065)-.5)*.065));
+      rough=.05+.15*smoothstep(.4,.8,fbm(p.xy*25.));
+      plank=r-.195-.006*clamp(sin(a*24.)*4.,-1.,1.);
+      if(plank<0.)
+        {
+          float cloud=fbm(p.xy*30.);
+          c=mix(vec3(.004,.008,.035),vec3(.05,.015,.07),cloud*cloud*1.5)*(1.-r*2.);
+          glow=vec3(.9,.9,1)*stars(p.xy,90.)*.6;
+        }
       a=floor(a/(3.14159/6.)+.5);
-      float lamp=length(s-.052*vec2(cos(a*3.14159/6.),sin(a*3.14159/6.)))-.006;
-      if(min(min(abs(r-.075),abs(r-.14))-.0012,abs(x)-.002)<0.)
-        return metal=1.,rough=.2,brass;
+      x=length(s-.052*vec2(cos(a*3.14159/6.),sin(a*3.14159/6.)))-.006;
+      if(min(min(abs(r-.075),abs(r-.14))-.0012,abs(plank)-.002)<0.)
+        return metal=.5,rough=.3,brass;
       vec3 insert;
       r=-1.;
-      x=1.;
+      plank=1.;
       for(int i=0;i<4;i++)
         {
           vec2 q=p.xy-vec2(-.019+.06*float(i-1),.37);
           if(i<3&&length(q)<.009)
-            r=float(lanesLit>>i&1),insert=vec3(1,.5,.1),x=length(q)/.009;
+            r=float(lanesLit>>i&1),insert=vec3(1,.5,.1),plank=length(q)/.009;
           q=p.xy-vec2(-.064+.03*float(i),-.1);
           if(length(q)<.007)
-            r=float(mult>=i+2),insert=vec3(.2,.6,1),x=length(q)/.007;
+            r=float(mult>=i+2),insert=vec3(.2,.6,1),plank=length(q)/.007;
         }
       if(length(p.xy-vec2(-.019,-.37))<.01)
         r=float(ballSave>0.&&fract(time*(ballSave<2.?
           4.:
-          1.5))<.6),insert=vec3(1,.15,.1),x=length(p.xy-vec2(-.019,-.37))/.01;
-      if(lamp<0.)
-        r=step(fract((a-time*4.)/12.),.3)*.5+flash.x*2.,insert=vec3(1,.45,.1),x=(lamp+.006)/.006;
-      return x<1.?
-        rough=.05,glow=insert*r*(4.-2.5*x*x),insert*.08:
+          1.5))<.6),insert=vec3(1,.15,.1),plank=length(p.xy-vec2(-.019,-.37))/.01;
+      if(x<0.)
+        r=step(fract((a-time*4.)/12.),.3)*.5+flash.x*2.,insert=vec3(1,.45,.1),plank=(x+.006)/.006;
+      return plank<1.?
+        rough=.05,glow=insert*r*(4.-2.5*plank*plank)*(.8+.4*noise(p.xy*3e3)),insert*.08:
         c;
     }
   if(m==1.)
-    return p.z>.0495?
-      metal=1.,brass:
-      vec3(.1,.04,.015);
-  if(m==12.)
-    return rough=.4,vec3(.04,.03,.05);
-  if(m==2.||m==11.)
-    return metal=1.,rough=.15,m==11.?
-      brass:
-      vec3(.85);
-  if(m==3.||m==13.)
     {
-      if(m==3.)
-        glow=vec3(1,.7,.4)*slingFlash[p.x>-.019?
-          1:
-          0]*4.;
-      rough=p.z<.026?
-        .6:
-        .2;
-      return p.z<.026?
-        vec3(.6,.03,.02):
-        vec3(.8,.75,.65);
+      if(p.z>.045)
+        return metal=1.,brass;
+      rough=.3;
+      return vec3(.09,.035,.012)*(.7+.6*fbm(vec2(p.x+p.y,p.z)*vec2(40,300)));
     }
-  if(m==4.||m==5.)
-    return rough=p.z<.016?
-      .6:
-      .2,p.z<.016?
-      vec3(.6,.03,.02):
-      vec3(.85,.8,.7);
+  if(m==12.)
+    return rough=.35,mix(vec3(.03,.025,.05),brass*.5,smoothstep(.75,.9,wear));
+  if(m==2.||m==11.)
+    return metal=1.,rough*=.6,m==11.?
+      brass:
+      vec3(.7,.7,.72)*(.85+.2*wear);
+  if(m==3.)
+    {
+      if(p.z>.024)
+        return glow=vec3(1,.25,.08)*slingFlash[p.x>-.019?
+          1:
+          0]*3.,rough=.05,vec3(.12,.012,.01);
+      rough=.5;
+      return rubber;
+    }
+  if(m==13.||m==4.||m==5.)
+    {
+      if(p.z>.004&&p.z<.02)
+        return rough=.5,rubber;
+      metal=1.;
+      return brass;
+    }
   if(m==6.)
     {
       metal=1.;
-      rough=.25;
       if(p.z>.035)
-        glow=vec3(1,.5,.15)*(1.5+flash.x*8.);
+        glow=vec3(1,.5,.15)*(1.5+flash.x*8.)*(.8+.4*fbm(p.xy*4e2+time));
       return brass;
     }
   if(m>=7.&&m<10.)
     {
       int i=int(m-7.);
       if(p.z<.034)
-        return rough=.6,vec3(.03,.02,.02);
+        return rough=.5,rubber;
       if(i==1&&abs(length(p.xy-planets[1])-.044)<.004)
         return metal=1.,brass;
       vec3 c=(i==0?
-        vec3(.8,.25,.08):
+        vec3(.7,.2,.06):
         i==1?
-          vec3(.1,.3,.8):
-          vec3(.75))*(.85+.15*sin((p.z-planetHeight(i))*3e2/planetRadius(i)*.02));
+          vec3(.08,.25,.7):
+          vec3(.6))*(.6+.6*fbm(vec2(p.z*6e2,p.x*60.)));
       glow=c*flash[i+1]*4.;
-      rough=.15;
+      rough=.1;
       return c;
     }
   metal=1.;
-  rough=.02;
+  rough=.01+.03*wear;
   return vec3(.95);
 }
 vec3 light(vec3 n,vec3 v,vec3 l,vec3 color,vec3 albedo,vec3 f0,float rough)
@@ -362,7 +379,9 @@ vec3 render(vec3 ro,vec3 rd)
         }
       vec3 p=ro+rd*h.x,n=normal(p),v=-rd;
       float metal,rough;
-      vec3 glow,albedo=material(p,h.y,metal,glow,rough),f0=mix(vec3(.04),albedo,metal);
+      vec3 glow,albedo=material(p,h.y,metal,glow,rough),f0=mix(vec3(h.y==0.?
+        .07:
+        .04),albedo,metal);
       albedo*=1.-metal;
       metal=bounce==0?
         shadow(p+n*.001,key):
@@ -373,12 +392,22 @@ vec3 render(vec3 ro,vec3 rd)
       vec3 toSun=vec3(vec2(-.019,.13),.068)-p;
       float sunPower=(.5+flash.x*3.)*.0012/dot(toSun,toSun);
       toSun=light(n,v,key,vec3(1,.85,.7)*1.5*metal,albedo,f0,rough)+light(n,v,fill,vec3(.3,.45,1)*.5*ao,albedo,f0,rough)+light(n,v,normalize(toSun),vec3(1,.5,.15)*sunPower,albedo,f0,rough)+albedo*mix(vec3(.12,.06,.03),vec3(.08,.1,.2),n.z*.5+.5)*ao;
+      for(int i=0;i<4;i++)
+        {
+          vec3 l=vec3(-.019+(i%2>0?
+            .215:
+            -.215),i>1?
+            .2:
+            -.15,.04)-p;
+          toSun+=light(n,v,normalize(l),vec3(1,.6,.3)*5e-4/dot(l,l),albedo,f0,rough)*ao;
+        }
       col+=weight*(toSun+glow);
       weight*=(f0+(1.-f0)*pow(1.-max(dot(n,v),0.),5.))*(1.-rough)*ao;
       if(max(weight.x,max(weight.y,weight.z))<.02)
         break;
       ro=p+n*.002;
-      rd=reflect(rd,n);
+      h=gl_FragCoord.xy;
+      rd=normalize(reflect(rd,n)+rough*.5*(vec3(hash(h),hash(h+1.),hash(h+2.))-.5));
     }
   return col+trailGlow(ro0,rd0,tHit);
 }
@@ -394,7 +423,7 @@ void main()
       fragColor=vec4(clamp(render(ro,normalize(uv.x*ta+uv.y*cross(ta,fw)+1.9*fw)),0.,50.),1);
       return;
     }
-  vec2 ca=(texCoord-.5)*.003;
+  vec2 ca=(texCoord-.5)*.0015;
   vec3 col=vec3(texture(tex,texCoord+ca).x,texture(tex,texCoord).y,texture(tex,texCoord-ca).z),bloom=vec3(0);
   for(int i=2;i<8;i++)
     bloom+=max(textureLod(tex,texCoord,float(i)).xyz-.6,0.);

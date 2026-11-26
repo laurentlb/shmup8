@@ -9,3 +9,4 @@
 2026-11-26 df83765 4083 Editor: rewind, replay inputs, game state panel, self-test
 2026-11-26 424f17d 4130 README: timeline, game state panel, inputs, tools/check.ps1
 2026-11-26 1600829 5577 Pinball: a clockwork orrery table, raymarched in 3D
+2026-11-26 32fd4ad 5928 Rules and juice: top lanes, multiplier, ball save, hit-stop, drain flash

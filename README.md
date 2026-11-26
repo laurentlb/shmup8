@@ -12,7 +12,7 @@ the rendering use the same shapes, including the planets that orbit the sun.
 
 ## Current state
 
-**Size:** 5577 bytes (release, Crinkler), out of 8192. History in `tools/sizes.txt`.
+**Size:** 5928 bytes (release, Crinkler), out of 8192. History in `tools/sizes.txt`.
 
 **Controls:** left / right arrows: flippers. Down: pull the plunger, release to
 launch. Up: nudge. Escape: quit.
@@ -25,15 +25,22 @@ launch. Up: nudge. Escape: quit.
   move along their orbits; they hit the ball at their own speed.
 * Physics: 2D, 8 substeps per 1/120 s step, flipper and bumper surface speed,
   restitution per material, plunger strength from the pull time, nudge.
-* Rules: 3 balls, score, game over screen, a new game after 3 s.
+* Rules: 3 balls, score, game over screen, a new game after 3 s. Top lanes:
+  rolling through all three raises the multiplier (x2 to x5), and the flippers
+  move the lit lanes. Ball save during the first 8 s of each ball.
+* Lamps: top lanes, multiplier, ball save (blinks faster when it ends), a clock
+  dial with a light chase around the sun.
 * Rendering: raymarched 3D (chrome ball with reflections, soft shadows, ambient
   occlusion, wood planks and brass inlays, glowing sun lighting the table, clock
   lamps with a light chase), mipmap bloom, tone mapping.
 * Camera: follows the ball, shakes on hits, nudges and drains.
-* Sound: music; sound effects triggered by the gameplay (placeholders for now).
+* Juice: hit-stop on sun hits and completed lanes, planets and sun swell and
+  glow when hit, red flash on drains, score digits brighten on hits.
+* Sound: music; a chime for bumpers, a thunk for flippers, a snap for
+  slingshots and lanes, a falling tone for drains.
 
-**Not yet:** pinball sound effects, lane and target rules, multiball, ramps,
-tilt, a title screen.
+**Not yet:** targets, multiball, ramps, tilt, a title screen, music that fits
+the theme, hand-tuned flipper feel.
 
 This branch started from the engine of the shoot 'em up released at
 https://laurentlb.itch.io/shmup8 (branch `main`, 3 kB, made for

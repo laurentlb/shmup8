@@ -37,6 +37,10 @@ layout(std430, binding = 0)buffer State{
 };
 out vec4 fragColor;
 vec2 planets[3];
+float lampDist,lampOn;
+vec3 lampColor;
+float metal,rough;
+vec3 glow,n,v,albedo,f0;
 mat2 rot()
 {
   float c=cos(.4),s=sin(.4);
@@ -260,13 +264,19 @@ float stars(vec2 p,float density)
   float h=hash(floor(p*density));
   return step(.8,h)*smoothstep(.12,0.,length(fract(p*density)-.25-.5*vec2(h,fract(h*17.))))*(.6+.4*sin(time*3.+h*60.));
 }
-vec3 material(vec3 p,float m,out float metal,out vec3 glow,out float rough)
+void lamp(vec2 q,float r,float on,vec3 color)
+{
+  if(length(q)<r)
+    lampDist=length(q)/r,lampOn=on,lampColor=color;
+}
+vec3 material(vec3 p,float m)
 {
   float wear=fbm(p.xy*3e2+p.z*2e2);
   vec3 brass=vec3(.85,.6,.3)*(.75+.35*wear),rubber=vec3(.02,.018,.017)*(.8+.4*wear);
   metal=0.;
   glow=vec3(0);
   rough=.15+.2*wear;
+  lampDist=1.;
   if(m==0.)
     {
       if(areaDist(p.xy)>0.)
@@ -282,39 +292,28 @@ vec3 material(vec3 p,float m,out float metal,out vec3 glow,out float rough)
           c=mix(vec3(.004,.008,.035),vec3(.05,.015,.07),cloud*cloud*1.5)*(1.-r*2.);
           glow=vec3(.9,.9,1)*stars(p.xy,90.)*.6;
         }
-      a=floor(a/(3.14159/6.)+.5);
-      x=length(s-.052*vec2(cos(a*3.14159/6.),sin(a*3.14159/6.)))-.006;
       if(min(min(abs(r-.075),abs(r-.14))-.0012,abs(plank)-.002)<0.)
         return metal=.5,rough=.3,brass;
-      vec3 insert;
-      plank=-1.;
-      float dist=1.;
       for(int i=0;i<4;i++)
         {
-          vec2 q=p.xy-vec2(-.019+.06*float(i-1),.37);
-          if(i<3&&length(q)<.009)
-            plank=float(lanesLit>>i&1),insert=vec3(1,.5,.1),dist=length(q)/.009;
-          q=p.xy-vec2(-.064+.03*float(i),-.27);
-          if(length(q)<.007)
-            plank=float(mult>=i+2),insert=vec3(.2,.6,1),dist=length(q)/.007;
+          if(i<3)
+            lamp(p.xy-vec2(-.019+.06*float(i-1),.37),.009,float(lanesLit>>i&1),vec3(1,.5,.1));
+          lamp(p.xy-vec2(-.064+.03*float(i),-.27),.007,float(mult>=i+2),vec3(.2,.6,1));
         }
-      s=mirror(p.xy);
-      s-=s.x<-.109?
+      vec2 q=mirror(p.xy);
+      q-=q.x<-.109?
         vec2(-.154,-.16):
         vec2(-.064,-.19);
-      float star=length(s)/(.016*(.6+.4*cos(5.*atan(s.x,s.y))));
-      if(star<1.)
-        plank=float(targetsLit>>targetIndex(p.xy)&1)+.5*flash.x,insert=vec3(1,.8,.3),dist=star;
-      if(length(p.xy-vec2(-.019,-.37))<.01)
-        plank=float(ballSave>0.&&fract(time*(ballSave<2.?
-          4.:
-          1.5))<.6),insert=vec3(1,.15,.1),dist=length(p.xy-vec2(-.019,-.37))/.01;
-      if(x<0.)
-        plank=step(fract((a-time*4.)/12.),.3)*.5+flash.x*2.,insert=vec3(1,.45,.1),dist=(x+.006)/.006;
-      if(dist<1.)
-        return rough=.05,glow=insert*plank*(4.-2.5*dist*dist)*(.8+.4*noise(p.xy*3e3)),insert*.08;
-      star=alignTime*.35-r;
-      glow+=vec3(1,.7,.3)*(exp(-star*star*3e3)*max(1.-alignTime*.5,0.)*3.+alignment()*exp(-pow(p.x+.019,2.)*3e3)*step(p.y,.13)*1.5);
+      lamp(q,.016*(.6+.4*cos(5.*atan(q.x,q.y))),float(targetsLit>>targetIndex(p.xy)&1)+.5*flash.x,vec3(1,.8,.3));
+      lamp(p.xy-vec2(-.019,-.37),.01,float(ballSave>0.&&fract(time*(ballSave<2.?
+        4.:
+        1.5))<.6),vec3(1,.15,.1));
+      a=floor(a*1.91+.5);
+      lamp(s-.052*vec2(cos(a/1.91),sin(a/1.91)),.006,step(fract((a-time*4.)/12.),.3)*.5+flash.x*2.,vec3(1,.45,.1));
+      if(lampDist<1.)
+        return rough=.05,glow=lampColor*lampOn*(4.-2.5*lampDist*lampDist)*(.8+.4*noise(p.xy*3e3)),lampColor*.08;
+      r=alignTime*.35-r;
+      glow+=vec3(1,.7,.3)*(exp(-r*r*3e3)*max(1.-alignTime*.5,0.)*3.+alignment()*exp(-pow(p.x+.019,2.)*3e3)*step(p.y,.13)*1.5);
       return c;
     }
   if(m==1.)
@@ -375,10 +374,13 @@ vec3 material(vec3 p,float m,out float metal,out vec3 glow,out float rough)
   rough=.01+.03*wear;
   return vec3(.95);
 }
-vec3 light(vec3 n,vec3 v,vec3 l,vec3 color,vec3 albedo,vec3 f0,float rough)
+vec3 light(vec3 l,vec3 color)
 {
-  rough=2./max(rough*rough,.002);
-  return color*max(dot(n,l),0.)*(albedo+f0*((rough+8.)/25.*pow(max(dot(n,normalize(l+v)),0.),rough)));
+  float nl=max(dot(n,l),0.);
+  l=normalize(l+v);
+  float k=2./max(rough*rough,.002);
+  k=(k+8.)/25.*pow(max(dot(n,l),0.),k);
+  return color*nl*(albedo+f0*k);
 }
 vec3 trailGlow(vec3 ro,vec3 rd,float tMax)
 {
@@ -386,19 +388,9 @@ vec3 trailGlow(vec3 ro,vec3 rd,float tMax)
   for(int i=0;i<31;i++)
     {
       vec3 a=vec3(trail[i].xy,.0135),b=vec3(trail[i+1].xy,.0135);
-      b-=a;
-      if(dot(b,b)>.003||dot(b,b)<1e-9)
-        continue;
-      vec3 oa=ro-a;
-      float rb=dot(rd,b),u=clamp((dot(oa,b)-rb*dot(oa,rd))/(dot(b,b)-rb*rb),0.,1.);
-      rb=dot(a+b*u-ro,rd);
-      if(rb>tMax||rb<0.)
-        continue;
-      oa=ro+rd*rb-a-b*u;
-      rb=(float(i)+u)/float(32);
-      u=.0135*(.9-.7*rb);
-      float speed=smoothstep(.4,2.,trail[i].z);
-      col+=mix(vec3(.6,.8,1),vec3(1,.3,.05),rb)*speed*(1.-rb)*exp(-dot(oa,oa)/(u*u))*.6;
+      float t=dot(a-ro,rd),age=float(i)/float(32),w=.0135*(.9-.7*age),d=seg3(ro+rd*t,a,b);
+      if(t<tMax&&length(a-b)<.05)
+        col+=mix(vec3(.6,.8,1),vec3(1,.3,.05),age)*smoothstep(.4,2.,trail[i].z)*(1.-age)*exp(-d*d/(w*w))*.6;
     }
   return col;
 }
@@ -417,21 +409,22 @@ vec3 render(vec3 ro,vec3 rd)
           col+=weight*(vec3(.05,.05,.09)*(.4+.6*max(rd.z,0.))+vec3(1,.85,.65)*4.*smoothstep(.75,.92,rd.z)*smoothstep(.3,.15,abs(rd.x))+vec3(.3,.5,1)*1.5*smoothstep(.85,.95,-rd.y)*smoothstep(.3,.1,abs(rd.z-.3)));
           break;
         }
-      vec3 p=ro+rd*h.x,n=normal(p),v=-rd;
-      float metal,rough;
-      vec3 glow,albedo=material(p,h.y,metal,glow,rough),f0=mix(vec3(h.y==0.?
+      vec3 p=ro+rd*h.x;
+      n=normal(p);
+      v=-rd;
+      albedo=material(p,h.y);
+      f0=mix(vec3(h.y==0.?
         .07:
         .04),albedo,metal);
       albedo*=1.-metal;
-      metal=bounce==0?
+      float shade=bounce==0?
         shadow(p+n*.001,key):
-        1.;
-      float ao=bounce==0?
+        1.,ao=bounce==0?
         occlusion(p,n):
         1.;
       vec3 toSun=vec3(vec2(-.019,.13),.068)-p;
       float sunPower=(.5+flash.x*3.)*.0012/dot(toSun,toSun);
-      toSun=light(n,v,key,vec3(1,.85,.7)*1.5*metal,albedo,f0,rough)+light(n,v,fill,vec3(.3,.45,1)*.5*ao,albedo,f0,rough)+light(n,v,normalize(toSun),vec3(1,.5,.15)*sunPower,albedo,f0,rough)+albedo*mix(vec3(.12,.06,.03),vec3(.08,.1,.2),n.z*.5+.5)*ao;
+      toSun=light(key,vec3(1,.85,.7)*1.5*shade)+light(fill,vec3(.3,.45,1)*.5*ao)+light(normalize(toSun),vec3(1,.5,.15)*sunPower)+albedo*mix(vec3(.12,.06,.03),vec3(.08,.1,.2),n.z*.5+.5)*ao;
       for(int i=0;i<4;i++)
         {
           vec3 l=vec3(-.019+(i%2>0?
@@ -439,10 +432,11 @@ vec3 render(vec3 ro,vec3 rd)
             -.215),i>1?
             .2:
             -.15,.04)-p;
-          toSun+=light(n,v,normalize(l),vec3(1,.6,.3)*5e-4/dot(l,l),albedo,f0,rough)*ao;
+          toSun+=light(normalize(l),vec3(1,.6,.3)*5e-4/dot(l,l))*ao;
         }
       col+=weight*(toSun+glow);
-      weight*=(f0+(1.-f0)*pow(1.-max(dot(n,v),0.),5.))*(1.-rough)*ao;
+      sunPower=pow(1.-max(dot(n,v),0.),5.);
+      weight*=(f0+(1.-f0)*sunPower)*(1.-rough)*ao;
       if(max(weight.x,max(weight.y,weight.z))<.02)
         break;
       ro=p+n*.002;

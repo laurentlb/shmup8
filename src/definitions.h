@@ -27,14 +27,3 @@ static const PIXELFORMATDESCRIPTOR pfd = {
 #endif
 };
 
-#pragma data_seg(".screensettings")
-static DEVMODE screenSettings = { 
-	{0}, 0, 0, sizeof(screenSettings), 0, DM_PELSWIDTH|DM_PELSHEIGHT,
-	{0}, 0, 0, 0, 0, 0, {0}, 0, 0, XRES, YRES, 0, 0,
-	#if(WINVER >= 0x0400)
-		0, 0, 0, 0, 0, 0,
-			#if (WINVER >= 0x0500) || (_WIN32_WINNT >= 0x0400)
-			0, 0
-		#endif
-	#endif
-};

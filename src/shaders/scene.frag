@@ -190,8 +190,23 @@ float stars(vec2 p, float density)
     return step(0.8, h) * smoothstep(0.12, 0., length(q)) * (0.6 + 0.4 * sin(time * 3. + h * 60.));
 }
 
-// Surface at p: albedo; metal: 0 to 1; glow: emitted light; rough: 0 (mirror) to 1.
-vec3 material(vec3 p, float m, out float metal, out vec3 glow, out float rough)
+// A round lamp insert (q: position from its center, r: radius, on: 0 to 1).
+float lampDist, lampOn;
+vec3 lampColor;
+void lamp(vec2 q, float r, float on, vec3 color)
+{
+    if (length(q) < r) {
+        lampDist = length(q) / r;
+        lampOn = on;
+        lampColor = color;
+    }
+}
+
+// Surface at p (material m): returns the albedo, and sets metal (0 to 1),
+// glow (emitted light) and rough (0: mirror, to 1).
+float metal, rough;
+vec3 glow;
+vec3 material(vec3 p, float m)
 {
     // worn metal: the tarnish varies, and so does the polish
     float wear = fbm(p.xy * 300. + p.z * 200.);
@@ -200,6 +215,7 @@ vec3 material(vec3 p, float m, out float metal, out vec3 glow, out float rough)
     metal = 0.;
     glow = vec3(0);
     rough = 0.15 + 0.2 * wear;
+    lampDist = 1.;
     if (m == M_FLOOR) {
         if (areaDist(p.xy) > 0.) {
             // the table floats in space
@@ -227,56 +243,30 @@ vec3 material(vec3 p, float m, out float metal, out vec3 glow, out float rough)
         }
         // brass inlays: the orbits, the toothed wheel
         float d = min(min(abs(r - 0.075), abs(r - 0.14)) - 0.0012, abs(gear) - 0.002);
-        // a clock dial: 12 lamps around the sun, a light chase
-        float k = floor(a / (PI / 6.) + 0.5);
-        float lamp = length(s - 0.052 * vec2(cos(k * PI / 6.), sin(k * PI / 6.))) - 0.006;
         if (d < 0.) {
             // gilded: partly diffuse, so that it doesn't only reflect the dark room
             metal = 0.5;
             rough = 0.3;
             return brass;
         }
-        // inserts: top lanes, multiplier (x2 to x5), ball save
-        vec3 insert;
-        float on = -1., dist = 1.;
+        // inserts: top lanes, multiplier (x2 to x5), stars in front of the
+        // targets, ball save, and a clock dial of 12 lamps around the sun
         for (int i = 0; i < 4; i++) {
-            vec2 q = p.xy - vec2(CX + 0.06 * float(i - 1), 0.37);
-            if (i < 3 && length(q) < 0.009) {
-                on = float(lanesLit >> i & 1);
-                insert = vec3(1, 0.5, 0.1);
-                dist = length(q) / 0.009;
-            }
-            q = p.xy - vec2(CX - 0.045 + 0.03 * float(i), -0.27);
-            if (length(q) < 0.007) {
-                on = float(mult >= i + 2);
-                insert = vec3(0.2, 0.6, 1);
-                dist = length(q) / 0.007;
-            }
+            if (i < 3)
+                lamp(p.xy - vec2(CX + 0.06 * float(i - 1), 0.37), 0.009, float(lanesLit >> i & 1), vec3(1, 0.5, 0.1));
+            lamp(p.xy - vec2(CX - 0.045 + 0.03 * float(i), -0.27), 0.007, float(mult >= i + 2), vec3(0.2, 0.6, 1));
         }
-        // stars in front of the targets
         vec2 q = mirror(p.xy);
         q -= q.x < CX - 0.09 ? vec2(CX - 0.135, -0.16) : vec2(CX - 0.045, -0.19);
-        float star = length(q) / (0.016 * (0.6 + 0.4 * cos(5. * atan(q.x, q.y))));
-        if (star < 1.) {
-            on = float(targetsLit >> targetIndex(p.xy) & 1) + 0.5 * flash.x;
-            insert = vec3(1, 0.8, 0.3);
-            dist = star;
-        }
-        if (length(p.xy - vec2(CX, -0.37)) < 0.01) {
-            on = float(ballSave > 0. && fract(time * (ballSave < 2. ? 4. : 1.5)) < 0.6);
-            insert = vec3(1, 0.15, 0.1);
-            dist = length(p.xy - vec2(CX, -0.37)) / 0.01;
-        }
-        if (lamp < 0.) {
-            on = step(fract((k - time * 4.) / 12.), 0.3) * 0.5 + flash.x * 2.;
-            insert = vec3(1, 0.45, 0.1);
-            dist = (lamp + 0.006) / 0.006;
-        }
-        if (dist < 1.) {
+        lamp(q, 0.016 * (0.6 + 0.4 * cos(5. * atan(q.x, q.y))), float(targetsLit >> targetIndex(p.xy) & 1) + 0.5 * flash.x, vec3(1, 0.8, 0.3));
+        lamp(p.xy - vec2(CX, -0.37), 0.01, float(ballSave > 0. && fract(time * (ballSave < 2. ? 4. : 1.5)) < 0.6), vec3(1, 0.15, 0.1));
+        float k = floor(a * 1.91 + 0.5); // 12 / 2 pi
+        lamp(s - 0.052 * vec2(cos(k / 1.91), sin(k / 1.91)), 0.006, step(fract((k - time * 4.) / 12.), 0.3) * 0.5 + flash.x * 2., vec3(1, 0.45, 0.1));
+        if (lampDist < 1.) {
             // colored glass with a frosted pattern, brighter in the middle when lit
             rough = 0.05;
-            glow = insert * on * (4. - 2.5 * dist * dist) * (0.8 + 0.4 * noise(p.xy * 3000.));
-            return insert * 0.08;
+            glow = lampColor * lampOn * (4. - 2.5 * lampDist * lampDist) * (0.8 + 0.4 * noise(p.xy * 3000.));
+            return lampColor * 0.08;
         }
         // alignment: a beam from the sun through the planets, and a shockwave
         float wave = alignTime * 0.35 - r;
@@ -351,7 +341,9 @@ vec3 material(vec3 p, float m, out float metal, out vec3 glow, out float rough)
 }
 
 // Light from a direction (or point, then L is not normalized and falls off).
-vec3 light(vec3 n, vec3 v, vec3 l, vec3 color, vec3 albedo, vec3 f0, float rough)
+// Light from direction l on the surface being shaded (n, v).
+vec3 n, v, albedo, f0;
+vec3 light(vec3 l, vec3 color)
 {
     float nl = max(dot(n, l), 0.);
     vec3 h = normalize(l + v);
@@ -366,22 +358,12 @@ vec3 trailGlow(vec3 ro, vec3 rd, float tMax)
     vec3 col = vec3(0);
     for (int i = 0; i < TRAIL - 1; i++) {
         vec3 a = vec3(trail[i].xy, BALL_R), b = vec3(trail[i + 1].xy, BALL_R);
-        vec3 ba = b - a;
-        if (dot(ba, ba) > 0.003 || dot(ba, ba) < 1e-9)
-            continue; // a new ball: no trail across the table
-        // closest points between the ray and the segment
-        vec3 oa = ro - a;
-        float bb = dot(ba, ba), rb = dot(rd, ba);
-        float u = clamp((dot(oa, ba) - rb * dot(oa, rd)) / (bb - rb * rb), 0., 1.);
-        float t = dot(a + ba * u - ro, rd);
-        if (t > tMax || t < 0.)
-            continue;
-        vec3 q = ro + rd * t - a - ba * u;
-        float age = (float(i) + u) / float(TRAIL);
-        float width = BALL_R * (0.9 - 0.7 * age);
-        float speed = smoothstep(0.4, 2., trail[i].z);
-        col += mix(vec3(0.6, 0.8, 1), vec3(1, 0.3, 0.05), age) * speed * (1. - age)
-             * exp(-dot(q, q) / (width * width)) * 0.6;
+        // the point of the ray in front of a, its distance to the segment
+        float t = dot(a - ro, rd), age = float(i) / float(TRAIL), w = BALL_R * (0.9 - 0.7 * age);
+        float d = seg3(ro + rd * t, a, b);
+        if (t < tMax && distance(a, b) < 0.05) // not across the table for a new ball
+            col += mix(vec3(0.6, 0.8, 1), vec3(1, 0.3, 0.05), age) * smoothstep(0.4, 2., trail[i].z) * (1. - age)
+                 * exp(-d * d / (w * w)) * 0.6;
     }
     return col;
 }
@@ -401,27 +383,25 @@ vec3 render(vec3 ro, vec3 rd)
             break;
         }
         vec3 p = ro + rd * h.x;
-        vec3 n = normal(p);
-        vec3 v = -rd;
-        float metal, rough;
-        vec3 glow;
-        vec3 albedo = material(p, h.y, metal, glow, rough);
-        vec3 f0 = mix(vec3(h.y == M_FLOOR ? 0.07 : 0.04), albedo, metal); // lacquered playfield
+        n = normal(p);
+        v = -rd;
+        albedo = material(p, h.y);
+        f0 = mix(vec3(h.y == M_FLOOR ? 0.07 : 0.04), albedo, metal); // lacquered playfield
         albedo *= 1. - metal;
 
         float shade = bounce == 0 ? shadow(p + n * 0.001, key) : 1.;
         float ao = bounce == 0 ? occlusion(p, n) : 1.;
         vec3 toSun = vec3(SUN, 0.068) - p;
         float sunPower = (0.5 + flash.x * 3.) * 0.0012 / dot(toSun, toSun);
-        vec3 c = light(n, v, key, vec3(1, 0.85, 0.7) * 1.5 * shade, albedo, f0, rough)
-               + light(n, v, fill, vec3(0.3, 0.45, 1) * 0.5 * ao, albedo, f0, rough)
-               + light(n, v, normalize(toSun), vec3(1, 0.5, 0.15) * sunPower, albedo, f0, rough)
+        vec3 c = light(key, vec3(1, 0.85, 0.7) * 1.5 * shade)
+               + light(fill, vec3(0.3, 0.45, 1) * 0.5 * ao)
+               + light(normalize(toSun), vec3(1, 0.5, 0.15) * sunPower)
                // ambient: the warm table below, the dark room above
                + albedo * mix(vec3(0.12, 0.06, 0.03), vec3(0.08, 0.1, 0.2), n.z * 0.5 + 0.5) * ao;
         // GI lamps along the side walls
         for (int i = 0; i < 4; i++) {
             vec3 l = vec3(CX + (i % 2 > 0 ? 0.215 : -0.215), i > 1 ? 0.2 : -0.15, 0.04) - p;
-            c += light(n, v, normalize(l), vec3(1, 0.6, 0.3) * 0.0005 / dot(l, l), albedo, f0, rough) * ao;
+            c += light(normalize(l), vec3(1, 0.6, 0.3) * 0.0005 / dot(l, l)) * ao;
         }
         col += weight * (c + glow);
 

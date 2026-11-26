@@ -6,6 +6,10 @@ namespace EditUI {
 	void drawStart();
 	void drawEnd();
 
+	// Timeline: go back in time, replay the recorded inputs, save or load them.
+	// Moving in time pauses the game.
+	void drawTimeline();
+
 	// Show the event counters of the game.
 	void drawEvents(const int* events, int count);
 

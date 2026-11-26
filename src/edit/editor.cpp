@@ -135,6 +135,13 @@ bool Editor::takeStateChanged()
 	return r;
 }
 
+bool Editor::takeCodeChanged()
+{
+	bool r = codeChanged;
+	codeChanged = false;
+	return r;
+}
+
 void Editor::updateShaders(int* gamePID, int* scenePID, bool force_update)
 {
 	if (!shaderUpdatePending && !force_update)
@@ -196,6 +203,7 @@ void Editor::reloadShaderSource(int* gamePID, int* scenePID)
 	}
 	if (*gamePID) glDeleteProgram(*gamePID);
 	if (*scenePID) glDeleteProgram(*scenePID);
+	codeChanged = *gamePID != 0;
 	*gamePID = newGame;
 	*scenePID = newScene;
 

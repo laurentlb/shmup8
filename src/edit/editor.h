@@ -22,6 +22,9 @@ namespace Leviathan
 		// Whether the declaration of the game state changed in the last update.
 		bool takeStateChanged();
 
+		// Whether the programs were replaced by a successful reload since the last call.
+		bool takeCodeChanged();
+
 		// Whether the last shader (re)compile failed.
 		bool compileFailed() const { return lastCompileFailed; }
 
@@ -37,6 +40,7 @@ namespace Leviathan
 		bool lastCompileFailed = false;
 		std::string stateDeclaration;
 		bool stateChanged = false;
+		bool codeChanged = false;
 		unsigned long lastCheck = 0;
 		unsigned long long shaderTime = 0;
 	};

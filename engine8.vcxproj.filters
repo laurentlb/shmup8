@@ -30,6 +30,15 @@
       <Filter>editor</Filter>
     </ClCompile>
     <ClCompile Include="src\edit\editor.cpp" />
+    <ClCompile Include="src\edit\check.cpp">
+      <Filter>editor</Filter>
+    </ClCompile>
+    <ClCompile Include="src\edit\history.cpp">
+      <Filter>editor</Filter>
+    </ClCompile>
+    <ClCompile Include="src\edit\stateview.cpp">
+      <Filter>editor</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\definitions.h" />

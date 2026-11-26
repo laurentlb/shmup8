@@ -1,6 +1,7 @@
 #include "definitions.h"
 #include "glext.h"
 #include "editui.h"
+#include "history.h"
 
 #include "thirdparty/imgui/imgui.h"
 #include "thirdparty/imgui/imgui_impl_win32.h"
@@ -163,6 +164,50 @@ namespace EditUI {
 		if (s_windowBegun)
 			ImGui::End();
 		ImGui::Render();
+	}
+
+	void drawTimeline() {
+		if (!s_windowBegun) return;
+		const float stepsPerSecond = 120.f;
+		float t = History::position() / stepsPerSecond;
+		float end = History::length() / stepsPerSecond;
+		ImGui::SetNextItemWidth(220);
+		if (ImGui::SliderFloat("Time", &t, 0.f, end > 0.f ? end : 1.f, "%.2f s"))
+		{
+			s_playing = false;
+			History::seek((int)(t * stepsPerSecond + 0.5f));
+		}
+		ImGui::SameLine();
+		ImGui::Text("/ %.1f s", end);
+
+		if (ImGui::Button("-1 s")) { s_playing = false; History::seek(History::position() - (int)stepsPerSecond); }
+		ImGui::SameLine();
+		if (ImGui::Button("+1 s")) { s_playing = false; History::seek(History::position() + (int)stepsPerSecond); }
+		ImGui::SameLine();
+		ImGui::Checkbox("Replay inputs", &History::replaying());
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("Play the recorded inputs after the current time. Pressing a key takes over.");
+
+		static char path[256] = "inputs.txt";
+		static char message[300] = "";
+		ImGui::SetNextItemWidth(140);
+		ImGui::InputText("##inputs", path, sizeof(path));
+		ImGui::SameLine();
+		if (ImGui::Button("Save"))
+			snprintf(message, sizeof(message), History::save(path) ? "Saved %s" : "Cannot write %s", path);
+		ImGui::SameLine();
+		if (ImGui::Button("Load"))
+		{
+			if (History::load(path))
+			{
+				s_restart = true;
+				History::replaying() = true;
+				snprintf(message, sizeof(message), "Loaded %s", path);
+			}
+			else
+				snprintf(message, sizeof(message), "Cannot read %s", path);
+		}
+		if (message[0]) ImGui::TextUnformatted(message);
 	}
 
 	void drawEvents(const int* events, int count) {

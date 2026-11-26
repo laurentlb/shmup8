@@ -1,5 +1,6 @@
 #include "capture.h"
 #include "tweaks.h"
+#include "history.h"
 
 #include "definitions.h"
 #include "glext.h"
@@ -60,7 +61,7 @@ namespace Capture
 			"  --width W          render width (default: %d)\n"
 			"  --set NAME=VALUE   override a _TV value (repeatable)\n"
 			"  --fps N            frame rate: 30, 60 or 120 (default: 60)\n"
-			"  --keys auto|none   scripted inputs (default: auto)\n"
+			"  --keys auto|none|FILE  scripted inputs, or inputs saved by the editor (default: auto)\n"
 			"  --wav FILE         also save the sound (60 fps only)\n", DEMO_LENGTH_IN_S, XRES);
 		return 2;
 	}
@@ -138,6 +139,35 @@ namespace Capture
 		return sheet.Save(widen(path).c_str(), &pngClsid, NULL) == Gdiplus::Ok;
 	}
 
+	void autoInput(float t, float& x, float& y, float& fire)
+	{
+		// keyboard-like: -1, 0 or 1
+		x = floorf(sinf(t * 1.7f) * 1.5f + .5f);
+		y = floorf(sinf(t * 0.9f + 1.f) * 1.5f + .5f);
+		fire = 1;
+	}
+
+	unsigned offscreenFramebuffer(int width, int height)
+	{
+		#define GLFN(type, name) auto name = (type)wglGetProcAddress(#name)
+		GLFN(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers);
+		GLFN(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer);
+		GLFN(PFNGLGENRENDERBUFFERSPROC, glGenRenderbuffers);
+		GLFN(PFNGLBINDRENDERBUFFERPROC, glBindRenderbuffer);
+		GLFN(PFNGLRENDERBUFFERSTORAGEPROC, glRenderbufferStorage);
+		GLFN(PFNGLFRAMEBUFFERRENDERBUFFERPROC, glFramebufferRenderbuffer);
+		GLFN(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus);
+		#undef GLFN
+		GLuint fbo, rbo;
+		glGenFramebuffers(1, &fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		glGenRenderbuffers(1, &rbo);
+		glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, width, height);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rbo);
+		return glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE ? fbo : 0;
+	}
+
 	int run(int argc, char* argv[], const Host& host, int width, int height, bool compileFailed)
 	{
 		if (compileFailed)
@@ -150,6 +180,7 @@ namespace Capture
 		int cols = 3, fps = 60, crf = 12;
 		std::vector<float> times;
 		float end = (float)DEMO_LENGTH_IN_S;
+		bool endSet = false;
 
 		for (int i = 2; i < argc; ++i)
 		{
@@ -162,7 +193,7 @@ namespace Capture
 			else if (!strcmp(a, "--video") && hasValue) videoPath = argv[++i];
 			else if (!strcmp(a, "--wav") && hasValue) wavPath = argv[++i];
 			else if (!strcmp(a, "--fps") && hasValue) fps = atoi(argv[++i]);
-			else if (!strcmp(a, "--end") && hasValue) end = (float)atof(argv[++i]);
+			else if (!strcmp(a, "--end") && hasValue) end = (float)atof(argv[++i]), endSet = true;
 			else if (!strcmp(a, "--crf") && hasValue) crf = atoi(argv[++i]);
 			else if (!strcmp(a, "--keys") && hasValue) keys = argv[++i];
 			else if (!strcmp(a, "--ffmpeg") && hasValue) ffmpeg = argv[++i];
@@ -189,30 +220,27 @@ namespace Capture
 			printf("capture: --wav needs 60 fps\n");
 			return 2;
 		}
+		const int stepsPerFrame = 120 / fps;
+		std::vector<History::Input> recorded;
+		if (keys != "auto" && keys != "none")
+		{
+			if (!History::load(keys, recorded))
+			{
+				printf("capture: cannot read the inputs in %s\n", keys.c_str());
+				return 2;
+			}
+			if (video && !endSet) end = recorded.size() / 120.f;
+		}
+
 		std::sort(times.begin(), times.end());
 		if (!video) end = times.back();
 
-		#define GLFN(type, name) auto name = (type)wglGetProcAddress(#name)
-		GLFN(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers);
-		GLFN(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer);
-		GLFN(PFNGLGENRENDERBUFFERSPROC, glGenRenderbuffers);
-		GLFN(PFNGLBINDRENDERBUFFERPROC, glBindRenderbuffer);
-		GLFN(PFNGLRENDERBUFFERSTORAGEPROC, glRenderbufferStorage);
-		GLFN(PFNGLFRAMEBUFFERRENDERBUFFERPROC, glFramebufferRenderbuffer);
-		GLFN(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus);
-		GLFN(PFNGLUSEPROGRAMPROC, glUseProgram);
-		#undef GLFN
+		auto glUseProgram = (PFNGLUSEPROGRAMPROC)wglGetProcAddress("glUseProgram");
 
 		// Render offscreen so the result doesn't depend on the window's size,
 		// visibility or position on screen.
-		GLuint fbo, rbo;
-		glGenFramebuffers(1, &fbo);
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-		glGenRenderbuffers(1, &rbo);
-		glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, width, height);
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rbo);
-		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		const GLuint fbo = offscreenFramebuffer(width, height);
+		if (!fbo)
 		{
 			printf("capture: cannot create the offscreen framebuffer\n");
 			return 1;
@@ -260,15 +288,23 @@ namespace Capture
 		{
 			const float t = (float)i / fps;
 			float x = 0, y = 0, fire = 0;
-			if (keys == "auto")
-			{
-				// keyboard-like: -1, 0 or 1
-				x = floorf(sinf(t * 1.7f) * 1.5f + .5f);
-				y = floorf(sinf(t * 0.9f + 1.f) * 1.5f + .5f);
-				fire = 1;
-			}
 			QueryPerformanceCounter(&start);
-			host.step(x, y, fire, 120 / fps);
+			if (!recorded.empty())
+			{
+				// one step at a time: the inputs can change at every step
+				for (int s = (i - 1) * stepsPerFrame; s < i * stepsPerFrame; s++)
+				{
+					if (s < (int)recorded.size()) History::decode(recorded[s], x, y, fire);
+					else x = y = fire = 0;
+					host.step(x, y, fire, 1);
+				}
+			}
+			else
+			{
+				if (keys == "auto")
+					autoInput(t, x, y, fire);
+				host.step(x, y, fire, stepsPerFrame);
+			}
 			host.draw(width, height, 1.f / fps, fbo);
 
 			if (fps == 60)

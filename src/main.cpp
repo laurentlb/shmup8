@@ -20,6 +20,9 @@
 #include "edit/editui.h"
 #include "edit/tweaks.h"
 #include "edit/capture.h"
+#include "edit/check.h"
+#include "edit/history.h"
+#include "edit/stateview.h"
 #include <cstdio>
 #endif
 
@@ -84,7 +87,8 @@ void entrypoint(void)
 int __cdecl main(int argc, char* argv[])
 {
 	setvbuf(stdout, NULL, _IONBF, 0); // the log may be redirected
-	const bool capture = Capture::requested(argc, argv);
+	const bool check = Check::requested(argc, argv);
+	const bool capture = Capture::requested(argc, argv) || check;
 	HWND hwnd = EditUI::createEditorWindow(!capture);
 	timeBeginPeriod(1); // precise timeGetTime and Sleep
 	HDC hDC = GetDC(hwnd);
@@ -100,13 +104,18 @@ int __cdecl main(int argc, char* argv[])
 		int width = XRES, height = YRES;
 		Capture::resolution(argc, argv, width, height);
 		initEngine(width, height);
-		Capture::Host host = { stepGame, drawGame, renderAudio, stateCopy, gameProgram, sceneProgram };
+		Capture::Host host = { stepGame, drawGame, renderAudio, stateCopy, gameProgram, sceneProgram,
+			initEngine, [](int game, int scene) { gameProgram = game; sceneProgram = scene; },
+			EVENT_COUNT, STATE_SIZE };
+		if (check)
+			return Check::run(argc, argv, host, editor.compileFailed());
 		return Capture::run(argc, argv, host, width, height, editor.compileFailed());
 	}
 
 	initEngine(XRES, YRES);
 	EditUI::init();
 	CreateThread(0, 0, audioThread, stateCopy, 0, 0);
+	History::init(stepGame, stateCopy, EVENT_COUNT, STATE_SIZE);
 
 	DWORD previousTime = timeGetTime();
 	float remainder = 0; // in steps
@@ -124,7 +133,12 @@ int __cdecl main(int argc, char* argv[])
 		}
 
 		if (editor.takeStateChanged() || EditUI::takeRestart())
+		{
 			resetState();
+			History::restart();
+		}
+		else if (editor.takeCodeChanged())
+			History::invalidate();
 
 		// gameplay
 		ImGuiIO& io = ImGui::GetIO();
@@ -149,10 +163,16 @@ int __cdecl main(int argc, char* argv[])
 
 		GLCALL(PFNGLUSEPROGRAMPROC, "glUseProgram")(gameProgram);
 		EditUI::Tweaks::apply(gameProgram);
-		stepGame(x, y, fire, steps);
+		History::Input live = History::encode(x, y, fire);
+		if (live && History::replaying())
+			History::replaying() = false; // the player takes over
+		History::advance(live, steps);
 
+		EditUI::drawTimeline();
 		GLCALL(PFNGLUSEPROGRAMPROC, "glUseProgram")(sceneProgram);
 		EditUI::Tweaks::drawAndApply(sceneProgram);
+		if (EditUI::panelOpen() && StateView::draw(gameProgram, sceneProgram, STATE_SIZE))
+			History::invalidate();
 		EditUI::drawEvents(stateCopy, SU_SFX_COUNT);
 		EditUI::drawEnd();
 		drawGame(XRES, YRES, gameElapsed, 0);

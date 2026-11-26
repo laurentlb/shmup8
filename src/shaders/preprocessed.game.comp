@@ -37,7 +37,7 @@ layout(std430, binding = 0) buffer State {
 
     vec2 ball[MAX_BALLS], vel[MAX_BALLS]; 
     vec2 flip, flipVel; 
-    vec2 cam;           
+    float camTime;      
     vec2 slingFlash;    
     vec4 flash;         
     vec4 prevInput;
@@ -46,7 +46,7 @@ layout(std430, binding = 0) buffer State {
     float shake;        
     float gameOver;     
     float ballSave;     
-    float hitStop;      
+    float slowMo;       
     float drainFlash;   
     int score, balls;   
     int mult;           
@@ -262,7 +262,8 @@ vec2 field(vec2 p, bool down)
 // Include end: world.glsl
 
 
-const float DT = 1. / 120.;
+const float STEP = 1. / 120.;
+float DT; 
 #define SUBSTEPS 8 
 
 bool multiball()
@@ -302,13 +303,13 @@ void bumper(int b, int i, vec2 n, int points)
         bumperEvents++;
         shake = max(shake, 0.4);
         if (i == 0) {
-            hitStop = _TV(sunHitStop, 0.05);
+            slowMo = 0.08;
             
             if (multiball() && jackpotLit > 0) {
                 jackpotLit = 0;
                 bigAward(jackpot);
                 jackpotFlash = 1.;
-                hitStop = 0.2;
+                slowMo = 0.6;
                 shake = 1.;
                 slingEvents++;
             }
@@ -348,13 +349,13 @@ void target(vec2 p)
             if (ballAdded == 0)
                 addBalls(1);
             ballAdded = 1;
-            hitStop = 0.2;
+            slowMo = 0.6;
             return;
         }
         
         if (++sets <= multiballs) {
             bigAward(2000);
-            hitStop = 0.15;
+            slowMo = 0.4;
             return;
         }
         sets = 0;
@@ -367,7 +368,7 @@ void target(vec2 p)
             jackpot = 5000;
         jackpotLit = 1;
         launchDelay = 1.5;
-        hitStop = 0.4;
+        slowMo = 1.5;
     }
 }
 
@@ -459,19 +460,20 @@ void lanes(vec2 p)
         flash = vec4(1);
         bumperEvents++;
         shake = 1.;
-        hitStop = 0.15;
+        slowMo = 0.4;
     }
 }
 
 void update()
 {
-    drainFlash = max(drainFlash - DT * 2., 0.);
-    jackpotFlash = max(jackpotFlash - DT * 2., 0.);
-    awardTime = max(awardTime - DT, 0.);
-    if (hitStop > 0.) {
-        hitStop -= DT;
-        return;
-    }
+    drainFlash = max(drainFlash - STEP * 2., 0.);
+    jackpotFlash = max(jackpotFlash - STEP * 2., 0.);
+    awardTime = max(awardTime - STEP, 0.);
+    
+    camTime += STEP * (dot(abs(iInput.xyz), vec3(1)) > 0. ? 4. : 1.);
+    
+    slowMo = max(slowMo - STEP, 0.);
+    DT = STEP * (1. - 0.8 * min(slowMo * 4., 1.));
     time += DT;
     if (alignTime > 0.)
         alignTime = alignTime > 4. ? 0. : alignTime + DT;
@@ -500,6 +502,7 @@ void update()
             jackpot = 0;
             sets = 0;
             multiballs = 0;
+            camTime = 0.;
             serve();
         }
     }
@@ -542,8 +545,6 @@ void update()
     }
 
     bool inPlayfield = false;
-    float lowest = 1.;
-    vec2 watch = ball[0];
     for (int b = 0; b < ballCount; b++) {
         lanes(ball[b]);
         inPlayfield = inPlayfield || ball[b].x < 0.22;
@@ -551,16 +552,12 @@ void update()
         float speed = length(vel[b]);
         if (speed > 3.2)
             vel[b] *= 3.2 / speed;
-        if (ball[b].y < lowest) {
-            lowest = ball[b].y;
-            watch = ball[b];
-        }
     }
     if (inPlayfield)
         ballSave = max(ballSave - DT, 0.); 
 
     
-    if (iInput.z > 0.)
+    if (iInput.z > 0. && camTime > 5.) 
         plunger = min(plunger + DT * 1.2, 1.);
     else if (plunger > 0.) {
         for (int b = 0; b < ballCount; b++)
@@ -604,8 +601,6 @@ void update()
         }
     }
 
-    vec2 target = vec2(CX + (watch.x - CX) * 0.15, clamp(watch.y, -0.5, 0.5) * 0.06 + _TV(camY, -0.1));
-    cam += (target - cam) * DT * 3.;
 }
 
 void main()

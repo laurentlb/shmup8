@@ -7,7 +7,7 @@ layout(std430, binding = 0)buffer State{
   int bumperEvents,flipperEvents,drainEvents,slingEvents;
   vec2 ball[4],vel[4];
   vec2 flip,flipVel;
-  vec2 cam;
+  float camTime;
   vec2 slingFlash;
   vec4 flash;
   vec4 prevInput;
@@ -16,7 +16,7 @@ layout(std430, binding = 0)buffer State{
   float shake;
   float gameOver;
   float ballSave;
-  float hitStop;
+  float slowMo;
   float drainFlash;
   int score,balls;
   int mult;
@@ -456,7 +456,13 @@ void main()
     {
       for(int i=0;i<3;i++)
         planets[i]=planetPos(i,time);
-      vec3 ta=vec3(cam,0),ro=ta+vec3(0,-cos(.88),sin(.88))*1.3+shake*shake*.006*vec3(sin(time*71.),sin(time*83.),sin(time*61.)),fw=normalize(ta-ro);
+      float s=smoothstep(.5,5.,camTime),a=smoothstep(0.,.6,slowMo)*.12,g=balls>0?
+        0.:
+        1.-gameOver/3.;
+      vec3 ta=mix(vec3(vec2(-.019,.13),.03),vec3(-.019,-.1,0),s);
+      a=mix(.25,.88,s)-1.5*a-.3*g;
+      float yaw=(s-1.)*1.2+.4*g;
+      vec3 ro=ta+vec3(sin(yaw)*cos(a),-cos(yaw)*cos(a),sin(a))*mix(.22,1.3,s*s)*(1.+.3*g)+shake*shake*.004*vec3(sin(time*71.),sin(time*83.),sin(time*61.)),fw=normalize(ta-ro);
       ta=normalize(cross(fw,vec3(0,0,1)));
       fragColor=vec4(clamp(render(ro,normalize(uv.x*ta+uv.y*cross(ta,fw)+1.9*fw)),0.,50.),1);
       return;
@@ -491,7 +497,7 @@ layout(std430, binding = 0)buffer State{
   int bumperEvents,flipperEvents,drainEvents,slingEvents;
   vec2 ball[4],vel[4];
   vec2 flip,flipVel;
-  vec2 cam;
+  float camTime;
   vec2 slingFlash;
   vec4 flash;
   vec4 prevInput;
@@ -500,7 +506,7 @@ layout(std430, binding = 0)buffer State{
   float shake;
   float gameOver;
   float ballSave;
-  float hitStop;
+  float slowMo;
   float drainFlash;
   int score,balls;
   int mult;
@@ -521,7 +527,8 @@ layout(std430, binding = 0)buffer State{
   float awardTime;
   vec4 trail[32];
 };
-const float DT=1./120.;
+const float STEP=1./120.;
+float DT;
 float boxDist(vec2 p,vec2 size)
 {
   p=abs(p)-size;
@@ -636,9 +643,9 @@ void bumper(int b,int i,vec2 n,int points)
       shake=max(shake,.4);
       if(i==0)
         {
-          hitStop=.05;
+          slowMo=.08;
           if(multiball()&&jackpotLit>0)
-            jackpotLit=0,bigAward(jackpot),jackpotFlash=1.,hitStop=.2,shake=1.,slingEvents++;
+            jackpotLit=0,bigAward(jackpot),jackpotFlash=1.,slowMo=.6,shake=1.,slingEvents++;
         }
     }
 }
@@ -671,13 +678,13 @@ void target(vec2 p)
           if(ballAdded==0)
             addBalls(1);
           ballAdded=1;
-          hitStop=.2;
+          slowMo=.6;
           return;
         }
       if(++sets<=multiballs)
         {
           bigAward(2000);
-          hitStop=.15;
+          slowMo=.4;
           return;
         }
       sets=0;
@@ -690,7 +697,7 @@ void target(vec2 p)
         jackpot=5000;
       jackpotLit=1;
       launchDelay=1.5;
-      hitStop=.4;
+      slowMo=1.5;
     }
 }
 void collide(int b)
@@ -765,18 +772,18 @@ void lanes(vec2 p)
     if((lanesLit&1<<k)==0)
       lanesLit|=1<<k,score+=100*mult,slingEvents++;
   if(lanesLit==7)
-    lanesLit=0,mult=min(mult+1,5),bigAward(1000),flash=vec4(1),bumperEvents++,shake=1.,hitStop=.15;
+    lanesLit=0,mult=min(mult+1,5),bigAward(1000),flash=vec4(1),bumperEvents++,shake=1.,slowMo=.4;
 }
 void update()
 {
-  drainFlash=max(drainFlash-DT*2.,0.);
-  jackpotFlash=max(jackpotFlash-DT*2.,0.);
-  awardTime=max(awardTime-DT,0.);
-  if(hitStop>0.)
-    {
-      hitStop-=DT;
-      return;
-    }
+  drainFlash=max(drainFlash-STEP*2.,0.);
+  jackpotFlash=max(jackpotFlash-STEP*2.,0.);
+  awardTime=max(awardTime-STEP,0.);
+  camTime+=STEP*(dot(abs(iInput.xyz),vec3(1))>0.?
+    4.:
+    1.);
+  slowMo=max(slowMo-STEP,0.);
+  DT=STEP*(1.-.8*min(slowMo*4.,1.));
   time+=DT;
   if(alignTime>0.)
     alignTime=alignTime>4.?
@@ -798,7 +805,7 @@ void update()
       pending=0;
       gameOver-=DT;
       if(gameOver<=0.)
-        score=0,balls=3,mult=1,lanesLit=0,targetsLit=0,jackpot=0,sets=0,multiballs=0,serve();
+        score=0,balls=3,mult=1,lanesLit=0,targetsLit=0,jackpot=0,sets=0,multiballs=0,camTime=0.,serve();
     }
   launchDelay-=DT;
   bool laneFree=true;
@@ -831,8 +838,6 @@ void update()
       collideBalls();
     }
   laneFree=false;
-  float lowest=1.;
-  up=ball[0];
   for(int b=0;b<ballCount;b++)
     {
       lanes(ball[b]);
@@ -841,12 +846,10 @@ void update()
       float speed=length(vel[b]);
       if(speed>3.2)
         vel[b]*=3.2/speed;
-      if(ball[b].y<lowest)
-        lowest=ball[b].y,up=ball[b];
     }
   if(laneFree)
     ballSave=max(ballSave-DT,0.);
-  if(iInput.z>0.)
+  if(iInput.z>0.&&camTime>5.)
     plunger=min(plunger+DT*1.2,1.);
   else if(plunger>0.)
     {
@@ -889,8 +892,6 @@ void update()
              gameOver=3.;
         }
     }
-  up=vec2(-.019+(up.x+.019)*.15,clamp(up.y,-.5,.5)*.06+-.1);
-  cam+=(up-cam)*DT*3.;
 }
 void main()
 {

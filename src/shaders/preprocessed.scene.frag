@@ -34,7 +34,7 @@ layout(std430, binding = 0) buffer State {
 
     vec2 ball[MAX_BALLS], vel[MAX_BALLS]; 
     vec2 flip, flipVel; 
-    vec2 cam;           
+    float camTime;      
     vec2 slingFlash;    
     vec4 flash;         
     vec4 prevInput;
@@ -43,7 +43,7 @@ layout(std430, binding = 0) buffer State {
     float shake;        
     float gameOver;     
     float ballSave;     
-    float hitStop;      
+    float slowMo;       
     float drainFlash;   
     int score, balls;   
     int mult;           
@@ -681,10 +681,14 @@ void main()
         for (int i = 0; i < 3; i++)
             planets[i] = planetPos(i, time);
         
-        vec3 ta = vec3(cam, 0);
-        float pitch = _TV(camPitch, 0.88);
-        vec3 ro = ta + vec3(0, -cos(pitch), sin(pitch)) * _TV(camDistance, 1.3);
-        ro += shake * shake * 0.006 * vec3(sin(time * 71.), sin(time * 83.), sin(time * 61.));
+        
+        
+        float s = smoothstep(0.5, 5., camTime), a = smoothstep(0., 0.6, slowMo) * 0.12, g = balls > 0 ? 0. : 1. - gameOver / 3.;
+        vec3 ta = mix(vec3(SUN, 0.03), vec3(CX, _TV(camY, -0.1), 0), s);
+        float pitch = mix(0.25, _TV(camPitch, 0.88), s) - 1.5 * a - 0.3 * g, yaw = (s - 1.) * 1.2 + 0.4 * g;
+        vec3 ro = ta + vec3(sin(yaw) * cos(pitch), -cos(yaw) * cos(pitch), sin(pitch))
+                     * mix(0.22, _TV(camDistance, 1.3), s * s) * (1. + 0.3 * g);
+        ro += shake * shake * 0.004 * vec3(sin(time * 71.), sin(time * 83.), sin(time * 61.));
         vec3 fw = normalize(ta - ro);
         vec3 rt = normalize(cross(fw, vec3(0, 0, 1)));
         vec3 rd = normalize(uv.x * rt + uv.y * cross(rt, fw) + _TV(focal, 1.9) * fw);

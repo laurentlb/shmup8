@@ -15,7 +15,7 @@ layout(std430, binding = 0) buffer State {
 
     vec2 ball[MAX_BALLS], vel[MAX_BALLS]; // the first ballCount are in play
     vec2 flip, flipVel; // flipper angles (mirrored for the right one), angular velocities
-    vec2 cam;           // the camera follows the ball
+    float camTime;      // since the game started (for the camera's intro)
     vec2 slingFlash;    // 1 when kicking, then decreases
     vec4 flash;         // sun, planets, moon: 1 when hit, then decreases
     vec4 prevInput;
@@ -24,7 +24,7 @@ layout(std430, binding = 0) buffer State {
     float shake;        // camera shake
     float gameOver;     // > 0: waiting for a new game
     float ballSave;     // > 0: a drain gives the ball back
-    float hitStop;      // > 0: the game freezes for a moment on big hits
+    float slowMo;       // > 0: slow motion for a moment on big hits
     float drainFlash;   // 1 on a drain, then decreases
     int score, balls;   // balls left, including the one in play
     int mult;           // score multiplier, 1 to 5

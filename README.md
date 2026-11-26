@@ -12,7 +12,7 @@ the rendering use the same shapes, including the planets that orbit the sun.
 
 ## Current state
 
-**Size:** 7411 bytes (Release, before the latest changes), 7693 bytes (Snapshot, the fast build used to
+**Size:** 7411 bytes (Release, before the latest changes), 7757 bytes (Snapshot, the fast build used to
 follow the size), out of 8192. History in `tools/sizes.txt`.
 
 **Controls:** left / right arrows: flippers. Down: pull the plunger, release to
@@ -50,9 +50,12 @@ launch. Up: nudge. Escape: quit.
   when the ball is fast.
 * Post: thresholded mipmap bloom, lens ghost, chromatic aberration, color
   grading, vignette, grain.
-* Camera: the whole table is in view, leaning a little toward the ball; it
-  shakes on hits, nudges and drains.
-* Juice: hit-stop on sun hits and completed lanes, planets and sun swell and
+* Camera: still during play, with the whole table in view; it shakes on hits,
+  nudges and drains. A new game starts with a 5 s fly-in from a low close-up
+  of the orrery (the plunger waits; hold a key to speed it up). Slow motion
+  lowers the camera for a more dramatic angle; game over pulls back and turns.
+* Juice: slow motion on big events (1.5 s at the multiball start, shorter on
+  jackpots, completed sets and lanes, a blip on sun hits), planets and sun swell and
   glow when hit, red flash on drains, score digits brighten on hits.
 * Sound: music; a chime for bumpers, a thunk for flippers, a snap for
   slingshots and lanes, a falling tone for drains.

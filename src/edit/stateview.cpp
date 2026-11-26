@@ -118,6 +118,15 @@ namespace StateView
 		return (int)fields.size();
 	}
 
+	int offset(int gameProgram, int sceneProgram, const char* name)
+	{
+		loadFunctions();
+		updateLayout(gameProgram, sceneProgram);
+		for (const Field& f : fields)
+			if (f.name == name) return f.offset;
+		return -1;
+	}
+
 	std::string values(int gameProgram, int sceneProgram, int stateSize)
 	{
 		loadFunctions();

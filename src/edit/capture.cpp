@@ -63,7 +63,8 @@ namespace Capture
 			"  --width W          render width (default: %d)\n"
 			"  --set NAME=VALUE   override a _TV value (repeatable)\n"
 			"  --fps N            frame rate: 30, 60 or 120 (default: 60)\n"
-			"  --keys auto|none|FILE  scripted inputs, or inputs saved by the editor (default: auto)\n"
+			"  --keys bot|auto|none|FILE  a bot that watches the ball, scripted inputs,\n"
+			"                     or inputs saved by the editor (default: bot)\n"
 			"  --wav FILE         also save the sound (60 fps only)\n", DEMO_LENGTH_IN_S, XRES);
 		return 2;
 	}
@@ -149,6 +150,50 @@ namespace Capture
 		fire = (float)(fmodf(t, 10.f) < 1.f);
 	}
 
+	// Plays like a person would (for videos): flips when the ball comes near a
+	// flipper, pulls the plunger when the ball is in the shooter lane. Reads
+	// the "ball" and "vel" fields of the state; the table's coordinates are
+	// those of src/shaders/world.glsl.
+	static void botInput(const Host& host, float dt, float& x, float& y, float& fire)
+	{
+		static float hold[2], plunge;
+		x = y = fire = 0;
+		const int ballOffset = StateView::offset(host.gameProgram, host.sceneProgram, "ball");
+		const int velOffset = StateView::offset(host.gameProgram, host.sceneProgram, "vel");
+		if (ballOffset < 0 || velOffset < 0) return;
+		float ball[2], vel[2];
+		auto getBufferSubData = (PFNGLGETBUFFERSUBDATAPROC)wglGetProcAddress("glGetBufferSubData");
+		getBufferSubData(GL_SHADER_STORAGE_BUFFER, ballOffset, 8, ball);
+		getBufferSubData(GL_SHADER_STORAGE_BUFFER, velOffset, 8, vel);
+
+		const float cx = -0.019f;
+		if (ball[0] > 0.226f && ball[1] < -0.45f)
+		{
+			// pull for 0.8 s, then release
+			plunge += dt;
+			fire = (float)(plunge > 0.4f && plunge < 1.2f);
+			if (plunge > 2.f) plunge = 0;
+		}
+		else
+			plunge = 0;
+
+		for (int i = 0; i < 2; i++)
+		{
+			const float side = i ? ball[0] - cx : cx - ball[0];
+			// the ball is above the flipper and close: flip, keep it up a moment
+			if (hold[i] == 0 && side > -0.01f && side < 0.11f && ball[1] < -0.36f && ball[1] > -0.47f && vel[1] < 0.2f)
+				hold[i] = 0.2f;
+			if (hold[i] > 0)
+			{
+				hold[i] -= dt;
+				(i ? y : x) = 1;
+				if (hold[i] <= 0) hold[i] = -0.15f; // down for a moment before the next flip
+			}
+			else if (hold[i] < 0)
+				hold[i] = min(hold[i] + dt, 0.f);
+		}
+	}
+
 	unsigned offscreenFramebuffer(int width, int height)
 	{
 		#define GLFN(type, name) auto name = (type)wglGetProcAddress(#name)
@@ -178,7 +223,7 @@ namespace Capture
 			return 1;
 		}
 
-		std::string outDir = "capture", sheetPath, videoPath, wavPath, keys = "auto", ffmpeg = "ffmpeg";
+		std::string outDir = "capture", sheetPath, videoPath, wavPath, keys = "bot", ffmpeg = "ffmpeg";
 		int cols = 3, fps = 60, crf = 12;
 		std::vector<float> times;
 		float end = (float)DEMO_LENGTH_IN_S;
@@ -226,7 +271,7 @@ namespace Capture
 		}
 		const int stepsPerFrame = 120 / fps;
 		std::vector<History::Input> recorded;
-		if (keys != "auto" && keys != "none")
+		if (keys != "auto" && keys != "bot" && keys != "none")
 		{
 			if (!History::load(keys, recorded))
 			{
@@ -307,6 +352,8 @@ namespace Capture
 			{
 				if (keys == "auto")
 					autoInput(t, x, y, fire);
+				else if (keys == "bot")
+					botInput(host, 1.f / fps, x, y, fire);
 				host.step(x, y, fire, stepsPerFrame);
 			}
 			host.draw(width, height, 1.f / fps, fbo);

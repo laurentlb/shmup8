@@ -15,4 +15,7 @@ namespace StateView
 
 	// The values of the fields that are not arrays, on one line ("ball=(0.244,-0.486) score=0").
 	std::string values(int gameProgram, int sceneProgram, int stateSize);
+
+	// Byte offset of a field in the state, or -1 if there is none.
+	int offset(int gameProgram, int sceneProgram, const char* name);
 }

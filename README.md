@@ -4,7 +4,36 @@ A pinball game for Windows in 8 kB: a clockwork orrery under glass, raymarched i
 3D, with 2D physics. The table is one set of distance functions: the physics and
 the rendering use the same shapes, including the planets that orbit the sun.
 
-Left / right arrows: flippers. Down: pull the plunger, release to launch. Up: nudge.
+![The orrery](screenshots/shot3.jpg)
+
+| | |
+| --- | --- |
+| ![](screenshots/shot1.jpg) | ![](screenshots/shot2.jpg) |
+
+## Current state
+
+**Size:** 5577 bytes (release, Crinkler), out of 8192. History in `tools/sizes.txt`.
+
+**Controls:** left / right arrows: flippers. Down: pull the plunger, release to
+launch. Up: nudge. Escape: quit.
+
+**Features:**
+
+* Table: shooter lane with a one-way gate, two slingshots, outlanes and inlanes,
+  side deflectors, top lane posts, flippers.
+* Orrery: the sun and two planets (one with a ring and a moon) are bumpers that
+  move along their orbits; they hit the ball at their own speed.
+* Physics: 2D, 8 substeps per 1/120 s step, flipper and bumper surface speed,
+  restitution per material, plunger strength from the pull time, nudge.
+* Rules: 3 balls, score, game over screen, a new game after 3 s.
+* Rendering: raymarched 3D (chrome ball with reflections, soft shadows, ambient
+  occlusion, wood planks and brass inlays, glowing sun lighting the table, clock
+  lamps with a light chase), mipmap bloom, tone mapping.
+* Camera: follows the ball, shakes on hits, nudges and drains.
+* Sound: music; sound effects triggered by the gameplay (placeholders for now).
+
+**Not yet:** pinball sound effects, lane and target rules, multiball, ramps,
+tilt, a title screen.
 
 This branch started from the engine of the shoot 'em up released at
 https://laurentlb.itch.io/shmup8 (branch `main`, 3 kB, made for
@@ -67,6 +96,10 @@ out\cat-debug.exe --capture --end 10 --trace 0.1
 handy to follow the ball.
 
 See `src/edit/capture.h` for the options.
+
+## Screenshots
+
+`tools\screenshots.ps1` captures the README screenshots (Editor build and ffmpeg needed).
 
 ## Checking
 

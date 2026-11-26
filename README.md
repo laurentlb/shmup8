@@ -40,6 +40,12 @@ Run `out\cat-debug.exe` from the root of the repository.
   state declaration changed, it restarts.
 * `_TV(name, value)` in a shader function is a value that can be edited in the panel,
   and baked to the source. In the release, it's just the value. `_TVC` is for colors.
+* Timeline: the inputs of every step are recorded, and the state is copied every
+  second. Drag the time slider (or -1 s / +1 s) to go back. With "Replay inputs",
+  playing goes on with the recorded inputs; pressing a key takes over. Edit a
+  shader while paused in the past, then play: same game, new code.
+* Save / Load: the recorded inputs, in a text file (`inputs.txt` by default).
+* Game state: every field of the state, read from the GPU, and editable.
 
 ## Capture
 
@@ -49,9 +55,22 @@ Run `out\cat-debug.exe` from the root of the repository.
 out\cat-debug.exe --capture --width 640 --sheet sheet.png 2 7 22
 out\cat-debug.exe --capture --video game.mp4 --end 30
 out\cat-debug.exe --capture --wav game.wav 30
+out\cat-debug.exe --capture --video replay.mp4 --keys inputs.txt
 ```
 
 See `src/edit/capture.h` for the options.
+
+## Checking
+
+```
+powershell -ExecutionPolicy Bypass -File tools\check.ps1 -Log
+```
+
+Builds the release and the editor, prints the size, and runs a self-test
+(`out\cat-debug.exe --check`): rewinding gives the same state as playing straight,
+and the minified shaders of the release play and render like the editor's.
+A successful release build doesn't prove that: the shaders are only compiled
+when the game starts. `-Log` appends the size to `tools/sizes.txt`.
 
 ---
 

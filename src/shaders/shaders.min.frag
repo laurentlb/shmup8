@@ -456,13 +456,12 @@ void main()
     {
       for(int i=0;i<3;i++)
         planets[i]=planetPos(i,time);
-      float s=smoothstep(.5,5.,camTime),a=smoothstep(0.,.6,slowMo)*.12,g=balls>0?
-        0.:
-        1.-gameOver/3.;
+      float s=balls>0?
+        smoothstep(.5,5.,camTime):
+        smoothstep(0.,3.,gameOver);
       vec3 ta=mix(vec3(vec2(-.019,.13),.03),vec3(-.019,-.1,0),s);
-      a=mix(.25,.88,s)-1.5*a-.3*g;
-      float yaw=(s-1.)*1.2+.4*g;
-      vec3 ro=ta+vec3(sin(yaw)*cos(a),-cos(yaw)*cos(a),sin(a))*mix(.22,1.3,s*s)*(1.+.3*g)+shake*shake*.004*vec3(sin(time*71.),sin(time*83.),sin(time*61.)),fw=normalize(ta-ro);
+      float pitch=mix(.25,.88,s),yaw=(s-1.)*1.2;
+      vec3 ro=ta+vec3(sin(yaw)*cos(pitch),-cos(yaw)*cos(pitch),sin(pitch))*mix(.3,1.3,s*s)+shake*shake*.004*vec3(sin(time*71.),sin(time*83.),sin(time*61.)),fw=normalize(ta-ro);
       ta=normalize(cross(fw,vec3(0,0,1)));
       fragColor=vec4(clamp(render(ro,normalize(uv.x*ta+uv.y*cross(ta,fw)+1.9*fw)),0.,50.),1);
       return;

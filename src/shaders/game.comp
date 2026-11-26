@@ -116,6 +116,12 @@ void update()
         return;
     }
     time += DT;
+    // the ball's light trail: a position every other step
+    if ((++steps & 1) == 0) {
+        for (int i = TRAIL - 1; i > 0; i--)
+            trail[i] = trail[i - 1];
+        trail[0] = vec4(ball, length(vel), 0);
+    }
     flash = max(flash - DT * 4., 0.);
     slingFlash = max(slingFlash - DT * 4., 0.);
     shake = max(shake - DT * 3., 0.);

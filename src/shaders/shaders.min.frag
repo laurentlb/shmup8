@@ -21,6 +21,8 @@ layout(std430, binding = 0)buffer State{
   int score,balls;
   int mult;
   int lanesLit;
+  int steps;
+  vec4 trail[32];
 };
 out vec4 fragColor;
 vec2 planets[3];
@@ -207,126 +209,178 @@ float occlusion(vec3 p,vec3 n)
     }
   return clamp(1.-o*.25,0.,1.);
 }
-vec3 material(vec3 p,float m,out float metal,out vec3 glow,out float gloss)
+float hash(vec2 p)
 {
-  const vec3 brass=vec3(.85,.6,.28);
+  return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);
+}
+float stars(vec2 p,float density)
+{
+  float h=hash(floor(p*density));
+  return step(.8,h)*smoothstep(.12,0.,length(fract(p*density)-.25-.5*vec2(h,fract(h*17.))))*(.6+.4*sin(time*3.+h*60.));
+}
+vec3 material(vec3 p,float m,out float metal,out vec3 glow,out float rough)
+{
+  const vec3 brass=vec3(.9,.62,.3);
   metal=0.;
   glow=vec3(0);
-  gloss=.5;
+  rough=.3;
   if(m==0.)
     {
       if(areaDist(p.xy)>0.)
-        return vec3(.03,.02,.012);
+        return rough=1.,glow=vec3(.8,.85,1)*stars(p.xy,40.)*2.+vec3(.02,.005,.035)*(1.+sin(p.x*7.+sin(p.y*5.)*2.)),vec3(0);
       vec2 s=p.xy-vec2(-.019,.13);
-      float r=length(s),a=atan(s.y,s.x),x=p.x+.004*sin(p.y*25.+floor(p.x/.065)*3.),k=floor(a/(3.14159/6.)+.5);
-      if(min(min(abs(r-.075),abs(r-.14))-.0012,abs(r-.195-.006*clamp(sin(a*24.)*4.,-1.,1.))-.0018)<0.)
-        return metal=1.,brass;
+      float r=length(s),a=atan(s.y,s.x),x=p.x+.004*sin(p.y*25.+floor(p.x/.065)*3.);
+      vec3 c=vec3(.17,.06,.02)*(.85+.15*(sin(x*7e2+sin(p.y*9.+x*90.)*3.)*.5+sin(x*23e2)*.25))*(1.-.6*smoothstep(.0305,.0322,abs(fract(p.x/.065)-.5)*.065));
+      rough=.12;
+      x=r-.195-.006*clamp(sin(a*24.)*4.,-1.,1.);
+      if(x<0.)
+        c=mix(vec3(.005,.01,.04),vec3(.03,.015,.06),r/.2),glow=vec3(.9,.9,1)*stars(p.xy,90.)*.6;
+      a=floor(a/(3.14159/6.)+.5);
+      float lamp=length(s-.052*vec2(cos(a*3.14159/6.),sin(a*3.14159/6.)))-.006;
+      if(min(min(abs(r-.075),abs(r-.14))-.0012,abs(x)-.002)<0.)
+        return metal=1.,rough=.2,brass;
       vec3 insert;
       r=-1.;
+      x=1.;
       for(int i=0;i<4;i++)
         {
-          if(i<3&&length(p.xy-vec2(-.019+.06*float(i-1),.37))<.009)
-            r=float(lanesLit>>i&1),insert=vec3(1,.5,.1);
-          if(length(p.xy-vec2(-.064+.03*float(i),-.1))<.007)
-            r=float(mult>=i+2),insert=vec3(.2,.6,1);
+          vec2 q=p.xy-vec2(-.019+.06*float(i-1),.37);
+          if(i<3&&length(q)<.009)
+            r=float(lanesLit>>i&1),insert=vec3(1,.5,.1),x=length(q)/.009;
+          q=p.xy-vec2(-.064+.03*float(i),-.1);
+          if(length(q)<.007)
+            r=float(mult>=i+2),insert=vec3(.2,.6,1),x=length(q)/.007;
         }
       if(length(p.xy-vec2(-.019,-.37))<.01)
         r=float(ballSave>0.&&fract(time*(ballSave<2.?
           4.:
-          1.5))<.6),insert=vec3(1,.15,.1);
-      if(r>=0.)
-        return glow=insert*r*3.,insert*.06;
-      if(length(s-.052*vec2(cos(k*3.14159/6.),sin(k*3.14159/6.)))-.006<0.)
-        {
-          float lit=step(fract((k-time*4.)/12.),.3);
-          glow=vec3(1,.45,.1)*(lit*1.5+flash.x*6.);
-          return vec3(.4,.3,.2);
-        }
-      gloss=.35;
-      return vec3(.2,.08,.03)*(.85+.15*(sin(x*7e2+sin(p.y*9.+x*90.)*3.)*.5+sin(x*23e2)*.25))*(1.-.6*smoothstep(.0305,.0322,abs(fract(p.x/.065)-.5)*.065));
+          1.5))<.6),insert=vec3(1,.15,.1),x=length(p.xy-vec2(-.019,-.37))/.01;
+      if(lamp<0.)
+        r=step(fract((a-time*4.)/12.),.3)*.5+flash.x*2.,insert=vec3(1,.45,.1),x=(lamp+.006)/.006;
+      return x<1.?
+        rough=.05,glow=insert*r*(4.-2.5*x*x),insert*.08:
+        c;
     }
   if(m==1.)
     return p.z>.0495?
       metal=1.,brass:
-      vec3(.08,.035,.015);
+      vec3(.1,.04,.015);
   if(m==12.)
-    return gloss=.3,vec3(.04,.03,.025);
+    return rough=.4,vec3(.04,.03,.05);
   if(m==2.||m==11.)
-    return metal=1.,m==11.?
+    return metal=1.,rough=.15,m==11.?
       brass:
-      vec3(.8);
+      vec3(.85);
   if(m==3.||m==13.)
     {
       if(m==3.)
         glow=vec3(1,.7,.4)*slingFlash[p.x>-.019?
           1:
-          0]*3.;
+          0]*4.;
+      rough=p.z<.026?
+        .6:
+        .2;
       return p.z<.026?
-        vec3(.5,.04,.02):
-        vec3(.75,.7,.6);
+        vec3(.6,.03,.02):
+        vec3(.8,.75,.65);
     }
   if(m==4.||m==5.)
-    return p.z<.016?
-      vec3(.5,.04,.02):
-      vec3(.8,.75,.65);
+    return rough=p.z<.016?
+      .6:
+      .2,p.z<.016?
+      vec3(.6,.03,.02):
+      vec3(.85,.8,.7);
   if(m==6.)
     {
       metal=1.;
+      rough=.25;
       if(p.z>.035)
-        glow=vec3(1,.5,.15)*(1.+flash.x*8.);
+        glow=vec3(1,.5,.15)*(1.5+flash.x*8.);
       return brass;
     }
   if(m>=7.&&m<10.)
     {
       int i=int(m-7.);
       if(p.z<.034)
-        return vec3(.04,.02,.01);
+        return rough=.6,vec3(.03,.02,.02);
       if(i==1&&abs(length(p.xy-planets[1])-.044)<.004)
         return metal=1.,brass;
-      vec3 c=i==0?
-        vec3(.7,.2,.08):
+      vec3 c=(i==0?
+        vec3(.8,.25,.08):
         i==1?
-          vec3(.1,.25,.6):
-          vec3(.7);
-      glow=c*flash[i+1]*3.;
+          vec3(.1,.3,.8):
+          vec3(.75))*(.85+.15*sin((p.z-planetHeight(i))*3e2/planetRadius(i)*.02));
+      glow=c*flash[i+1]*4.;
+      rough=.15;
       return c;
     }
   metal=1.;
-  return vec3(.9);
+  rough=.02;
+  return vec3(.95);
+}
+vec3 light(vec3 n,vec3 v,vec3 l,vec3 color,vec3 albedo,vec3 f0,float rough)
+{
+  rough=2./max(rough*rough,.002);
+  return color*max(dot(n,l),0.)*(albedo+f0*((rough+8.)/25.*pow(max(dot(n,normalize(l+v)),0.),rough)));
+}
+vec3 trailGlow(vec3 ro,vec3 rd,float tMax)
+{
+  vec3 col=vec3(0);
+  for(int i=0;i<31;i++)
+    {
+      vec3 a=vec3(trail[i].xy,.0135),b=vec3(trail[i+1].xy,.0135);
+      b-=a;
+      if(dot(b,b)>.003||dot(b,b)<1e-9)
+        continue;
+      vec3 oa=ro-a;
+      float rb=dot(rd,b),u=clamp((dot(oa,b)-rb*dot(oa,rd))/(dot(b,b)-rb*rb),0.,1.);
+      rb=dot(a+b*u-ro,rd);
+      if(rb>tMax||rb<0.)
+        continue;
+      oa=ro+rd*rb-a-b*u;
+      rb=(float(i)+u)/float(32);
+      u=.0135*(.9-.7*rb);
+      float speed=smoothstep(.4,2.,trail[i].z);
+      col+=mix(vec3(.6,.8,1),vec3(1,.3,.05),rb)*speed*(1.-rb)*exp(-dot(oa,oa)/(u*u))*.6;
+    }
+  return col;
 }
 vec3 render(vec3 ro,vec3 rd)
 {
-  const vec3 L=normalize(vec3(-.25,-.35,1));
-  vec3 col=vec3(0),weight=vec3(1);
+  const vec3 key=normalize(vec3(-.3,-.45,1)),fill=normalize(vec3(.7,.6,.5));
+  vec3 col=vec3(0),weight=vec3(1),ro0=ro,rd0=rd;
+  float tHit=9.;
   for(int bounce=0;bounce<2;bounce++)
     {
       vec2 h=march(ro,rd);
+      if(bounce==0)
+        tHit=h.x;
       if(h.x>8.)
         {
-          col+=weight*(vec3(.25,.2,.16)*(.3+.7*max(rd.z,0.))+vec3(1,.85,.65)*3.*smoothstep(.7,.9,rd.z)*smoothstep(.25,.15,abs(rd.x)));
+          col+=weight*(vec3(.05,.05,.09)*(.4+.6*max(rd.z,0.))+vec3(1,.85,.65)*4.*smoothstep(.75,.92,rd.z)*smoothstep(.3,.15,abs(rd.x))+vec3(.3,.5,1)*1.5*smoothstep(.85,.95,-rd.y)*smoothstep(.3,.1,abs(rd.z-.3)));
           break;
         }
-      vec3 p=ro+rd*h.x,n=normal(p);
-      float metal,gloss;
-      vec3 glow,albedo=material(p,h.y,metal,glow,gloss);
-      float diffuse=max(dot(n,L),0.);
-      if(bounce==0&&diffuse>0.)
-        diffuse*=shadow(p+n*.001,L);
+      vec3 p=ro+rd*h.x,n=normal(p),v=-rd;
+      float metal,rough;
+      vec3 glow,albedo=material(p,h.y,metal,glow,rough),f0=mix(vec3(.04),albedo,metal);
+      albedo*=1.-metal;
+      metal=bounce==0?
+        shadow(p+n*.001,key):
+        1.;
       float ao=bounce==0?
         occlusion(p,n):
         1.;
       vec3 toSun=vec3(vec2(-.019,.13),.068)-p;
-      float sunLight=max(dot(n,normalize(toSun)),0.)*(.4+flash.x*3.)*.0015/dot(toSun,toSun);
-      toSun=vec3(1,.92,.8)*1.3*diffuse+vec3(.3,.35,.5)*.25*ao*(.6+.4*n.z)+vec3(1,.5,.15)*sunLight;
-      col+=weight*(albedo*(1.-metal)*toSun+glow);
-      sunLight=.04+.96*pow(1.-max(dot(n,-rd),0.),5.);
-      weight*=mix(vec3(sunLight*gloss),albedo*ao,metal);
+      float sunPower=(.5+flash.x*3.)*.0012/dot(toSun,toSun);
+      toSun=light(n,v,key,vec3(1,.85,.7)*1.5*metal,albedo,f0,rough)+light(n,v,fill,vec3(.3,.45,1)*.5*ao,albedo,f0,rough)+light(n,v,normalize(toSun),vec3(1,.5,.15)*sunPower,albedo,f0,rough)+albedo*mix(vec3(.12,.06,.03),vec3(.08,.1,.2),n.z*.5+.5)*ao;
+      col+=weight*(toSun+glow);
+      weight*=(f0+(1.-f0)*pow(1.-max(dot(n,v),0.),5.))*(1.-rough)*ao;
       if(max(weight.x,max(weight.y,weight.z))<.02)
         break;
       ro=p+n*.002;
       rd=reflect(rd,n);
     }
-  return col;
+  return col+trailGlow(ro0,rd0,tHit);
 }
 void main()
 {
@@ -340,11 +394,14 @@ void main()
       fragColor=vec4(clamp(render(ro,normalize(uv.x*ta+uv.y*cross(ta,fw)+1.9*fw)),0.,50.),1);
       return;
     }
-  vec3 col=texture(tex,texCoord).xyz,bloom=vec3(0);
+  vec2 ca=(texCoord-.5)*.003;
+  vec3 col=vec3(texture(tex,texCoord+ca).x,texture(tex,texCoord).y,texture(tex,texCoord-ca).z),bloom=vec3(0);
   for(int i=2;i<8;i++)
-    bloom+=textureLod(tex,texCoord,float(i)).xyz;
-  col+=bloom*bloom*.02;
-  col=pow(clamp(col*(2.51*col+.03)/(col*(2.43*col+.59)+.14),0.,1.),vec3(1./2.2))*(1.-.3*dot(uv,uv));
+    bloom+=max(textureLod(tex,texCoord,float(i)).xyz-.6,0.);
+  col+=bloom*.25+max(textureLod(tex,1.-texCoord,6.).xyz-.6,0.)*.1;
+  col=col*(2.51*col+.03)/(col*(2.43*col+.59)+.14);
+  float luma=dot(col,vec3(.3,.6,.1));
+  col=pow(clamp(mix(vec3(luma),col,1.15)+vec3(-.01,0,.02)*(1.-luma),0.,1.),vec3(1./2.2))*max(1.-pow(length(texCoord-.5),1.5)*1.2,0.)+(hash(gl_FragCoord.xy+fract(time)*1e2)-.5)*.02;
   col=mix(col,col.x*vec3(.9,.1,.05),drainFlash*.8);
   bloom=vec3(1,.45,.1)*(1.+2.*max(max(flash.x,flash.y),max(flash.z,flash.w)));
   if(balls>0)
@@ -377,6 +434,8 @@ layout(std430, binding = 0)buffer State{
   int score,balls;
   int mult;
   int lanesLit;
+  int steps;
+  vec4 trail[32];
 };
 const float DT=1./120.;
 float boxDist(vec2 p,vec2 size)
@@ -540,6 +599,12 @@ void update()
       return;
     }
   time+=DT;
+  if((++steps&1)==0)
+    {
+      for(int i=31;i>0;i--)
+        trail[i]=trail[i-1];
+      trail[0]=vec4(ball,length(vel),0);
+    }
   flash=max(flash-DT*4.,0.);
   slingFlash=max(slingFlash-DT*4.,0.);
   shake=max(shake-DT*3.,0.);

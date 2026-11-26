@@ -4,6 +4,9 @@
 // Fields can be added or moved freely: the editor resets the state when this
 // declaration changes. The event counters must stay first.
 
+// Not "const int": Shader Minifier would drop constants used only in the buffer declaration.
+#define TRAIL 32
+
 layout(std430, binding = 0) buffer State {
     // Event counters, they trigger the sound effects.
     // Same order as SFX in src/music/song.py.
@@ -25,4 +28,6 @@ layout(std430, binding = 0) buffer State {
     int score, balls;   // balls left, including the one in play
     int mult;           // score multiplier, 1 to 5
     int lanesLit;       // top lanes, one bit each
+    int steps;
+    vec4 trail[TRAIL];  // recent ball positions (xy) and speeds (z), the newest first
 };

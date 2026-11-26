@@ -26,6 +26,9 @@ layout(location = 0) uniform vec4 iInput;
 
 
 
+
+#define TRAIL 32
+
 layout(std430, binding = 0) buffer State {
     
     
@@ -47,6 +50,8 @@ layout(std430, binding = 0) buffer State {
     int score, balls;   
     int mult;           
     int lanesLit;       
+    int steps;
+    vec4 trail[TRAIL];  
 };
 // --------------------------------------------------------------------
 // Include end: state.glsl
@@ -321,6 +326,12 @@ void update()
         return;
     }
     time += DT;
+    
+    if ((++steps & 1) == 0) {
+        for (int i = TRAIL - 1; i > 0; i--)
+            trail[i] = trail[i - 1];
+        trail[0] = vec4(ball, length(vel), 0);
+    }
     flash = max(flash - DT * 4., 0.);
     slingFlash = max(slingFlash - DT * 4., 0.);
     shake = max(shake - DT * 3., 0.);

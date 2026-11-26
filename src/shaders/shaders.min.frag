@@ -246,7 +246,7 @@ float occlusion(vec3 p,vec3 n)
 }
 float hash(vec2 p)
 {
-  return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);
+  return fract(sin(dot(p,vec2(12.9,78.2)))*4e4);
 }
 float noise(vec2 p)
 {
@@ -272,7 +272,7 @@ void lamp(vec2 q,float r,float on,vec3 color)
 vec3 material(vec3 p,float m)
 {
   float wear=fbm(p.xy*3e2+p.z*2e2);
-  vec3 brass=vec3(.85,.6,.3)*(.75+.35*wear),rubber=vec3(.02,.018,.017)*(.8+.4*wear);
+  vec3 brass=vec3(.85,.6,.3)*(.7+.4*wear),rubber=vec3(.02)*(.8+.4*wear);
   metal=0.;
   glow=vec3(0);
   rough=.15+.2*wear;
@@ -283,7 +283,7 @@ vec3 material(vec3 p,float m)
         return rough=1.,glow=vec3(.8,.85,1)*stars(p.xy,40.)*2.+vec3(.02,.005,.04)*fbm(p.xy*4.)*2.,vec3(0);
       vec2 s=p.xy-vec2(-.019,.13);
       float r=length(s),a=atan(s.y,s.x),plank=floor(p.x/.065),x=p.x+.004*sin(p.y*25.+plank*3.)+.002*fbm(p.xy*60.);
-      vec3 c=vec3(.17,.06,.02)*(.85+.15*(sin(x*7e2+fbm(vec2(x*90.,p.y*6.))*8.)*.5+sin(x*23e2)*.25))*(.8+.4*hash(vec2(plank)))*(.85+.3*fbm(p.xy*vec2(20,4)))*(1.-.6*smoothstep(.0305,.0322,abs(fract(p.x/.065)-.5)*.065));
+      vec3 c=vec3(.17,.06,.02)*(.85+.15*(sin(x*7e2+fbm(vec2(x*90.,p.y*6.))*8.)*.5+sin(x*23e2)*.25))*(.8+.4*hash(vec2(plank)))*(.85+.3*fbm(p.xy*vec2(20,4)))*(1.-.6*smoothstep(.03,.032,abs(fract(p.x/.065)-.5)*.065));
       rough=.05+.15*smoothstep(.4,.8,fbm(p.xy*25.));
       plank=r-.195-.006*clamp(sin(a*24.)*4.,-1.,1.);
       if(plank<0.)
@@ -292,7 +292,7 @@ vec3 material(vec3 p,float m)
           c=mix(vec3(.004,.008,.035),vec3(.05,.015,.07),cloud*cloud*1.5)*(1.-r*2.);
           glow=vec3(.9,.9,1)*stars(p.xy,90.)*.6;
         }
-      if(min(min(abs(r-.075),abs(r-.14))-.0012,abs(plank)-.002)<0.)
+      if(min(min(abs(r-.075),abs(r-.14))-.001,abs(plank)-.002)<0.)
         return metal=.5,rough=.3,brass;
       for(int i=0;i<4;i++)
         {

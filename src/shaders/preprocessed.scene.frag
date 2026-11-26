@@ -416,7 +416,7 @@ vec3 env(vec3 rd)
 
 float hash(vec2 p)
 {
-    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+    return fract(sin(dot(p, vec2(12.9, 78.2))) * 4e4);
 }
 
 float noise(vec2 p)
@@ -461,8 +461,8 @@ vec3 material(vec3 p, float m)
 {
     
     float wear = fbm(p.xy * 300. + p.z * 200.);
-    vec3 brass = vec3(0.85, 0.6, 0.3) * (0.75 + 0.35 * wear);
-    vec3 rubber = vec3(0.02, 0.018, 0.017) * (0.8 + 0.4 * wear);
+    vec3 brass = vec3(0.85, 0.6, 0.3) * (0.7 + 0.4 * wear);
+    vec3 rubber = vec3(0.02) * (0.8 + 0.4 * wear);
     metal = 0.;
     glow = vec3(0);
     rough = 0.15 + 0.2 * wear;
@@ -482,7 +482,7 @@ vec3 material(vec3 p, float m)
         float grain = sin(x * 700. + fbm(vec2(x * 90., p.y * 6.)) * 8.) * 0.5 + sin(x * 2300.) * 0.25;
         vec3 c = vec3(0.17, 0.06, 0.02) * (0.85 + 0.15 * grain) * (0.8 + 0.4 * hash(vec2(plank)))
                * (0.85 + 0.3 * fbm(p.xy * vec2(20, 4)))
-               * (1. - 0.6 * smoothstep(0.0305, 0.0322, abs(fract(p.x / 0.065) - 0.5) * 0.065));
+               * (1. - 0.6 * smoothstep(0.03, 0.032, abs(fract(p.x / 0.065) - 0.5) * 0.065));
         
         rough = 0.05 + 0.15 * smoothstep(0.4, 0.8, fbm(p.xy * 25.));
         
@@ -493,7 +493,7 @@ vec3 material(vec3 p, float m)
             glow = vec3(0.9, 0.9, 1) * stars(p.xy, 90.) * 0.6;
         }
         
-        float d = min(min(abs(r - 0.075), abs(r - 0.14)) - 0.0012, abs(gear) - 0.002);
+        float d = min(min(abs(r - 0.075), abs(r - 0.14)) - 0.001, abs(gear) - 0.002);
         if (d < 0.) {
             
             metal = 0.5;

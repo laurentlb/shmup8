@@ -19,3 +19,4 @@
 2026-11-26 76bae29 7704 README: star targets, multiball, jackpots; screenshots (7704 bytes)
 2026-11-26 6201a2c 7566 Size: shorter constants (hash, plank seams, inlays, metals)
 2026-11-26 a2f5620 7698 Multiball: stars relight the jackpot, awards in the display, a trail for every ball
+2026-11-26 39a0c56 7757 Camera: still during play, a fly-in for a new game, slow motion instead of hit-stops

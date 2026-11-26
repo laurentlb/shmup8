@@ -1,6 +1,7 @@
 #include "capture.h"
 #include "tweaks.h"
 #include "history.h"
+#include "stateview.h"
 
 #include "definitions.h"
 #include "glext.h"
@@ -50,6 +51,7 @@ namespace Capture
 			"usage: cat-debug.exe --capture [options] t1 [t2 ...]\n"
 			"  --out DIR          output directory (default: capture)\n"
 			"  --sheet FILE       also write a contact sheet of all frames\n"
+			"  --trace SECONDS    print the game state at this interval\n"
 			"  --cols N           contact sheet columns (default: 3)\n"
 			"\n"
 			"usage: cat-debug.exe --capture --video OUT.mp4 [options]\n"
@@ -141,10 +143,10 @@ namespace Capture
 
 	void autoInput(float t, float& x, float& y, float& fire)
 	{
-		// keyboard-like: -1, 0 or 1
-		x = floorf(sinf(t * 1.7f) * 1.5f + .5f);
-		y = floorf(sinf(t * 0.9f + 1.f) * 1.5f + .5f);
-		fire = 1;
+		// pinball: flip now and then, pull the plunger for 1 s every 10 s
+		x = (float)(sinf(t * 2.3f) > 0.6f);
+		y = (float)(sinf(t * 1.9f + 1.f) > 0.6f);
+		fire = (float)(fmodf(t, 10.f) < 1.f);
 	}
 
 	unsigned offscreenFramebuffer(int width, int height)
@@ -181,6 +183,7 @@ namespace Capture
 		std::vector<float> times;
 		float end = (float)DEMO_LENGTH_IN_S;
 		bool endSet = false;
+		float trace = 0;
 
 		for (int i = 2; i < argc; ++i)
 		{
@@ -196,6 +199,7 @@ namespace Capture
 			else if (!strcmp(a, "--end") && hasValue) end = (float)atof(argv[++i]), endSet = true;
 			else if (!strcmp(a, "--crf") && hasValue) crf = atoi(argv[++i]);
 			else if (!strcmp(a, "--keys") && hasValue) keys = argv[++i];
+			else if (!strcmp(a, "--trace") && hasValue) trace = (float)atof(argv[++i]);
 			else if (!strcmp(a, "--ffmpeg") && hasValue) ffmpeg = argv[++i];
 			else if (!strcmp(a, "--set") && hasValue)
 			{
@@ -213,7 +217,7 @@ namespace Capture
 			else times.push_back((float)atof(a));
 		}
 		const bool video = !videoPath.empty();
-		if ((times.empty() && !video) || cols < 1 || (fps != 30 && fps != 60 && fps != 120) || end <= 0)
+		if ((times.empty() && !video && trace <= 0) || cols < 1 || (fps != 30 && fps != 60 && fps != 120) || end <= 0)
 			return usage();
 		if (!wavPath.empty() && fps != 60)
 		{
@@ -233,7 +237,7 @@ namespace Capture
 		}
 
 		std::sort(times.begin(), times.end());
-		if (!video) end = times.back();
+		if (!video && !times.empty()) end = endSet ? max(end, times.back()) : times.back();
 
 		auto glUseProgram = (PFNGLUSEPROGRAMPROC)wglGetProcAddress("glUseProgram");
 
@@ -306,6 +310,8 @@ namespace Capture
 				host.step(x, y, fire, stepsPerFrame);
 			}
 			host.draw(width, height, 1.f / fps, fbo);
+			if (trace > 0 && i % max(1, (int)(trace * fps + .5f)) == 0)
+				printf("t=%.2f %s\n", t, StateView::values(host.gameProgram, host.sceneProgram, host.stateSize).c_str());
 
 			if (fps == 60)
 			{
@@ -343,9 +349,9 @@ namespace Capture
 					continue;
 				}
 				frames.push_back(frame);
-				printf("t=%7.2f  %7.2f ms  events: shots %d, explosions %d, hits %d  %s\n", frame.time,
+				printf("t=%7.2f  %7.2f ms  events: %d %d %d %d  %s\n", frame.time,
 					1000.0 * (stop.QuadPart - start.QuadPart) / freq.QuadPart,
-					host.events[0], host.events[1], host.events[2], frame.path.c_str());
+					host.events[0], host.events[1], host.events[2], host.events[3], frame.path.c_str());
 			}
 		}
 

@@ -21,6 +21,7 @@ namespace Check
 	GLFN(PFNGLGETPROGRAMIVPROC, GetProgramiv)
 	GLFN(PFNGLGETPROGRAMINFOLOGPROC, GetProgramInfoLog)
 	GLFN(PFNGLUSEPROGRAMPROC, UseProgram)
+	GLFN(PFNGLBUFFERSUBDATAPROC, BufferSubData)
 	#undef GLFN
 
 	bool requested(int argc, char* argv[])
@@ -62,11 +63,17 @@ namespace Check
 
 		// The event counters are kept when seeking (no sound), skip them.
 		const int skip = host.eventCount * 4;
-		int diff = 0;
+		int diff = 0, first = -1;
 		for (int i = skip; i < host.stateSize; i++)
-			diff += straight[i] != replayed[i];
+			if (straight[i] != replayed[i])
+			{
+				diff++;
+				if (first < 0) first = i;
+			}
 		bool ok = diff == 0 && History::inputs() == inputs && History::position() == total;
-		printf("history: %s (%d bytes differ after seeking and replaying)\n", ok ? "ok" : "FAILED", diff);
+		printf("history: %s (%d bytes differ after seeking and replaying", ok ? "ok" : "FAILED", diff);
+		if (first >= 0) printf(", the first at offset %d", first);
+		printf(")\n");
 
 		// save and load the inputs
 		char path[MAX_PATH], dir[MAX_PATH];
@@ -122,7 +129,6 @@ namespace Check
 	struct Run
 	{
 		std::vector<char> state;
-		std::vector<unsigned char> pixels;
 		std::vector<int> events;
 	};
 
@@ -141,13 +147,36 @@ namespace Check
 		Run run;
 		run.state = readState(host.stateSize);
 		run.events.assign(host.events, host.events + host.eventCount);
-		run.pixels.resize(XRES * YRES * 4);
-		glReadPixels(0, 0, XRES, YRES, GL_RGBA, GL_UNSIGNED_BYTE, &run.pixels[0]);
 		return run;
 	}
 
+	// Draws the state with a scene shader and reads the image.
+	static std::vector<unsigned char> draw(const Capture::Host& host, int scene, const std::vector<char>& state, unsigned fbo)
+	{
+		host.setPrograms(host.gameProgram, scene);
+		BufferSubData()(GL_SHADER_STORAGE_BUFFER, 0, (GLsizeiptr)state.size(), &state[0]);
+		host.draw(XRES, YRES, 1.f / 60, fbo);
+		std::vector<unsigned char> pixels(XRES * YRES * 4);
+		glReadPixels(0, 0, XRES, YRES, GL_RGBA, GL_UNSIGNED_BYTE, &pixels[0]);
+		return pixels;
+	}
+
+	// Floats may differ a little: the minifier folds constants, and the editor's
+	// tweaks are uniforms. Ints (tiny when read as floats) must be equal.
+	static bool close(const char* a, const char* b)
+	{
+		float x, y;
+		memcpy(&x, a, 4);
+		memcpy(&y, b, 4);
+		if (memcmp(a, b, 4) == 0) return true;
+		if (fabsf(x) < 1e-30f || fabsf(y) < 1e-30f) return false;
+		return fabsf(x - y) <= 1e-3f * max(1.f, max(fabsf(x), fabsf(y)));
+	}
+
 	// The minified shaders (shaders.inl, used by the release) compile and behave
-	// like the editor's version.
+	// like the editor's version. A game may be chaotic (tiny float differences
+	// grow), so the gameplay is compared over a short time, and the rendering
+	// on the same state.
 	static bool checkMinified(const Capture::Host& host)
 	{
 		FILE* f = fopen("src/shaders/shaders.inl", "rb");
@@ -172,31 +201,58 @@ namespace Check
 		UseProgram()(host.sceneProgram);
 		EditUI::Tweaks::apply(host.sceneProgram);
 
-		const float seconds = 30;
+		// gameplay
+		const float seconds = 3;
 		Run editor = play(host, host.gameProgram, host.sceneProgram, fbo, seconds);
 		Run minified = play(host, game, scene, fbo, seconds);
-		host.setPrograms(host.gameProgram, host.sceneProgram);
-
-		int words = 0;
+		int words = 0, firstWord = -1;
 		for (int i = 0; i < host.stateSize; i += 4)
-			words += memcmp(&editor.state[i], &minified.state[i], 4) != 0;
+			if (!close(&editor.state[i], &minified.state[i]))
+			{
+				words++;
+				if (firstWord < 0) firstWord = i;
+			}
+		const bool gameOk = editor.events == minified.events && words == 0;
+		printf("minified game: %s after %.0f s (events", gameOk ? "ok" : "FAILED", seconds);
+		for (int i = 0; i < host.eventCount; i++) printf(" %d", editor.events[i]);
+		printf(" vs");
+		for (int i = 0; i < host.eventCount; i++) printf(" %d", minified.events[i]);
+		printf(", %d state words differ", words);
+		if (firstWord >= 0) printf(", the first at offset %d", firstWord);
+		printf(")\n");
+
+		// rendering, on a state after a longer game
+		const float drawSeconds = 30;
+		Run later = play(host, host.gameProgram, host.sceneProgram, fbo, drawSeconds);
+		const std::vector<unsigned char> image = draw(host, host.sceneProgram, later.state, fbo);
+		const std::vector<unsigned char> image2 = draw(host, scene, later.state, fbo);
+		host.setPrograms(host.gameProgram, host.sceneProgram);
 		int pixels = 0, maxDiff = 0;
-		for (size_t i = 0; i < editor.pixels.size(); i += 4)
+		for (size_t i = 0; i < image.size(); i += 4)
 		{
 			int d = 0;
 			for (int c = 0; c < 3; c++)
-				d = max(d, abs(editor.pixels[i + c] - minified.pixels[i + c]));
+				d = max(d, abs(image[i + c] - image2[i + c]));
 			pixels += d > 8;
 			maxDiff = max(maxDiff, d);
 		}
-		const int pixelCount = XRES * YRES;
-		const bool ok = editor.events == minified.events && pixels * 100 <= pixelCount;
-		printf("minified: %s after %.0f s (events %d/%d/%d vs %d/%d/%d, %d state words differ, "
-			"%d pixels differ by more than 8, max %d)\n",
-			ok ? "ok" : "FAILED", seconds,
-			editor.events[0], editor.events[1], editor.events[2],
-			minified.events[0], minified.events[1], minified.events[2], words, pixels, maxDiff);
-		return ok;
+		const bool drawOk = pixels * 100 <= XRES * YRES;
+		printf("minified scene: %s after %.0f s (%d pixels differ by more than 8, max %d)\n",
+			drawOk ? "ok" : "FAILED", drawSeconds, pixels, maxDiff);
+		if (!drawOk)
+		{
+			// raw RGBA, bottom-up, XRES x YRES: to look at where they differ
+			const std::vector<unsigned char>* images[2] = { &image, &image2 };
+			const char* paths[2] = { "out/check-editor.rgba", "out/check-minified.rgba" };
+			for (int r = 0; r < 2; r++)
+				if (FILE* out = fopen(paths[r], "wb"))
+				{
+					fwrite(&(*images[r])[0], 1, images[r]->size(), out);
+					fclose(out);
+				}
+			printf("minified scene: images written to out/check-editor.rgba and out/check-minified.rgba\n");
+		}
+		return gameOk && drawOk;
 	}
 
 	int run(int argc, char* argv[], const Capture::Host& host, bool compileFailed)

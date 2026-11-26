@@ -118,6 +118,33 @@ namespace StateView
 		return (int)fields.size();
 	}
 
+	std::string values(int gameProgram, int sceneProgram, int stateSize)
+	{
+		loadFunctions();
+		updateLayout(gameProgram, sceneProgram);
+		data.resize(stateSize);
+		glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, stateSize, &data[0]);
+		std::string out;
+		for (const Field& f : fields)
+		{
+			const int size = typeSize(f.type);
+			if (f.arraySize > 1 || f.offset + size > stateSize) continue;
+			const bool isFloat = f.type == GL_FLOAT || f.type == GL_FLOAT_VEC2 || f.type == GL_FLOAT_VEC3 || f.type == GL_FLOAT_VEC4;
+			const int n = size / 4;
+			std::string v;
+			for (int i = 0; i < n; i++)
+			{
+				char buf[32];
+				const char* p = &data[f.offset + i * 4];
+				if (isFloat) snprintf(buf, sizeof(buf), "%.3f", *(const float*)p);
+				else snprintf(buf, sizeof(buf), "%d", *(const int*)p);
+				v += (i ? "," : "") + std::string(buf);
+			}
+			out += (out.empty() ? "" : " ") + f.name + "=" + (n > 1 ? "(" + v + ")" : v);
+		}
+		return out;
+	}
+
 	bool draw(int gameProgram, int sceneProgram, int stateSize)
 	{
 		if (!ImGui::CollapsingHeader("Game state"))

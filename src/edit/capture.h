@@ -17,9 +17,10 @@
 //     --width W          render width, the height keeps the aspect (default: XRES)
 //     --set NAME=VALUE   override a _TV value (repeatable)
 //     --fps N            frame rate, a divisor or multiple of 60 (default: 60)
-//     --keys auto|none|FILE  scripted inputs (default: auto, move and fire),
+//     --keys auto|none|FILE  scripted inputs (default: auto, flip and launch),
 //                        or inputs saved by the editor (the video then lasts as long)
 //     --wav FILE         also save the sound (60 fps only)
+//     --trace SECONDS    print the state at this interval (with --end, no frame needed)
 //
 // Exit code: 0 on success, 1 on failure, 2 on bad usage.
 namespace Capture

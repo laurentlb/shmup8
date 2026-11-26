@@ -15,3 +15,4 @@
 # From here: the Snapshot configuration (Crinkler 3.0b, instant mode). Release
 # was 6526 bytes with Crinkler 3.0b at this point, Snapshot 6695.
 2026-11-26 bf9c9d3 6695 Crinkler 3.0b; check.ps1 builds Snapshot by default
+2026-11-26 6202261+ 6949 Visuals: rounded shapes, brass and rubber, noise, GI lamps, glossy reflections

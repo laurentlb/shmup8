@@ -12,8 +12,8 @@ the rendering use the same shapes, including the planets that orbit the sun.
 
 ## Current state
 
-**Size:** 6526 bytes (Release), 6695 bytes (Snapshot, the fast build used to
-follow the size), out of 8192. History in `tools/sizes.txt`.
+**Size:** 6949 bytes (Snapshot, the fast build used to follow the size;
+Release is about 170 bytes smaller), out of 8192. History in `tools/sizes.txt`.
 
 **Controls:** left / right arrows: flippers. Down: pull the plunger, release to
 launch. Up: nudge. Escape: quit.
@@ -32,10 +32,13 @@ launch. Up: nudge. Escape: quit.
 * Lamps: top lanes, multiplier, ball save (blinks faster when it ends), a clock
   dial with a light chase around the sun.
 * Rendering: raymarched 3D with a warm key light (soft shadows), a cool fill
-  light and the sun as a point light; per-material roughness, one reflection
-  bounce, ambient occlusion. Lacquered wood, brass inlays, a starry night sky
-  painted under the orrery, lamp inserts as colored glass, banded planets,
-  chrome ball. The table floats in a starfield.
+  light, the sun as a point light and four warm GI lamps along the walls;
+  per-material roughness, reflections blurred by roughness, ambient occlusion.
+  Rounded shapes; brass flippers and posts with black rubber, ruby plastic
+  sling covers, chrome rails and ball; lacquered wood planks, gilded inlays, a
+  starry night sky painted under the orrery, lamp inserts as colored glass.
+  Noise everywhere (tarnish, stains, smudges, nebulae) against a too clean
+  look. The table floats in a starfield.
 * Ball light trail: glows from blue to orange when the ball is fast.
 * Post: thresholded mipmap bloom, lens ghost, chromatic aberration, color
   grading, vignette, grain.

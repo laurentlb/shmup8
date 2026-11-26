@@ -11,3 +11,4 @@
 2026-11-26 1600829 5577 Pinball: a clockwork orrery table, raymarched in 3D
 2026-11-26 32fd4ad 5928 Rules and juice: top lanes, multiplier, ball save, hit-stop, drain flash
 2026-11-26 fbf1e5c 5963 Whole table in view, slower ball
+2026-11-26 88c91d7+ 6535 Release: HASHTRIES 100; check.ps1 retries a crashed Crinkler link

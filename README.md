@@ -12,7 +12,7 @@ the rendering use the same shapes, including the planets that orbit the sun.
 
 ## Current state
 
-**Size:** 5963 bytes (release, Crinkler), out of 8192. History in `tools/sizes.txt`.
+**Size:** 6535 bytes (release, Crinkler), out of 8192. History in `tools/sizes.txt`.
 
 **Controls:** left / right arrows: flippers. Down: pull the plunger, release to
 launch. Up: nudge. Escape: quit.
@@ -30,9 +30,14 @@ launch. Up: nudge. Escape: quit.
   move the lit lanes. Ball save during the first 8 s of each ball.
 * Lamps: top lanes, multiplier, ball save (blinks faster when it ends), a clock
   dial with a light chase around the sun.
-* Rendering: raymarched 3D (chrome ball with reflections, soft shadows, ambient
-  occlusion, wood planks and brass inlays, glowing sun lighting the table, clock
-  lamps with a light chase), mipmap bloom, tone mapping.
+* Rendering: raymarched 3D with a warm key light (soft shadows), a cool fill
+  light and the sun as a point light; per-material roughness, one reflection
+  bounce, ambient occlusion. Lacquered wood, brass inlays, a starry night sky
+  painted under the orrery, lamp inserts as colored glass, banded planets,
+  chrome ball. The table floats in a starfield.
+* Ball light trail: glows from blue to orange when the ball is fast.
+* Post: thresholded mipmap bloom, lens ghost, chromatic aberration, color
+  grading, vignette, grain.
 * Camera: the whole table is in view, leaning a little toward the ball; it
   shakes on hits, nudges and drains.
 * Juice: hit-stop on sun hits and completed lanes, planets and sun swell and
@@ -124,7 +129,8 @@ and the minified shaders of the release play and render like the editor's
 (gameplay over 3 s, within a float tolerance since pinball is chaotic; rendering
 of the same state).
 A successful release build doesn't prove that: the shaders are only compiled
-when the game starts. `-Log` appends the size to `tools/sizes.txt`.
+when the game starts. `-Log` appends the size to `tools/sizes.txt`. Crinkler 2.3 sometimes crashes at
+random ("Oops! Crinkler has crashed"); the script retries the build.
 
 ---
 

@@ -420,8 +420,8 @@ vec3 material(vec3 p, float m, out float metal, out vec3 glow, out float gloss)
         return vec3(0.08, 0.035, 0.015);
     }
     if (m == M_APRON) {
-        metal = 0.8;
-        return vec3(0.35, 0.25, 0.15);
+        gloss = 0.3;
+        return vec3(0.04, 0.03, 0.025);
     }
     if (m == M_RAIL || m == M_ARM) {
         metal = 1.;
@@ -499,8 +499,10 @@ void main()
     if (iFrame.w < 0.5) {
         for (int i = 0; i < 3; i++)
             planets[i] = planetPos(i, time);
-        vec3 ta = vec3(cam.x, cam.y + 0.07, 0);
-        vec3 ro = vec3(cam.x, cam.y - 0.5, 0.42);
+        
+        vec3 ta = vec3(cam, 0);
+        float pitch = _TV(camPitch, 0.88);
+        vec3 ro = ta + vec3(0, -cos(pitch), sin(pitch)) * _TV(camDistance, 1.3);
         ro += shake * shake * 0.006 * vec3(sin(time * 71.), sin(time * 83.), sin(time * 61.));
         vec3 fw = normalize(ta - ro);
         vec3 rt = normalize(cross(fw, vec3(0, 0, 1)));

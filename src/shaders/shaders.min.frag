@@ -250,7 +250,7 @@ vec3 material(vec3 p,float m,out float metal,out vec3 glow,out float gloss)
       metal=1.,brass:
       vec3(.08,.035,.015);
   if(m==12.)
-    return metal=.8,vec3(.35,.25,.15);
+    return gloss=.3,vec3(.04,.03,.025);
   if(m==2.||m==11.)
     return metal=1.,m==11.?
       brass:
@@ -335,7 +335,7 @@ void main()
     {
       for(int i=0;i<3;i++)
         planets[i]=planetPos(i,time);
-      vec3 ta=vec3(cam.x,cam.y+.07,0),ro=vec3(cam.x,cam.y-.5,.42)+shake*shake*.006*vec3(sin(time*71.),sin(time*83.),sin(time*61.)),fw=normalize(ta-ro);
+      vec3 ta=vec3(cam,0),ro=ta+vec3(0,-cos(.88),sin(.88))*1.3+shake*shake*.006*vec3(sin(time*71.),sin(time*83.),sin(time*61.)),fw=normalize(ta-ro);
       ta=normalize(cross(fw,vec3(0,0,1)));
       fragColor=vec4(clamp(render(ro,normalize(uv.x*ta+uv.y*cross(ta,fw)+1.9*fw)),0.,50.),1);
       return;
@@ -476,7 +476,7 @@ void bumper(int i,vec2 n,int points)
     {
       if(i==0)
         hitStop=.05;
-      vel+=n*.9;
+      vel+=n*.55;
       flash[i]=1.;
       score+=points*mult;
       bumperEvents++;
@@ -514,7 +514,7 @@ void collide()
       if((side>0?
         -n.x:
         n.x)>.5&&slingFlash[side]<.5)
-        vel+=n*1.1,slingFlash[side]=1.,score+=10*mult,slingEvents++,shake=max(shake,.3);
+        vel+=n*.75,slingFlash[side]=1.,score+=10*mult,slingEvents++,shake=max(shake,.3);
     }
 }
 void serve()
@@ -571,21 +571,21 @@ void update()
           flip[i]+=speed;
         }
       if(balls>0)
-        vel.y-=1.8*h,ball+=vel*h,collide();
+        vel.y-=1.1*h,ball+=vel*h,collide();
     }
   lanes();
   if(ball.x<.22)
     ballSave=max(ballSave-DT,0.);
   vel*=1.-.1*DT;
   float speed=length(vel);
-  if(speed>4.5)
-    vel*=4.5/speed;
+  if(speed>3.2)
+    vel*=3.2/speed;
   if(iInput.z>0.)
     plunger=min(plunger+DT*1.2,1.);
   else if(plunger>0.)
     {
       if(ball.x>.226&&ball.y<-.45)
-        vel.y=plunger*3.4+.3;
+        vel.y=plunger*2.6+.4;
       plunger=0.;
     }
   if(iInput.z<0.&&prevInput.z>=0.&&shake<.5)
@@ -607,7 +607,7 @@ void update()
              gameOver=3.;
         }
     }
-  up=vec2(-.019+(ball.x+.019)*.25,clamp(ball.y,-.25,.25));
+  up=vec2(-.019+(ball.x+.019)*.15,clamp(ball.y,-.5,.5)*.06+-.1);
   cam+=(up-cam)*DT*3.;
 }
 void main()

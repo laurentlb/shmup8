@@ -12,8 +12,8 @@ the rendering use the same shapes, including the planets that orbit the sun.
 
 ## Current state
 
-**Size:** 7704 bytes (Snapshot, the fast build used to follow the size;
-Release is about 170 bytes smaller), out of 8192. History in `tools/sizes.txt`.
+**Size:** 7411 bytes (Release), 7566 bytes (Snapshot, the fast build used to
+follow the size), out of 8192. History in `tools/sizes.txt`.
 
 **Controls:** left / right arrows: flippers. Down: pull the plunger, release to
 launch. Up: nudge. Escape: quit.
@@ -24,7 +24,7 @@ launch. Up: nudge. Escape: quit.
   side deflectors, top lane posts, flippers.
 * Orrery: the sun and two planets (one with a ring and a moon) are bumpers that
   move along their orbits; they hit the ball at their own speed.
-* Physics: 2D, real table gravity (1.1 m/s²), 8 substeps per 1/120 s step, flipper and bumper surface speed,
+* Physics: 2D, real table gravity (1.1 m/sÂ²), 8 substeps per 1/120 s step, flipper and bumper surface speed,
   restitution per material, plunger strength from the pull time, nudge.
 * Rules: 3 balls, score, game over screen, a new game after 3 s. Top lanes:
   rolling through all three raises the multiplier (x2 to x5), and the flippers

@@ -150,24 +150,44 @@ namespace Capture
 		fire = (float)(fmodf(t, 10.f) < 1.f);
 	}
 
-	// Plays like a person would (for videos): flips when the ball comes near a
-	// flipper, pulls the plunger when the ball is in the shooter lane. Reads
-	// the "ball" and "vel" fields of the state; the table's coordinates are
-	// those of src/shaders/world.glsl.
+	// Plays like a person would (for videos): flips when a ball comes near a
+	// flipper, pulls the plunger when a ball is in the shooter lane. Reads the
+	// "ball" and "vel" arrays and "ballCount" (or a single ball if there is no
+	// count); the table's coordinates are those of src/shaders/world.glsl.
 	static void botInput(const Host& host, float dt, float& x, float& y, float& fire)
 	{
 		static float hold[2], plunge;
 		x = y = fire = 0;
 		const int ballOffset = StateView::offset(host.gameProgram, host.sceneProgram, "ball");
 		const int velOffset = StateView::offset(host.gameProgram, host.sceneProgram, "vel");
+		const int countOffset = StateView::offset(host.gameProgram, host.sceneProgram, "ballCount");
 		if (ballOffset < 0 || velOffset < 0) return;
-		float ball[2], vel[2];
 		auto getBufferSubData = (PFNGLGETBUFFERSUBDATAPROC)wglGetProcAddress("glGetBufferSubData");
-		getBufferSubData(GL_SHADER_STORAGE_BUFFER, ballOffset, 8, ball);
-		getBufferSubData(GL_SHADER_STORAGE_BUFFER, velOffset, 8, vel);
+		int count = 1;
+		if (countOffset >= 0) getBufferSubData(GL_SHADER_STORAGE_BUFFER, countOffset, 4, &count);
+		count = max(0, min(count, 8));
+		float ball[16], vel[16];
+		if (count > 0)
+		{
+			getBufferSubData(GL_SHADER_STORAGE_BUFFER, ballOffset, count * 8, ball);
+			getBufferSubData(GL_SHADER_STORAGE_BUFFER, velOffset, count * 8, vel);
+		}
 
 		const float cx = -0.019f;
-		if (ball[0] > 0.226f && ball[1] < -0.45f)
+		bool inLane = false, nearFlipper[2] = { false, false };
+		for (int b = 0; b < count; b++)
+		{
+			const float bx = ball[b * 2], by = ball[b * 2 + 1], vy = vel[b * 2 + 1];
+			inLane = inLane || (bx > 0.226f && by < -0.45f);
+			for (int i = 0; i < 2; i++)
+			{
+				const float side = i ? bx - cx : cx - bx;
+				// the ball is above the flipper and close
+				nearFlipper[i] = nearFlipper[i] || (side > -0.01f && side < 0.11f && by < -0.36f && by > -0.47f && vy < 0.2f);
+			}
+		}
+
+		if (inLane)
 		{
 			// pull for 0.8 s, then release
 			plunge += dt;
@@ -179,9 +199,8 @@ namespace Capture
 
 		for (int i = 0; i < 2; i++)
 		{
-			const float side = i ? ball[0] - cx : cx - ball[0];
-			// the ball is above the flipper and close: flip, keep it up a moment
-			if (hold[i] == 0 && side > -0.01f && side < 0.11f && ball[1] < -0.36f && ball[1] > -0.47f && vel[1] < 0.2f)
+			// flip, keep it up a moment
+			if (hold[i] == 0 && nearFlipper[i])
 				hold[i] = 0.2f;
 			if (hold[i] > 0)
 			{

@@ -136,20 +136,27 @@ namespace StateView
 		std::string out;
 		for (const Field& f : fields)
 		{
+			// small arrays are printed in full ([a,b,...]), big ones are skipped
 			const int size = typeSize(f.type);
-			if (f.arraySize > 1 || f.offset + size > stateSize) continue;
+			const int count = f.arraySize > 1 ? f.arraySize : 1;
+			if (count > 8 || f.offset + (count - 1) * f.arrayStride + size > stateSize) continue;
 			const bool isFloat = f.type == GL_FLOAT || f.type == GL_FLOAT_VEC2 || f.type == GL_FLOAT_VEC3 || f.type == GL_FLOAT_VEC4;
 			const int n = size / 4;
-			std::string v;
-			for (int i = 0; i < n; i++)
+			std::string all;
+			for (int e = 0; e < count; e++)
 			{
-				char buf[32];
-				const char* p = &data[f.offset + i * 4];
-				if (isFloat) snprintf(buf, sizeof(buf), "%.3f", *(const float*)p);
-				else snprintf(buf, sizeof(buf), "%d", *(const int*)p);
-				v += (i ? "," : "") + std::string(buf);
+				std::string v;
+				for (int i = 0; i < n; i++)
+				{
+					char buf[32];
+					const char* p = &data[f.offset + e * f.arrayStride + i * 4];
+					if (isFloat) snprintf(buf, sizeof(buf), "%.3f", *(const float*)p);
+					else snprintf(buf, sizeof(buf), "%d", *(const int*)p);
+					v += (i ? "," : "") + std::string(buf);
+				}
+				all += (e ? "," : "") + (n > 1 ? "(" + v + ")" : v);
 			}
-			out += (out.empty() ? "" : " ") + f.name + "=" + (n > 1 ? "(" + v + ")" : v);
+			out += (out.empty() ? "" : " ") + f.name + "=" + (count > 1 ? "[" + all + "]" : all);
 		}
 		return out;
 	}

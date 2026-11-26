@@ -18,3 +18,4 @@
 2026-11-26 6202261+ 6949 Visuals: rounded shapes, brass and rubber, noise, GI lamps, glossy reflections
 2026-11-26 76bae29 7704 README: star targets, multiball, jackpots; screenshots (7704 bytes)
 2026-11-26 6201a2c 7566 Size: shorter constants (hash, plank seams, inlays, metals)
+2026-11-26 a2f5620 7698 Multiball: stars relight the jackpot, awards in the display, a trail for every ball

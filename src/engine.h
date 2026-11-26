@@ -55,6 +55,18 @@ static void initEngine(int width, int height)
 	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
 }
 
+// Vsync can be disabled in the driver settings: then don't draw much faster than
+// the screen refreshes, which would keep a CPU core busy. With vsync, the frame
+// already took a whole period and there is no wait.
+// frameStart: timeGetTime() at the beginning of the frame.
+static void limitFrameRate(HDC hDC, long frameStart)
+{
+	int refresh = GetDeviceCaps(hDC, VREFRESH); // 0 or 1: unknown
+	long wait = 1000 / (refresh > 30 ? refresh : 60) - 1 - (long)(timeGetTime() - frameStart);
+	if (wait > 0)
+		Sleep(wait);
+}
+
 // input: direction (x, y), fire
 static void stepGame(float x, float y, float fire, int steps)
 {

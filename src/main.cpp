@@ -77,6 +77,7 @@ void entrypoint(void)
 		remainder %= 1000;
 		drawGame(xres, yres, elapsed * 0.001f, 0);
 		SwapBuffers(hDC);
+		limitFrameRate(hDC, previousTime);
 	} while (!GetAsyncKeyState(VK_ESCAPE));
 
 	ExitProcess(0);
@@ -180,6 +181,7 @@ int __cdecl main(int argc, char* argv[])
 		EditUI::pickColor();
 		EditUI::render();
 		SwapBuffers(hDC);
+		limitFrameRate(hDC, (long)now);
 
 		editor.handleEvents();
 		editor.updateShaders(&gameProgram, &sceneProgram, false);

@@ -17,10 +17,18 @@ $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.e
 $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
 if (-not $msbuild) { throw "MSBuild not found" }
 
+# Crinkler 2.3 sometimes crashes while optimizing the hash table ("Oops!
+# Crinkler has crashed"), at random on this machine: the same input links on
+# the next try. Retry, and remove the dump files it writes.
 function Build([string]$configuration) {
-    Write-Host "Building $configuration..."
-    & $msbuild engine8.sln "-p:Configuration=$configuration" -p:Platform=Win32 -v:quiet -nologo
-    if ($LASTEXITCODE -ne 0) { throw "$configuration build failed" }
+    for ($try = 1; $try -le 3; $try++) {
+        Write-Host "Building $configuration..."
+        & $msbuild engine8.sln "-p:Configuration=$configuration" -p:Platform=Win32 -v:quiet -nologo
+        $ok = $LASTEXITCODE -eq 0
+        Remove-Item dump*_mini.dmp, dump*_full.dmp -ErrorAction SilentlyContinue
+        if ($ok) { return }
+    }
+    throw "$configuration build failed"
 }
 
 # The release build regenerates the minified shaders (src\shaders\shaders.inl).

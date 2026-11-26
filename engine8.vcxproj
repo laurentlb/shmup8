@@ -428,7 +428,7 @@ call preprocess_shaders.bat</Command>
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalOptions>/CRINKLER  /RANGE:opengl32 /HASHTRIES:300 /COMPMODE:SLOW /ORDERTRIES:3000 /REPORT:out.html /PROGRESSGUI /HASHSIZE:1000 /UNSAFEIMPORT /UNALIGNCODE /SATURATE /NOINITIALIZERS /TRANSFORM:CALLS /TRUNCATEFLOATS:32 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/CRINKLER  /RANGE:opengl32 /HASHTRIES:100 /COMPMODE:SLOW /ORDERTRIES:3000 /REPORT:out.html /PROGRESSGUI /HASHSIZE:1000 /UNSAFEIMPORT /UNALIGNCODE /SATURATE /NOINITIALIZERS /TRANSFORM:CALLS /TRUNCATEFLOATS:32 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalDependencies>opengl32.lib;src/music/music.obj;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>out\cat-release.exe</OutputFile>
       <SuppressStartupBanner>

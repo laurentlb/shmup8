@@ -12,7 +12,7 @@ the rendering use the same shapes, including the planets that orbit the sun.
 
 ## Current state
 
-**Size:** 5928 bytes (release, Crinkler), out of 8192. History in `tools/sizes.txt`.
+**Size:** 5963 bytes (release, Crinkler), out of 8192. History in `tools/sizes.txt`.
 
 **Controls:** left / right arrows: flippers. Down: pull the plunger, release to
 launch. Up: nudge. Escape: quit.
@@ -23,7 +23,7 @@ launch. Up: nudge. Escape: quit.
   side deflectors, top lane posts, flippers.
 * Orrery: the sun and two planets (one with a ring and a moon) are bumpers that
   move along their orbits; they hit the ball at their own speed.
-* Physics: 2D, 8 substeps per 1/120 s step, flipper and bumper surface speed,
+* Physics: 2D, real table gravity (1.1 m/s²), 8 substeps per 1/120 s step, flipper and bumper surface speed,
   restitution per material, plunger strength from the pull time, nudge.
 * Rules: 3 balls, score, game over screen, a new game after 3 s. Top lanes:
   rolling through all three raises the multiplier (x2 to x5), and the flippers
@@ -33,7 +33,8 @@ launch. Up: nudge. Escape: quit.
 * Rendering: raymarched 3D (chrome ball with reflections, soft shadows, ambient
   occlusion, wood planks and brass inlays, glowing sun lighting the table, clock
   lamps with a light chase), mipmap bloom, tone mapping.
-* Camera: follows the ball, shakes on hits, nudges and drains.
+* Camera: the whole table is in view, leaning a little toward the ball; it
+  shakes on hits, nudges and drains.
 * Juice: hit-stop on sun hits and completed lanes, planets and sun swell and
   glow when hit, red flash on drains, score digits brighten on hits.
 * Sound: music; a chime for bumpers, a thunk for flippers, a snap for
@@ -98,6 +99,9 @@ out\cat-debug.exe --capture --wav game.wav 30
 out\cat-debug.exe --capture --video replay.mp4 --keys inputs.txt
 out\cat-debug.exe --capture --end 10 --trace 0.1
 ```
+
+By default, a bot plays: it flips when the ball comes near a flipper, and
+pulls the plunger (`--keys auto` for fixed scripted inputs).
 
 `--trace` prints the state (the fields that are not arrays) at an interval:
 handy to follow the ball.

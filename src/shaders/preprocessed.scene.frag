@@ -25,13 +25,14 @@ layout(binding = 0) uniform sampler2D tex;
 
 
 #define TRAIL 32
+#define MAX_BALLS 4
 
 layout(std430, binding = 0) buffer State {
     
     
     int bumperEvents, flipperEvents, drainEvents, slingEvents;
 
-    vec2 ball, vel;
+    vec2 ball[MAX_BALLS], vel[MAX_BALLS]; 
     vec2 flip, flipVel; 
     vec2 cam;           
     vec2 slingFlash;    
@@ -48,6 +49,17 @@ layout(std430, binding = 0) buffer State {
     int mult;           
     int lanesLit;       
     int steps;
+    int ballCount;      
+    int pending;        
+    float launchDelay;
+    int targetsLit;     
+    float alignTime;    
+    int jackpot;        
+    int jackpotLit;     
+    int ballAdded;      
+    int sets;           
+    int multiballs;     
+    float jackpotFlash;
     vec4 trail[TRAIL];  
 };
 // --------------------------------------------------------------------
@@ -80,6 +92,7 @@ layout(std430, binding = 0) buffer State {
 #define M_ARM 11.
 #define M_APRON 12.
 #define M_POST 13.
+#define M_TARGET 14.
 
 mat2 rot(float a)
 {
@@ -182,12 +195,38 @@ float planetRadius(int i)
     return i == 0 ? 0.015 : i == 1 ? 0.02 : 0.008;
 }
 
+
+float alignment()
+{
+    return alignTime > 0. ? smoothstep(0., 0.8, alignTime) * smoothstep(4., 3., alignTime) : 0.;
+}
+
+
+vec2 orbit(float a)
+{
+    a += alignment() * (mod(-PI / 2. - a + PI, 2. * PI) - PI);
+    return vec2(cos(a), sin(a));
+}
+
 vec2 planetPos(int i, float t)
 {
-    if (i == 0) return SUN + 0.075 * vec2(cos(t * 0.9), sin(t * 0.9));
-    vec2 p = SUN + 0.14 * vec2(cos(t * 0.35 + 2.), sin(t * 0.35 + 2.));
-    if (i > 1) p += 0.036 * vec2(cos(t * 2.2), sin(t * 2.2));
+    if (i == 0) return SUN + 0.075 * orbit(t * 0.9);
+    vec2 p = SUN + 0.14 * orbit(t * 0.35 + 2.);
+    if (i > 1) p += 0.036 * orbit(t * 2.2);
     return p;
+}
+
+
+
+float targetDist(vec2 q)
+{
+    return min(length(q - vec2(CX - 0.135, -0.12)), length(q - vec2(CX - 0.045, -0.15))) - 0.009;
+}
+
+
+int targetIndex(vec2 p)
+{
+    return int(clamp(floor((p.x - CX) / 0.09 + 2.), 0., 3.));
 }
 
 vec2 hit(vec2 h, float d, float m)
@@ -196,7 +235,8 @@ vec2 hit(vec2 h, float d, float m)
 }
 
 
-vec2 field(vec2 p)
+
+vec2 field(vec2 p, bool down)
 {
     vec2 q = mirror(p);
     vec2 h = vec2(-areaDist(p), M_WALL);
@@ -204,7 +244,8 @@ vec2 field(vec2 p)
     h = hit(h, railDist(q), M_RAIL);
     h = hit(h, slingDist(q), M_SLING);
     h = hit(h, postDist(q), M_POST);
-    if (vel.y < 0.)
+    h = hit(h, targetDist(q), M_TARGET);
+    if (down)
         h = hit(h, gateDist(p), M_WALL);
     for (int i = 0; i < 2; i++)
         h = hit(h, flipperDist(p, i), M_FLIP + float(i));
@@ -312,7 +353,9 @@ vec2 map(vec3 p)
     
     h = hit(h, seg3(p, vec3(LANE_X, -0.502 - plunger * 0.04, BALL_R), vec3(LANE_X, -0.7, BALL_R)) - 0.008, M_ARM);
 
-    h = hit(h, length(p - vec3(ball, BALL_R)) - BALL_R, M_BALL);
+    h = hit(h, extrude(targetDist(q), p.z, 0.03, 0.003), M_TARGET);
+    for (int b = 0; b < ballCount; b++)
+        h = hit(h, length(p - vec3(ball[b], BALL_R)) - BALL_R, M_BALL);
     return h;
 }
 
@@ -454,12 +497,21 @@ vec3 material(vec3 p, float m, out float metal, out vec3 glow, out float rough)
                 insert = vec3(1, 0.5, 0.1);
                 dist = length(q) / 0.009;
             }
-            q = p.xy - vec2(CX - 0.045 + 0.03 * float(i), -0.1);
+            q = p.xy - vec2(CX - 0.045 + 0.03 * float(i), -0.27);
             if (length(q) < 0.007) {
                 on = float(mult >= i + 2);
                 insert = vec3(0.2, 0.6, 1);
                 dist = length(q) / 0.007;
             }
+        }
+        
+        vec2 q = mirror(p.xy);
+        q -= q.x < CX - 0.09 ? vec2(CX - 0.135, -0.16) : vec2(CX - 0.045, -0.19);
+        float star = length(q) / (0.016 * (0.6 + 0.4 * cos(5. * atan(q.x, q.y))));
+        if (star < 1.) {
+            on = float(targetsLit >> targetIndex(p.xy) & 1) + 0.5 * flash.x;
+            insert = vec3(1, 0.8, 0.3);
+            dist = star;
         }
         if (length(p.xy - vec2(CX, -0.37)) < 0.01) {
             on = float(ballSave > 0. && fract(time * (ballSave < 2. ? 4. : 1.5)) < 0.6);
@@ -477,6 +529,10 @@ vec3 material(vec3 p, float m, out float metal, out vec3 glow, out float rough)
             glow = insert * on * (4. - 2.5 * dist * dist) * (0.8 + 0.4 * noise(p.xy * 3000.));
             return insert * 0.08;
         }
+        
+        float wave = alignTime * 0.35 - r;
+        glow += vec3(1, 0.7, 0.3) * (exp(-wave * wave * 3000.) * max(1. - alignTime * 0.5, 0.) * 3.
+             + alignment() * exp(-pow(p.x - CX, 2.) * 3000.) * step(p.y, SUN.y) * 1.5);
         return c;
     }
     if (m == M_WALL) {
@@ -516,9 +572,17 @@ vec3 material(vec3 p, float m, out float metal, out vec3 glow, out float rough)
     }
     if (m == M_SUN) {
         metal = 1.;
+        
         if (p.z > 0.035)
-            glow = vec3(1, 0.5, 0.15) * (1.5 + flash.x * 8.) * (0.8 + 0.4 * fbm(p.xy * 400. + time));
+            glow = mix(vec3(1, 0.5, 0.15), vec3(0.6, 0.8, 1.2) * (1.5 + sin(time * 12.)), float(ballCount + pending > 1 && jackpotLit > 0))
+                 * (1.5 + flash.x * 8.) * (0.8 + 0.4 * fbm(p.xy * 400. + time));
         return brass;
+    }
+    if (m == M_TARGET) {
+        
+        glow = vec3(1, 0.75, 0.25) * float(targetsLit >> targetIndex(p.xy) & 1) * (2. + sin(time * 8.));
+        rough = 0.1;
+        return vec3(0.35, 0.25, 0.05);
     }
     if (m >= M_PLANET && m < M_BALL) {
         int i = int(m - M_PLANET);
@@ -659,6 +723,7 @@ void main()
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
     col *= max(1. - pow(length(texCoord - 0.5), 1.5) * 1.2, 0.);
     col += (hash(gl_FragCoord.xy + fract(time) * 100.) - 0.5) * 0.02; 
+    col += jackpotFlash * vec3(0.35, 0.3, 0.25); 
     
     col = mix(col, col.r * vec3(0.9, 0.1, 0.05), drainFlash * 0.8);
 

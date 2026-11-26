@@ -5,7 +5,7 @@ layout(location=0)uniform vec4 iFrame;
 layout(binding=0)uniform sampler2D tex;
 layout(std430, binding = 0)buffer State{
   int bumperEvents,flipperEvents,drainEvents,slingEvents;
-  vec2 ball,vel;
+  vec2 ball[4],vel[4];
   vec2 flip,flipVel;
   vec2 cam;
   vec2 slingFlash;
@@ -22,6 +22,17 @@ layout(std430, binding = 0)buffer State{
   int mult;
   int lanesLit;
   int steps;
+  int ballCount;
+  int pending;
+  float launchDelay;
+  int targetsLit;
+  float alignTime;
+  int jackpot;
+  int jackpotLit;
+  int ballAdded;
+  int sets;
+  int multiballs;
+  float jackpotFlash;
   vec4 trail[32];
 };
 out vec4 fragColor;
@@ -78,14 +89,29 @@ float planetRadius(int i)
       .02:
       .008;
 }
+float alignment()
+{
+  return alignTime>0.?
+    smoothstep(0.,.8,alignTime)*smoothstep(4.,3.,alignTime):
+    0.;
+}
+vec2 orbit(float a)
+{
+  a+=alignment()*(mod(-1.570795-a+3.14159,6.28318)-3.14159);
+  return vec2(cos(a),sin(a));
+}
 vec2 planetPos(int i,float t)
 {
   if(i==0)
-    return vec2(-.019,.13)+.075*vec2(cos(t*.9),sin(t*.9));
-  vec2 p=vec2(-.019,.13)+.14*vec2(cos(t*.35+2.),sin(t*.35+2.));
+    return vec2(-.019,.13)+.075*orbit(t*.9);
+  vec2 p=vec2(-.019,.13)+.14*orbit(t*.35+2.);
   if(i>1)
-    p+=.036*vec2(cos(t*2.2),sin(t*2.2));
+    p+=.036*orbit(t*2.2);
   return p;
+}
+int targetIndex(vec2 p)
+{
+  return int(clamp(floor((p.x+.019)/.09+2.),0.,3.));
 }
 vec2 hit(vec2 h,float d,float m)
 {
@@ -164,7 +190,10 @@ vec2 map(vec3 p)
         vec3(vec2(-.019,.13),.068);
       area=min(area,seg3(p,d,vec3(planets[i],z)));
     }
-  return hit(hit(hit(h,area-.0022,11.),seg3(p,vec3(.244,-.502-plunger*.04,.0135),vec3(.244,-.7,.0135))-.008,11.),length(p-vec3(ball,.0135))-.0135,10.);
+  h=hit(hit(hit(h,area-.0022,11.),seg3(p,vec3(.244,-.502-plunger*.04,.0135),vec3(.244,-.7,.0135))-.008,11.),extrude(min(length(q-vec2(-.154,-.12)),length(q-vec2(-.064,-.15)))-.009,p.z,.03,.003),14.);
+  for(int b=0;b<ballCount;b++)
+    h=hit(h,length(p-vec3(ball[b],.0135))-.0135,10.);
+  return h;
 }
 vec3 normal(vec3 p)
 {
@@ -258,26 +287,35 @@ vec3 material(vec3 p,float m,out float metal,out vec3 glow,out float rough)
       if(min(min(abs(r-.075),abs(r-.14))-.0012,abs(plank)-.002)<0.)
         return metal=.5,rough=.3,brass;
       vec3 insert;
-      r=-1.;
-      plank=1.;
+      plank=-1.;
+      float dist=1.;
       for(int i=0;i<4;i++)
         {
           vec2 q=p.xy-vec2(-.019+.06*float(i-1),.37);
           if(i<3&&length(q)<.009)
-            r=float(lanesLit>>i&1),insert=vec3(1,.5,.1),plank=length(q)/.009;
-          q=p.xy-vec2(-.064+.03*float(i),-.1);
+            plank=float(lanesLit>>i&1),insert=vec3(1,.5,.1),dist=length(q)/.009;
+          q=p.xy-vec2(-.064+.03*float(i),-.27);
           if(length(q)<.007)
-            r=float(mult>=i+2),insert=vec3(.2,.6,1),plank=length(q)/.007;
+            plank=float(mult>=i+2),insert=vec3(.2,.6,1),dist=length(q)/.007;
         }
+      s=mirror(p.xy);
+      s-=s.x<-.109?
+        vec2(-.154,-.16):
+        vec2(-.064,-.19);
+      float star=length(s)/(.016*(.6+.4*cos(5.*atan(s.x,s.y))));
+      if(star<1.)
+        plank=float(targetsLit>>targetIndex(p.xy)&1)+.5*flash.x,insert=vec3(1,.8,.3),dist=star;
       if(length(p.xy-vec2(-.019,-.37))<.01)
-        r=float(ballSave>0.&&fract(time*(ballSave<2.?
+        plank=float(ballSave>0.&&fract(time*(ballSave<2.?
           4.:
-          1.5))<.6),insert=vec3(1,.15,.1),plank=length(p.xy-vec2(-.019,-.37))/.01;
+          1.5))<.6),insert=vec3(1,.15,.1),dist=length(p.xy-vec2(-.019,-.37))/.01;
       if(x<0.)
-        r=step(fract((a-time*4.)/12.),.3)*.5+flash.x*2.,insert=vec3(1,.45,.1),plank=(x+.006)/.006;
-      return plank<1.?
-        rough=.05,glow=insert*r*(4.-2.5*plank*plank)*(.8+.4*noise(p.xy*3e3)),insert*.08:
-        c;
+        plank=step(fract((a-time*4.)/12.),.3)*.5+flash.x*2.,insert=vec3(1,.45,.1),dist=(x+.006)/.006;
+      if(dist<1.)
+        return rough=.05,glow=insert*plank*(4.-2.5*dist*dist)*(.8+.4*noise(p.xy*3e3)),insert*.08;
+      star=alignTime*.35-r;
+      glow+=vec3(1,.7,.3)*(exp(-star*star*3e3)*max(1.-alignTime*.5,0.)*3.+alignment()*exp(-pow(p.x+.019,2.)*3e3)*step(p.y,.13)*1.5);
+      return c;
     }
   if(m==1.)
     {
@@ -312,9 +350,11 @@ vec3 material(vec3 p,float m,out float metal,out vec3 glow,out float rough)
     {
       metal=1.;
       if(p.z>.035)
-        glow=vec3(1,.5,.15)*(1.5+flash.x*8.)*(.8+.4*fbm(p.xy*4e2+time));
+        glow=mix(vec3(1,.5,.15),vec3(.6,.8,1.2)*(1.5+sin(time*12.)),float(ballCount+pending>1&&jackpotLit>0))*(1.5+flash.x*8.)*(.8+.4*fbm(p.xy*4e2+time));
       return brass;
     }
+  if(m==14.)
+    return glow=vec3(1,.75,.25)*float(targetsLit>>targetIndex(p.xy)&1)*(2.+sin(time*8.)),rough=.1,vec3(.35,.25,.05);
   if(m>=7.&&m<10.)
     {
       int i=int(m-7.);
@@ -430,7 +470,7 @@ void main()
   col+=bloom*.25+max(textureLod(tex,1.-texCoord,6.).xyz-.6,0.)*.1;
   col=col*(2.51*col+.03)/(col*(2.43*col+.59)+.14);
   float luma=dot(col,vec3(.3,.6,.1));
-  col=pow(clamp(mix(vec3(luma),col,1.15)+vec3(-.01,0,.02)*(1.-luma),0.,1.),vec3(1./2.2))*max(1.-pow(length(texCoord-.5),1.5)*1.2,0.)+(hash(gl_FragCoord.xy+fract(time)*1e2)-.5)*.02;
+  col=pow(clamp(mix(vec3(luma),col,1.15)+vec3(-.01,0,.02)*(1.-luma),0.,1.),vec3(1./2.2))*max(1.-pow(length(texCoord-.5),1.5)*1.2,0.)+(hash(gl_FragCoord.xy+fract(time)*1e2)-.5)*.02+jackpotFlash*vec3(.35,.3,.25);
   col=mix(col,col.x*vec3(.9,.1,.05),drainFlash*.8);
   bloom=vec3(1,.45,.1)*(1.+2.*max(max(flash.x,flash.y),max(flash.z,flash.w)));
   if(balls>0)
@@ -447,7 +487,7 @@ layout(local_size_x=1)in;
 layout(location=0)uniform vec4 iInput;
 layout(std430, binding = 0)buffer State{
   int bumperEvents,flipperEvents,drainEvents,slingEvents;
-  vec2 ball,vel;
+  vec2 ball[4],vel[4];
   vec2 flip,flipVel;
   vec2 cam;
   vec2 slingFlash;
@@ -464,6 +504,17 @@ layout(std430, binding = 0)buffer State{
   int mult;
   int lanesLit;
   int steps;
+  int ballCount;
+  int pending;
+  float launchDelay;
+  int targetsLit;
+  float alignTime;
+  int jackpot;
+  int jackpotLit;
+  int ballAdded;
+  int sets;
+  int multiballs;
+  float jackpotFlash;
   vec4 trail[32];
 };
 const float DT=1./120.;
@@ -504,13 +555,20 @@ float flipperDist(vec2 p,int i)
   float h=clamp(dot(p,dir)/.075,0.,1.);
   return length(p-dir*h*.075)-mix(.011,.005,h);
 }
+vec2 orbit(float a)
+{
+  a+=(alignTime>0.?
+    smoothstep(0.,.8,alignTime)*smoothstep(4.,3.,alignTime):
+    0.)*(mod(-1.570795-a+3.14159,6.28318)-3.14159);
+  return vec2(cos(a),sin(a));
+}
 vec2 planetPos(int i,float t)
 {
   if(i==0)
-    return vec2(-.019,.13)+.075*vec2(cos(t*.9),sin(t*.9));
-  vec2 p=vec2(-.019,.13)+.14*vec2(cos(t*.35+2.),sin(t*.35+2.));
+    return vec2(-.019,.13)+.075*orbit(t*.9);
+  vec2 p=vec2(-.019,.13)+.14*orbit(t*.35+2.);
   if(i>1)
-    p+=.036*vec2(cos(t*2.2),sin(t*2.2));
+    p+=.036*orbit(t*2.2);
   return p;
 }
 vec2 hit(vec2 h,float d,float m)
@@ -519,11 +577,11 @@ vec2 hit(vec2 h,float d,float m)
     vec2(d,m):
     h;
 }
-vec2 field(vec2 p)
+vec2 field(vec2 p,bool down)
 {
   vec2 q=vec2(-.019-abs(p.x+.019),p.y),h=vec2(-min(boxDist(p-vec2(0,-.155),vec2(.26,.445)),length(p-vec2(0,.29))-.26),1);
-  h=hit(hit(hit(hit(h,min(segDist(p,vec2(.224,-.6),vec2(.224,.2))-.004,boxDist(p-vec2(.244,-.55),vec2(.02,.05))),1.),min(segDist(q,vec2(-.219,-.2),vec2(-.219,-.33)),segDist(q,vec2(-.219,-.33),vec2(-.114,-.415)))-.006,2.),triDist(q,vec2(-.174,-.2),vec2(-.174,-.305),vec2(-.119,-.345))-.005,3.),min(triDist(q,vec2(-.262,.08),vec2(-.212,-.03),vec2(-.262,-.06)),min(segDist(q,vec2(-.109,.4),vec2(-.109,.44)),segDist(q,vec2(-.049,.4),vec2(-.049,.44))))-.005,13.);
-  if(vel.y<0.)
+  h=hit(hit(hit(hit(hit(h,min(segDist(p,vec2(.224,-.6),vec2(.224,.2))-.004,boxDist(p-vec2(.244,-.55),vec2(.02,.05))),1.),min(segDist(q,vec2(-.219,-.2),vec2(-.219,-.33)),segDist(q,vec2(-.219,-.33),vec2(-.114,-.415)))-.006,2.),triDist(q,vec2(-.174,-.2),vec2(-.174,-.305),vec2(-.119,-.345))-.005,3.),min(triDist(q,vec2(-.262,.08),vec2(-.212,-.03),vec2(-.262,-.06)),min(segDist(q,vec2(-.109,.4),vec2(-.109,.44)),segDist(q,vec2(-.049,.4),vec2(-.049,.44))))-.005,13.),min(length(q-vec2(-.154,-.12)),length(q-vec2(-.064,-.15)))-.009,14.);
+  if(down)
     h=hit(h,segDist(p,vec2(.222,.2),vec2(.262,.235))-.002,1.);
   for(int i=0;i<2;i++)
     h=hit(h,flipperDist(p,i),4.+float(i));
@@ -536,14 +594,13 @@ vec2 field(vec2 p)
         .008),7.+float(i));
   return h;
 }
-vec2 fieldNormal(vec2 p)
+bool multiball()
 {
-  vec2 e=vec2(1e-4,0);
-  return normalize(vec2(field(p+e).x-field(p-e).x,field(p+e.yx).x-field(p-e.yx).x));
+  return ballCount+pending>1;
 }
 vec2 surfaceVelocity(vec2 p,float m)
 {
-  if(m>=7.)
+  if(m>=7.&&m<10.)
     {
       int i=int(m-7.);
       return(planetPos(i,time+.01)-planetPos(i,time-.01))*50.;
@@ -558,63 +615,143 @@ vec2 surfaceVelocity(vec2 p,float m)
     }
   return vec2(0);
 }
-void bumper(int i,vec2 n,int points)
+void bumper(int b,int i,vec2 n,int points)
 {
   if(flash[i]<.8)
     {
-      if(i==0)
-        hitStop=.05;
-      vel+=n*.55;
+      vel[b]+=n*.55;
       flash[i]=1.;
       score+=points*mult;
       bumperEvents++;
       shake=max(shake,.4);
+      if(i==0)
+        {
+          hitStop=.05;
+          if(multiball()&&jackpotLit>0)
+            jackpotLit=0,score+=jackpot*mult,jackpot+=2500,jackpotFlash=1.,hitStop=.2,shake=1.,slingEvents++;
+        }
     }
 }
-void collide()
+void addBalls(int n)
 {
-  vec2 h=field(ball);
+  pending=min(pending+n,3-ballCount);
+}
+void target(vec2 p)
+{
+  int k=int(clamp(floor((p.x+.019)/.09+2.),0.,3.));
+  if(multiball())
+    jackpotLit=1;
+  if((targetsLit&1<<k)!=0)
+    {
+      score+=50*mult;
+      return;
+    }
+  targetsLit|=1<<k;
+  score+=250*mult;
+  slingEvents++;
+  if(targetsLit==15)
+    {
+      targetsLit=0;
+      shake=1.;
+      flash=vec4(1);
+      bumperEvents++;
+      if(multiball())
+        {
+          if(ballAdded==0)
+            addBalls(1),ballAdded=1;
+          else
+             score+=25000*mult;
+          hitStop=.2;
+          return;
+        }
+      if(++sets<=multiballs)
+        {
+          score+=2000*mult;
+          hitStop=.15;
+          return;
+        }
+      sets=0;
+      multiballs++;
+      score+=5000*mult;
+      addBalls(2);
+      ballSave=max(ballSave,12.);
+      alignTime=.001;
+      if(jackpot==0)
+        jackpot=5000;
+      jackpotLit=1;
+      launchDelay=1.5;
+      hitStop=.4;
+    }
+}
+void collide(int b)
+{
+  vec2 p=ball[b],h=field(p,vel[b].y<0.);
   if(h.x>=.0135)
     return;
   float m=h.y;
-  vec2 n=fieldNormal(ball),vs=surfaceVelocity(ball-n*h.x,m);
-  ball+=n*(.0135-h.x);
-  h=vel-vs;
+  vec2 e=vec2(1e-4,0),n=normalize(vec2(field(p+e,vel[b].y<0.).x-field(p-e,vel[b].y<0.).x,field(p+e.yx,vel[b].y<0.).x-field(p-e.yx,vel[b].y<0.).x));
+  e=surfaceVelocity(p-n*h.x,m);
+  ball[b]+=n*(.0135-h.x);
+  h=vel[b]-e;
   float vn=dot(h,n);
   if(vn>=0.)
     return;
-  vel=vs+h-(1.+(m==2.||m==3.||m==13.?
+  vel[b]=e+h-(1.+(m==2.||m==3.||m==13.?
     .7:
     m==4.||m==5.?
       .45:
       .5))*vn*n;
   if(m==6.)
-    bumper(0,n,100);
-  if(m>=7.)
-    bumper(int(m-7.)+1,n,m>8.5?
+    bumper(b,0,n,100);
+  if(m>=7.&&m<10.)
+    bumper(b,int(m-7.)+1,n,m>8.5?
       500:
       50);
+  if(m==14.&&vn<-.2)
+    target(p);
   if(m==3.)
     {
-      int side=ball.x>-.019?
+      int side=p.x>-.019?
         1:
         0;
       if((side>0?
         -n.x:
         n.x)>.5&&slingFlash[side]<.5)
-        vel+=n*.75,slingFlash[side]=1.,score+=10*mult,slingEvents++,shake=max(shake,.3);
+        vel[b]+=n*.75,slingFlash[side]=1.,score+=10*mult,slingEvents++,shake=max(shake,.3);
     }
+}
+void collideBalls()
+{
+  for(int i=0;i<ballCount;i++)
+    for(int j=i+1;j<ballCount;j++)
+      {
+        vec2 d=ball[j]-ball[i];
+        float l=length(d);
+        if(l>.027||l<1e-6)
+          continue;
+        d/=l;
+        ball[i]-=d*(.0135-l*.5);
+        ball[j]+=d*(.0135-l*.5);
+        l=dot(vel[j]-vel[i],d);
+        if(l<0.)
+          vel[i]+=d*l*.95,vel[j]-=d*l*.95;
+      }
+}
+bool inLane(vec2 p)
+{
+  return p.x>.226&&p.y<-.3;
 }
 void serve()
 {
-  ball=vec2(.244,-.4865);
-  vel=vec2(0);
+  ball[0]=vec2(.244,-.4865);
+  vel[0]=vec2(0);
+  ballCount=1;
   ballSave=8.;
 }
-void lanes()
+void lanes(vec2 p)
 {
-  int k=int(floor((ball.x+.019+.09)/.06));
-  if(ball.y>.4&&ball.y<.44&&k>=0&&k<3&&(lanesLit&1<<k)==0)
+  int k=int(floor((p.x+.019+.09)/.06));
+  if(p.y>.4&&p.y<.44&&k>=0&&k<3&&(lanesLit&1<<k)==0)
     lanesLit|=1<<k,score+=100*mult,slingEvents++;
   if(lanesLit==7)
     lanesLit=0,mult=min(mult+1,5),score+=1000*mult,flash=vec4(1),bumperEvents++,shake=1.,hitStop=.15;
@@ -622,28 +759,40 @@ void lanes()
 void update()
 {
   drainFlash=max(drainFlash-DT*2.,0.);
+  jackpotFlash=max(jackpotFlash-DT*2.,0.);
   if(hitStop>0.)
     {
       hitStop-=DT;
       return;
     }
   time+=DT;
+  if(alignTime>0.)
+    alignTime=alignTime>4.?
+      0.:
+      alignTime+DT;
   if((++steps&1)==0)
     {
       for(int i=31;i>0;i--)
         trail[i]=trail[i-1];
-      trail[0]=vec4(ball,length(vel),0);
+      trail[0]=vec4(ball[0],length(vel[0]),0);
     }
   flash=max(flash-DT*4.,0.);
   slingFlash=max(slingFlash-DT*4.,0.);
   shake=max(shake-DT*3.,0.);
   if(balls<=0)
     {
-      ball=vec2(0,-2);
+      ballCount=0;
+      pending=0;
       gameOver-=DT;
       if(gameOver<=0.)
-        score=0,balls=3,mult=1,lanesLit=0,serve();
+        score=0,balls=3,mult=1,lanesLit=0,targetsLit=0,jackpot=0,sets=0,multiballs=0,serve();
     }
+  launchDelay-=DT;
+  bool laneFree=true;
+  for(int b=0;b<ballCount;b++)
+    laneFree=laneFree&&!inLane(ball[b]);
+  if(pending>0&&launchDelay<=0.&&laneFree)
+    ball[ballCount]=vec2(.244,-.45),vel[ballCount++]=vec2(0,2.8),pending--,launchDelay=.8,flipperEvents++;
   vec2 up=iInput.xy;
   for(int i=0;i<2;i++)
     if(up[i]>prevInput[i])
@@ -664,44 +813,70 @@ void update()
           flipVel[i]=speed/h;
           flip[i]+=speed;
         }
-      if(balls>0)
-        vel.y-=1.1*h,ball+=vel*h,collide();
+      for(int b=0;b<ballCount;b++)
+        vel[b].y-=1.1*h,ball[b]+=vel[b]*h,collide(b);
+      collideBalls();
     }
-  lanes();
-  if(ball.x<.22)
+  laneFree=false;
+  float lowest=1.;
+  up=ball[0];
+  for(int b=0;b<ballCount;b++)
+    {
+      lanes(ball[b]);
+      laneFree=laneFree||ball[b].x<.22;
+      vel[b]*=1.-.1*DT;
+      float speed=length(vel[b]);
+      if(speed>3.2)
+        vel[b]*=3.2/speed;
+      if(ball[b].y<lowest)
+        lowest=ball[b].y,up=ball[b];
+    }
+  if(laneFree)
     ballSave=max(ballSave-DT,0.);
-  vel*=1.-.1*DT;
-  float speed=length(vel);
-  if(speed>3.2)
-    vel*=3.2/speed;
   if(iInput.z>0.)
     plunger=min(plunger+DT*1.2,1.);
   else if(plunger>0.)
     {
-      if(ball.x>.226&&ball.y<-.45)
-        vel.y=plunger*2.6+.4;
+      for(int b=0;b<ballCount;b++)
+        if(ball[b].x>.226&&ball[b].y<-.45)
+          vel[b].y=plunger*2.6+.4;
       plunger=0.;
     }
   if(iInput.z<0.&&prevInput.z>=0.&&shake<.5)
-    vel+=vec2(0,.25),shake=1.;
-  prevInput.xyz=iInput.xyz;
-  if(balls>0&&ball.y<-.53)
     {
-      drainEvents++;
+      for(int b=0;b<ballCount;b++)
+        vel[b]+=vec2(0,.25);
       shake=1.;
+    }
+  prevInput.xyz=iInput.xyz;
+  for(int b=ballCount-1;b>=0;b--)
+    if(ball[b].y<-.53)
+      {
+        drainEvents++;
+        shake=1.;
+        ball[b]=ball[--ballCount];
+        vel[b]=vel[ballCount];
+        if(ballSave>0.&&multiball())
+          addBalls(1);
+      }
+  if(!multiball())
+    ballAdded=0;
+  if(balls>0&&ballCount+pending==0)
+    {
       drainFlash=1.;
       if(ballSave>0.)
         serve(),ballSave=0.,flash=vec4(1);
       else
         {
           mult=1;
+          jackpot=0;
           if(--balls>0)
             serve();
           else
              gameOver=3.;
         }
     }
-  up=vec2(-.019+(ball.x+.019)*.15,clamp(ball.y,-.5,.5)*.06+-.1);
+  up=vec2(-.019+(up.x+.019)*.15,clamp(up.y,-.5,.5)*.06+-.1);
   cam+=(up-cam)*DT*3.;
 }
 void main()

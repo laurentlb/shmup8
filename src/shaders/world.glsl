@@ -23,6 +23,7 @@
 #define M_ARM 11.
 #define M_APRON 12.
 #define M_POST 13.
+#define M_TARGET 14.
 
 mat2 rot(float a)
 {
@@ -125,12 +126,38 @@ float planetRadius(int i)
     return i == 0 ? 0.015 : i == 1 ? 0.02 : 0.008;
 }
 
+// 0 to 1: the planets line up (multiball), then go back to their orbits.
+float alignment()
+{
+    return alignTime > 0. ? smoothstep(0., 0.8, alignTime) * smoothstep(4., 3., alignTime) : 0.;
+}
+
+// Angle a on an orbit, moved toward the alignment (pointing at the player).
+vec2 orbit(float a)
+{
+    a += alignment() * (mod(-PI / 2. - a + PI, 2. * PI) - PI);
+    return vec2(cos(a), sin(a));
+}
+
 vec2 planetPos(int i, float t)
 {
-    if (i == 0) return SUN + 0.075 * vec2(cos(t * 0.9), sin(t * 0.9));
-    vec2 p = SUN + 0.14 * vec2(cos(t * 0.35 + 2.), sin(t * 0.35 + 2.));
-    if (i > 1) p += 0.036 * vec2(cos(t * 2.2), sin(t * 2.2));
+    if (i == 0) return SUN + 0.075 * orbit(t * 0.9);
+    vec2 p = SUN + 0.14 * orbit(t * 0.35 + 2.);
+    if (i > 1) p += 0.036 * orbit(t * 2.2);
     return p;
+}
+
+// Star targets in an arc below the orrery (q: mirrored): round, so that the
+// ball can't get stuck against them.
+float targetDist(vec2 q)
+{
+    return min(length(q - vec2(CX - 0.135, -0.12)), length(q - vec2(CX - 0.045, -0.15))) - 0.009;
+}
+
+// Index of the target at p (0 to 3, from left to right).
+int targetIndex(vec2 p)
+{
+    return int(clamp(floor((p.x - CX) / 0.09 + 2.), 0., 3.));
 }
 
 vec2 hit(vec2 h, float d, float m)
@@ -138,8 +165,9 @@ vec2 hit(vec2 h, float d, float m)
     return d < h.x ? vec2(d, m) : h;
 }
 
-// Distance from p to the nearest collider (x) and its material (y).
-vec2 field(vec2 p)
+// Distance from p to the nearest collider (x) and its material (y), for a ball
+// going down or not (the lane gate).
+vec2 field(vec2 p, bool down)
 {
     vec2 q = mirror(p);
     vec2 h = vec2(-areaDist(p), M_WALL);
@@ -147,7 +175,8 @@ vec2 field(vec2 p)
     h = hit(h, railDist(q), M_RAIL);
     h = hit(h, slingDist(q), M_SLING);
     h = hit(h, postDist(q), M_POST);
-    if (vel.y < 0.)
+    h = hit(h, targetDist(q), M_TARGET);
+    if (down)
         h = hit(h, gateDist(p), M_WALL);
     for (int i = 0; i < 2; i++)
         h = hit(h, flipperDist(p, i), M_FLIP + float(i));

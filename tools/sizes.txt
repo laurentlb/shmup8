@@ -1,0 +1,9 @@
+# Size of the release executable: date, commit (+: uncommitted changes), bytes, subject.
+# Appended by tools/check.ps1 -Log. Older entries come from commit messages.
+2025-12-14 eeb2434 2106 Generate C++ file to embed the bytecode
+2025-12-14 d2b6b10 3078 Display score on game over, add explosionsm, better handling of time logic
+2025-12-14 b662a52 3156 New enemy types; add enemies over time
+2025-12-14 56b18a0 3123 Language: add support for inlining - and cleanup the game code
+2026-10-23 edd930a 6538 Use shiny newest Minifier
+2026-11-25 d378d99 4083 Move the game to shaders: compute gameplay, reactive audio
+2026-11-26 df83765 4083 Editor: rewind, replay inputs, game state panel, self-test

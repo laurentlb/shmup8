@@ -93,7 +93,7 @@ _su_block@8:
     xor     eax, eax
 su_render_sampleloop:
             push    eax		; Stack: Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
-            push    8		; Stack: VoicesRemain, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
+            push    9		; Stack: VoicesRemain, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr 
             mov     edx, dword su_synth_obj                       ; edx points to the synth object
             mov     ebx, dword su_patch_opcodes           ; COM points to vm code
             mov     esi, dword su_patch_operands             ; VAL points to unit params
@@ -214,6 +214,17 @@ su_run_vm_advance:
     jne     su_run_vm_loop                          ;   if there's more voices to process, goto vm_loop    
     popad  ; Popped: eax, ecx = DelayWorkSpace, edx = Synth, ebx = OpcodeStream, esp, ebp = Voice, esi = OperandStream, edi. Stack: retaddr_su_run_vm, VoicesRemain, Sample, Row, GlobalTick, RandSeed, edi, esi, ebp, esp, ebx, edx, ecx, eax, retaddr_su_render_song, OutputBufPtr
     ret
+;-------------------------------------------------------------------------------
+;   ADDP opcode: add the two top most signals on the stack and pop
+;-------------------------------------------------------------------------------
+;   Mono:   a b -> a+b
+;   Stereo: a b c d -> a+c b+d
+;-------------------------------------------------------------------------------
+section .su_op_addp code align=1
+su_op_addp:
+    faddp   st1, st0
+    ret
+
 ;-------------------------------------------------------------------------------
 ;   MULP opcode: multiply the two top most signals on the stack and pop
 ;-------------------------------------------------------------------------------
@@ -674,6 +685,7 @@ su_vm_jumptable:
     dd    su_op_outaux
     dd    su_op_noise
     dd    su_op_filter
+    dd    su_op_addp
     dd    su_op_in
     dd    su_op_delay
     dd    su_op_out
@@ -691,6 +703,7 @@ su_vm_transformcounts:
     db    2
     db    2
     db    2
+    db    0
     db    0
     db    4
     db    1
@@ -735,14 +748,14 @@ su_delay_times:
 ;-------------------------------------------------------------------------------
 section .su_patch_opcodes data align=1
 su_patch_opcodes:
-    db 2,2,4,6,8,10,13,0,2,14,8,16,10,13,0,2,6,8,16,10,13,0,2,6,8,16,10,13,0,2,2,4,6,8,16,10,13,0,2,14,8,16,10,13,0,2,2,4,6,8,10,13,0,19,21,23,0
+    db 2,2,4,6,8,10,13,0,2,14,8,16,10,13,0,2,6,8,16,10,13,0,2,6,8,16,10,13,0,2,6,6,18,8,10,13,0,2,14,8,16,2,2,4,6,8,18,10,13,0,2,2,4,6,8,16,10,13,0,2,14,8,16,2,2,4,6,8,18,10,13,0,21,23,25,0
 
 ;-------------------------------------------------------------------------------
 ;    The parameters / inputs to each opcode
 ;-------------------------------------------------------------------------------
 section .su_patch_operands data align=1
 su_patch_operands:
-    db 0,64,0,0,128,0,48,0,0,128,96,72,0,52,64,0,128,64,128,64,64,90,0,0,52,0,0,128,64,128,96,128,16,80,20,12,0,72,0,60,128,64,64,0,100,64,128,32,40,64,64,64,64,0,0,68,0,64,128,64,64,0,40,64,128,16,56,90,64,48,22,40,0,62,0,0,128,0,60,0,0,128,88,72,0,70,64,0,48,64,128,16,70,128,64,64,22,14,0,80,0,0,128,64,128,34,80,64,64,120,30,0,80,0,0,128,0,72,0,0,128,88,72,0,40,64,0,20,64,128,32,64,80,60,2,80,128,70,60,0,1,60
+    db 0,64,0,0,128,0,48,0,0,128,96,72,0,52,64,0,128,64,128,64,64,62,0,0,52,0,0,128,64,128,96,128,16,80,14,10,0,72,0,60,128,64,64,0,100,64,128,32,40,64,64,64,44,0,0,68,0,64,128,64,64,0,40,64,128,16,56,90,64,48,16,30,0,76,0,0,128,76,64,0,128,64,110,64,93,64,0,128,64,48,64,64,36,56,0,44,0,0,128,64,128,40,100,64,0,54,0,0,128,0,52,0,0,128,80,136,0,40,64,0,128,64,128,64,64,70,6,0,90,0,0,128,0,84,0,0,128,36,72,0,52,64,0,30,64,128,32,56,128,64,64,60,64,0,40,0,0,128,64,128,80,128,16,0,50,0,0,128,0,44,0,0,128,92,136,0,82,64,0,128,64,128,64,64,34,20,2,80,128,70,60,0,1,60
 
 ;-------------------------------------------------------------------------------
 ;    Constants

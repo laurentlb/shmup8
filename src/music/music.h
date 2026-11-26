@@ -4,7 +4,7 @@
 #define SU_SAMPLES_PER_ROW 4410
 #define SU_ROWS 128
 #define SU_FIRST_SFX_VOICE 4
-#define SU_SFX_COUNT 3
+#define SU_SFX_COUNT 4
 
 extern "C" {
 	void __stdcall su_tick(int row);

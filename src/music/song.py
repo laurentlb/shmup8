@@ -52,6 +52,10 @@ def mulp():
     return unit("mulp")
 
 
+def addp():
+    return unit("addp")
+
+
 def lowpass(freq, res=128):
     return unit("filter", frequency=freq, resonance=res, lowpass=1, bandpass=0, highpass=0)
 
@@ -78,15 +82,22 @@ def instrument(name, units):
 
 
 MUSIC = [
-    instrument("Kick", swept(osc(0, 52), 48, 96, 64) + out(90, 0)),
-    instrument("Hat", [env(52), noise(), mulp(), highpass(96)] + out(20, 12, 80)),
-    instrument("Bass", [env(72, r=60), osc(1, 64, color=100), mulp(), lowpass(40, 64)] + out(64, 0)),
-    instrument("Arp", [env(68, r=64), osc(2, 64, color=40), mulp(), lowpass(56, 90)] + out(22, 40, 48)),
+    instrument("Kick", swept(osc(0, 52), 48, 96, 64) + out(62, 0)),
+    instrument("Hat", [env(52), noise(), mulp(), highpass(96)] + out(14, 10, 80)),
+    instrument("Bass", [env(72, r=60), osc(1, 64, color=100), mulp(), lowpass(40, 64)] + out(44, 0)),
+    instrument("Arp", [env(68, r=64), osc(2, 64, color=40), mulp(), lowpass(56, 90)] + out(16, 30, 48)),
 ]
 SFX = [  # same order as the event counters in src/shaders/state.glsl
-    instrument("Shot", swept(osc(2, 70, color=48), 60, 88, 62, [lowpass(70)]) + out(22, 14)),
-    instrument("Boom", [env(80), noise(), mulp(), lowpass(34, 80)] + out(120, 30)),
-    instrument("Hit", swept(osc(1, 40, color=20), 72, 88, 80) + out(80, 60)),
+    # bumpers: a bell, two sines with an inharmonic ratio
+    instrument("Chime", [env(76), osc(0, 76, gain=110), osc(0, 93, gain=48), addp(), mulp()] + out(36, 56)),
+    # flippers: a short low thunk and a click
+    instrument("Flipper", [env(44), noise(), mulp(), lowpass(40, 100)]
+               + swept(osc(0, 40), 52, 80, 54) + [addp()] + out(70, 6)),
+    # drain: a falling tone
+    instrument("Drain", swept(osc(1, 52, color=30), 84, 36, 90, [lowpass(56)]) + out(60, 64)),
+    # slingshots: a snap
+    instrument("Sling", [env(40), noise(), mulp(), highpass(80)]
+               + swept(osc(0, 82), 44, 92, 50) + [addp()] + out(34, 20)),
 ]
 GLOBAL = instrument("Global", [
     unit("in", channel=2, stereo=1),

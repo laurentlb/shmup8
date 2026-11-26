@@ -12,7 +12,7 @@ the rendering use the same shapes, including the planets that orbit the sun.
 
 ## Current state
 
-**Size:** 7411 bytes (Release), 7566 bytes (Snapshot, the fast build used to
+**Size:** 7411 bytes (Release, before the latest changes), 7693 bytes (Snapshot, the fast build used to
 follow the size), out of 8192. History in `tools/sizes.txt`.
 
 **Controls:** left / right arrows: flippers. Down: pull the plunger, release to
@@ -32,8 +32,10 @@ launch. Up: nudge. Escape: quit.
 * Star targets and multiball: four round targets below the orrery light up
   when hit. A full set aligns the planets (shockwave, beam of light) and
   starts a 3-ball multiball with a ball save; each multiball needs one more
-  set. During multiball the sun is the jackpot (it grows, and a star target
-  relights it); a set adds a ball once, then pays a super jackpot.
+  set. During multiball the sun is the jackpot: lit at the start, then a full
+  set of stars relights it and makes it grow (+2500). The first set also adds
+  a ball.
+* Big awards (jackpot, multiball, multiplier) blink in the score display.
 * Lamps: top lanes, multiplier, ball save, stars (blinks faster when it ends), a clock
   dial with a light chase around the sun.
 * Rendering: raymarched 3D with a warm key light (soft shadows), a cool fill
@@ -44,7 +46,8 @@ launch. Up: nudge. Escape: quit.
   starry night sky painted under the orrery, lamp inserts as colored glass.
   Noise everywhere (tarnish, stains, smudges, nebulae) against a too clean
   look. The table floats in a starfield.
-* Ball light trail: glows from blue to orange when the ball is fast.
+* Ball light trails (every ball during multiball): glow from blue to orange
+  when the ball is fast.
 * Post: thresholded mipmap bloom, lens ghost, chromatic aberration, color
   grading, vignette, grain.
 * Camera: the whole table is in view, leaning a little toward the ball; it

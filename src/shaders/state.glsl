@@ -41,5 +41,6 @@ layout(std430, binding = 0) buffer State {
     int sets;           // completed sets of targets toward the next multiball
     int multiballs;     // played in this game: each one needs one more set
     float jackpotFlash;
+    int award; float awardTime; // the last big award, shown in the display
     vec4 trail[TRAIL];  // recent ball positions (xy) and speeds (z), the newest first
 };

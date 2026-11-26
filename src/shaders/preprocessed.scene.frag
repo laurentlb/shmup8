@@ -60,6 +60,7 @@ layout(std430, binding = 0) buffer State {
     int sets;           
     int multiballs;     
     float jackpotFlash;
+    int award; float awardTime; 
     vec4 trail[TRAIL];  
 };
 // --------------------------------------------------------------------
@@ -604,15 +605,18 @@ vec3 light(vec3 l, vec3 color)
 }
 
 
+
 vec3 trailGlow(vec3 ro, vec3 rd, float tMax)
 {
     vec3 col = vec3(0);
-    for (int i = 0; i < TRAIL - 1; i++) {
-        vec3 a = vec3(trail[i].xy, BALL_R), b = vec3(trail[i + 1].xy, BALL_R);
-        
-        float t = dot(a - ro, rd), age = float(i) / float(TRAIL), w = BALL_R * (0.9 - 0.7 * age);
+    int n = max(ballCount, 1);
+    
+    float t = (BALL_R - ro.z) / rd.z;
+    for (int i = 0; i < TRAIL - n; i++) {
+        vec3 a = vec3(trail[i].xy, BALL_R), b = vec3(trail[i + n].xy, BALL_R);
+        float age = float(i) / float(TRAIL), w = BALL_R * (0.9 - 0.7 * age);
         float d = seg3(ro + rd * t, a, b);
-        if (t < tMax && distance(a, b) < 0.05) 
+        if (t < tMax && distance(a, b) < 0.1 && trail[i].w == trail[i + n].w) 
             col += mix(vec3(0.6, 0.8, 1), vec3(1, 0.3, 0.05), age) * smoothstep(0.4, 2., trail[i].z) * (1. - age)
                  * exp(-d * d / (w * w)) * 0.6;
     }
@@ -709,7 +713,8 @@ void main()
 
     vec3 amber = vec3(1, 0.45, 0.1) * (1. + 2. * max(max(flash.x, flash.y), max(flash.z, flash.w)));
     if (balls > 0) {
-        digits7(col, amber, uv * 18. - vec2(16.5, 8.), 18., uint(score), 7);
+        
+        digits7(col, amber * (awardTime > 0. ? 3. * step(0.4, fract(awardTime * 3.)) : 1.), uv * 18. - vec2(16.5, 8.), 18., uint(awardTime > 0. ? award : score), 7);
         digits7(col, amber * 0.6, uv * 18. - vec2(-16.5, 8.), 18., uint(balls), 1);
     } else {
         digits7(col, amber, uv * 6. - vec2(1.8, 0), 6., uint(score), 7);

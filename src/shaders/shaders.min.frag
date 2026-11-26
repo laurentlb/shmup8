@@ -33,6 +33,8 @@ layout(std430, binding = 0)buffer State{
   int sets;
   int multiballs;
   float jackpotFlash;
+  int award;
+  float awardTime;
   vec4 trail[32];
 };
 out vec4 fragColor;
@@ -385,11 +387,13 @@ vec3 light(vec3 l,vec3 color)
 vec3 trailGlow(vec3 ro,vec3 rd,float tMax)
 {
   vec3 col=vec3(0);
-  for(int i=0;i<31;i++)
+  int n=max(ballCount,1);
+  float t=(.0135-ro.z)/rd.z;
+  for(int i=0;i<32-n;i++)
     {
-      vec3 a=vec3(trail[i].xy,.0135),b=vec3(trail[i+1].xy,.0135);
-      float t=dot(a-ro,rd),age=float(i)/float(32),w=.0135*(.9-.7*age),d=seg3(ro+rd*t,a,b);
-      if(t<tMax&&length(a-b)<.05)
+      vec3 a=vec3(trail[i].xy,.0135),b=vec3(trail[i+n].xy,.0135);
+      float age=float(i)/float(32),w=.0135*(.9-.7*age),d=seg3(ro+rd*t,a,b);
+      if(t<tMax&&length(a-b)<.1&&trail[i].w==trail[i+n].w)
         col+=mix(vec3(.6,.8,1),vec3(1,.3,.05),age)*smoothstep(.4,2.,trail[i].z)*(1.-age)*exp(-d*d/(w*w))*.6;
     }
   return col;
@@ -468,7 +472,11 @@ void main()
   col=mix(col,col.x*vec3(.9,.1,.05),drainFlash*.8);
   bloom=vec3(1,.45,.1)*(1.+2.*max(max(flash.x,flash.y),max(flash.z,flash.w)));
   if(balls>0)
-    digits7(col,bloom,uv*18.-vec2(16.5,8),18.,uint(score),7),digits7(col,bloom*.6,uv*18.-vec2(-16.5,8),18.,uint(balls),1);
+    digits7(col,bloom*(awardTime>0.?
+      3.*step(.4,fract(awardTime*3.)):
+      1.),uv*18.-vec2(16.5,8),18.,uint(awardTime>0.?
+      award:
+      score),7),digits7(col,bloom*.6,uv*18.-vec2(-16.5,8),18.,uint(balls),1);
   else
      digits7(col,bloom,uv*6.-vec2(1.8,0),6.,uint(score),7);
   fragColor=vec4(col,1);
@@ -509,6 +517,8 @@ layout(std430, binding = 0)buffer State{
   int sets;
   int multiballs;
   float jackpotFlash;
+  int award;
+  float awardTime;
   vec4 trail[32];
 };
 const float DT=1./120.;
@@ -609,6 +619,12 @@ vec2 surfaceVelocity(vec2 p,float m)
     }
   return vec2(0);
 }
+void bigAward(int points)
+{
+  award=points*mult;
+  score+=award;
+  awardTime=2.;
+}
 void bumper(int b,int i,vec2 n,int points)
 {
   if(flash[i]<.8)
@@ -622,7 +638,7 @@ void bumper(int b,int i,vec2 n,int points)
         {
           hitStop=.05;
           if(multiball()&&jackpotLit>0)
-            jackpotLit=0,score+=jackpot*mult,jackpot+=2500,jackpotFlash=1.,hitStop=.2,shake=1.,slingEvents++;
+            jackpotLit=0,bigAward(jackpot),jackpotFlash=1.,hitStop=.2,shake=1.,slingEvents++;
         }
     }
 }
@@ -633,8 +649,6 @@ void addBalls(int n)
 void target(vec2 p)
 {
   int k=int(clamp(floor((p.x+.019)/.09+2.),0.,3.));
-  if(multiball())
-    jackpotLit=1;
   if((targetsLit&1<<k)!=0)
     {
       score+=50*mult;
@@ -651,22 +665,24 @@ void target(vec2 p)
       bumperEvents++;
       if(multiball())
         {
+          jackpotLit=1;
+          jackpot+=2500;
+          bigAward(2500);
           if(ballAdded==0)
-            addBalls(1),ballAdded=1;
-          else
-             score+=25000*mult;
+            addBalls(1);
+          ballAdded=1;
           hitStop=.2;
           return;
         }
       if(++sets<=multiballs)
         {
-          score+=2000*mult;
+          bigAward(2000);
           hitStop=.15;
           return;
         }
       sets=0;
       multiballs++;
-      score+=5000*mult;
+      bigAward(5000);
       addBalls(2);
       ballSave=max(ballSave,12.);
       alignTime=.001;
@@ -745,15 +761,17 @@ void serve()
 void lanes(vec2 p)
 {
   int k=int(floor((p.x+.019+.09)/.06));
-  if(p.y>.4&&p.y<.44&&k>=0&&k<3&&(lanesLit&1<<k)==0)
-    lanesLit|=1<<k,score+=100*mult,slingEvents++;
+  if(p.y>.4&&p.y<.44&&k>=0&&k<3)
+    if((lanesLit&1<<k)==0)
+      lanesLit|=1<<k,score+=100*mult,slingEvents++;
   if(lanesLit==7)
-    lanesLit=0,mult=min(mult+1,5),score+=1000*mult,flash=vec4(1),bumperEvents++,shake=1.,hitStop=.15;
+    lanesLit=0,mult=min(mult+1,5),bigAward(1000),flash=vec4(1),bumperEvents++,shake=1.,hitStop=.15;
 }
 void update()
 {
   drainFlash=max(drainFlash-DT*2.,0.);
   jackpotFlash=max(jackpotFlash-DT*2.,0.);
+  awardTime=max(awardTime-DT,0.);
   if(hitStop>0.)
     {
       hitStop-=DT;
@@ -764,11 +782,12 @@ void update()
     alignTime=alignTime>4.?
       0.:
       alignTime+DT;
-  if((++steps&1)==0)
+  if((++steps&1)==0||ballCount>1)
     {
       for(int i=31;i>0;i--)
         trail[i]=trail[i-1];
-      trail[0]=vec4(ball[0],length(vel[0]),0);
+      int b=steps%max(ballCount,1);
+      trail[0]=vec4(ball[b],length(vel[b]),b);
     }
   flash=max(flash-DT*4.,0.);
   slingFlash=max(slingFlash-DT*4.,0.);

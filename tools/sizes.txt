@@ -1,4 +1,4 @@
-# Size of the release executable: date, commit (+: uncommitted changes), bytes, subject.
+# Size of the executable: date, commit (+: uncommitted changes), bytes, subject.
 # Appended by tools/check.ps1 -Log. Older entries come from commit messages.
 2025-12-14 eeb2434 2106 Generate C++ file to embed the bytecode
 2025-12-14 d2b6b10 3078 Display score on game over, add explosionsm, better handling of time logic
@@ -12,3 +12,5 @@
 2026-11-26 32fd4ad 5928 Rules and juice: top lanes, multiplier, ball save, hit-stop, drain flash
 2026-11-26 fbf1e5c 5963 Whole table in view, slower ball
 2026-11-26 88c91d7+ 6535 Release: HASHTRIES 100; check.ps1 retries a crashed Crinkler link
+# From here: the Snapshot configuration (Crinkler 3.0b, instant mode). Release
+# was 6526 bytes with Crinkler 3.0b at this point, Snapshot 6695.

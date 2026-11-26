@@ -12,7 +12,8 @@ the rendering use the same shapes, including the planets that orbit the sun.
 
 ## Current state
 
-**Size:** 6535 bytes (release, Crinkler), out of 8192. History in `tools/sizes.txt`.
+**Size:** 6526 bytes (Release), 6695 bytes (Snapshot, the fast build used to
+follow the size), out of 8192. History in `tools/sizes.txt`.
 
 **Controls:** left / right arrows: flippers. Down: pull the plunger, release to
 launch. Up: nudge. Escape: quit.
@@ -129,8 +130,11 @@ and the minified shaders of the release play and render like the editor's
 (gameplay over 3 s, within a float tolerance since pinball is chaotic; rendering
 of the same state).
 A successful release build doesn't prove that: the shaders are only compiled
-when the game starts. `-Log` appends the size to `tools/sizes.txt`. Crinkler 2.3 sometimes crashes at
-random ("Oops! Crinkler has crashed"); the script retries the build.
+when the game starts. `-Log` appends the size to `tools/sizes.txt`. It builds the Snapshot
+configuration (Crinkler's instant mode, 5 s); `-Config Release` for the
+smallest executable (about 170 bytes smaller, 30 s).
+
+The linker is Crinkler 3.0b (`link.exe`); its executables need SSE4.2.
 
 ---
 

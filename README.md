@@ -12,7 +12,7 @@ the rendering use the same shapes, including the planets that orbit the sun.
 
 ## Current state
 
-**Size:** 6949 bytes (Snapshot, the fast build used to follow the size;
+**Size:** 7704 bytes (Snapshot, the fast build used to follow the size;
 Release is about 170 bytes smaller), out of 8192. History in `tools/sizes.txt`.
 
 **Controls:** left / right arrows: flippers. Down: pull the plunger, release to
@@ -29,7 +29,12 @@ launch. Up: nudge. Escape: quit.
 * Rules: 3 balls, score, game over screen, a new game after 3 s. Top lanes:
   rolling through all three raises the multiplier (x2 to x5), and the flippers
   move the lit lanes. Ball save during the first 8 s of each ball.
-* Lamps: top lanes, multiplier, ball save (blinks faster when it ends), a clock
+* Star targets and multiball: four round targets below the orrery light up
+  when hit. A full set aligns the planets (shockwave, beam of light) and
+  starts a 3-ball multiball with a ball save; each multiball needs one more
+  set. During multiball the sun is the jackpot (it grows, and a star target
+  relights it); a set adds a ball once, then pays a super jackpot.
+* Lamps: top lanes, multiplier, ball save, stars (blinks faster when it ends), a clock
   dial with a light chase around the sun.
 * Rendering: raymarched 3D with a warm key light (soft shadows), a cool fill
   light, the sun as a point light and four warm GI lamps along the walls;
@@ -49,7 +54,7 @@ launch. Up: nudge. Escape: quit.
 * Sound: music; a chime for bumpers, a thunk for flippers, a snap for
   slingshots and lanes, a falling tone for drains.
 
-**Not yet:** targets, multiball, ramps, tilt, a title screen, music that fits
+**Not yet:** ramps, tilt, a title screen, music that fits
 the theme, hand-tuned flipper feel.
 
 This branch started from the engine of the shoot 'em up released at
@@ -109,10 +114,10 @@ out\cat-debug.exe --capture --video replay.mp4 --keys inputs.txt
 out\cat-debug.exe --capture --end 10 --trace 0.1
 ```
 
-By default, a bot plays: it flips when the ball comes near a flipper, and
+By default, a bot plays: it flips when a ball comes near a flipper, and
 pulls the plunger (`--keys auto` for fixed scripted inputs).
 
-`--trace` prints the state (the fields that are not arrays) at an interval:
+`--trace` prints the state (small arrays included) at an interval:
 handy to follow the ball.
 
 See `src/edit/capture.h` for the options.

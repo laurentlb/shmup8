@@ -80,10 +80,12 @@ layout(std430, binding = 0) buffer State {
 
 
 
+
+
+
+
+
 #define PI 3.14159
-#define NPTS 10
-#define CW 3.5      
-#define CH 5.5      
 #define R_BODY 0.5  
 #define EYE 1.      
 
@@ -91,72 +93,155 @@ layout(std430, binding = 0) buffer State {
 #define GOLD vec3(1, .75, .4)
 #define RED vec3(1, .05, .12)
 
-const vec3 PTS[NPTS] = vec3[](
-    vec3(0, 0, 0), vec3(36, 0, 0), vec3(54, 12, 0), vec3(54, 30, 0), vec3(54, 46, 4),
-    vec3(30, 56, 4), vec3(2, 56, 4), vec3(-14, 46, 4), vec3(-20, 30, 0), vec3(-20, 14, 0));
-
-const vec4 ARENAS[2] = vec4[](vec4(54, 12, 15, 12), vec4(-20, 14, 11, 9));
 
 
+#define NI 13
+const vec3 IN_LO[NI] = vec3[](
+    vec3(0, 0, -6),     
+    vec3(-3, 0, -2.5),  
+    vec3(39, -4, -2.5), 
+    vec3(52, -4, -16),  
+    vec3(60, -7, -8),   
+    vec3(83, -4, -2.5), 
+    vec3(84, -4, -2.5), 
+    vec3(83, 1, 11),    
+    vec3(24, 1, 8),     
+    vec3(50, 1, 11),    
+    vec3(19, 1, 26),    
+    vec3(-8, -3, 16),   
+    vec3(-8, -3, -2.5));
+const vec3 IN_HI[NI] = vec3[](
+    vec3(40, 9, 6), vec3(1, 4.5, 2.5), vec3(53, 4.5, 2.5), vec3(84, 10, 16), vec3(76, -3.9, 8),
+    vec3(86, .5, 2.5), vec3(90, 6.5, 16), vec3(86, 5.5, 16), vec3(52, 7.2, 34), vec3(54, 5, 16),
+    vec3(25, 5, 32), vec3(20, 10, 34), vec3(-2, 4.5, 17));
 
 
-int tSeg;
-float tU, tLat, tFloor, tArena;
+#define NS 9
+const vec3 SO_LO[NS] = vec3[](
+    vec3(4, 0, -6), vec3(4, 0, 3.5),  
+    vec3(59, -7.5, -2),               
+    vec3(52, .5, 11),                 
+    vec3(52, 1, 10.8),                
+    vec3(84, -4, 11),                 
+    vec3(14, -3, 24),                 
+    vec3(-8, -3, -2.5),               
+    vec3(39, -4, -2.5));              
+const vec3 SO_HI[NS] = vec3[](
+    vec3(36, 1, -3.5), vec3(36, 1, 6), vec3(77, -4, 2), vec3(84, 1, 16), vec3(84, 2, 11.2),
+    vec3(90, 1, 16), vec3(20, 1, 34), vec3(-2, 0, 4), vec3(42, 0, 2.5));
+
+
+#define NST 5
+const vec3 ST_LO[NST] = vec3[](vec3(42, -4, -2.5), vec3(70, -7, 2), vec3(70, -7, -8), vec3(84, -4, 1), vec3(-8, -3, 4));
+const vec3 ST_HI[NST] = vec3[](vec3(50, 0, 2.5), vec3(76, -4, 8), vec3(76, -4, -2), vec3(90, 1, 11), vec3(-2, 0, 12));
+const int ST_DIR[NST] = int[](1, 0, 0, 2, 3);
+
+
+#define NR 22
+const vec3 ROUTE[NR] = vec3[](
+    vec3(3, 0, 0), vec3(38, 0, 0), vec3(42, 0, 0), vec3(51, -4, 0), vec3(59, -4, 0), vec3(77, -4, 0),
+    vec3(87, -4, 0), vec3(87, 1, 11), vec3(87, 1, 13.5), vec3(53, 1, 13.5), vec3(45, 1, 14), vec3(45, 1, 23),
+    vec3(33, 1, 23), vec3(33, 1, 29), vec3(22, 1, 29), vec3(15, 1, 30), vec3(10, -3, 31), vec3(-4, -3, 30),
+    vec3(-5, -3, 18), vec3(-5, -3, 12), vec3(-5, 0, 4), vec3(-5, 0, 0));
 
 
 
 
-uint seen = ~0u;
+uint seenIn = ~0u, seenSo = ~0u;
+float detail; 
 
 
-vec2 pillar(vec3 p)
+
+int tRoom;
+float tInside;
+vec3 tLo, tHi;
+
+
+float box(vec3 p, vec3 lo, vec3 hi)
 {
-    vec2 c = p.xz - ARENAS[0].xy;
-    float a = mod(atan(c.y, c.x) + PI / 6., PI / 3.) - PI / 6.;
-    return length(c) * vec2(cos(a), sin(a)) - vec2(8, 0);
+    vec3 q = abs(p - (lo + hi) * .5) - (hi - lo) * .5;
+    return length(max(q, 0.)) + min(max(q.x, max(q.y, q.z)), 0.);
+}
+
+float stairs(vec3 p, int i)
+{
+    vec3 lo = ST_LO[i], hi = ST_HI[i];
+    int dir = ST_DIR[i];
+    float len = dir < 2 ? hi.x - lo.x : hi.z - lo.z, rise = hi.y - lo.y;
+    float u = dir < 2 ? p.x - lo.x : p.z - lo.z;
+    if (dir % 2 > 0)
+        u = len - u;
+    float n = floor(rise / .25), run = len / n, d = 1e9;
+    if (detail > 0.) {
+        
+        float k = clamp(floor(u / run), 0., n - 1.);
+        for (int j = 0; j < 2; j++) {
+            float s = min(k + float(j), n - 1.), h = (s + 1.) * rise / n * .5;
+            vec2 e = abs(vec2(u - (s + .5) * run, p.y - lo.y - h)) - vec2(run * .5, h);
+            d = min(d, length(max(e, 0.)) + min(max(e.x, e.y), 0.));
+        }
+    } else 
+        d = (p.y - lo.y - rise * min(u / len + .5 / n, 1.)) * len / length(vec2(len, rise));
+    return max(d, box(p, lo, hi));
+}
+
+
+float columns(vec3 p, vec2 at, float s, float r, vec3 lo, vec3 hi)
+{
+    vec2 q = mod(p.xz - at + s * .5, s) - s * .5;
+    return max(length(q) - r, box(p, lo, hi));
 }
 
 
 float level(vec3 p)
 {
-    
-    
-    float lat = 1e9;
-    for (int i = 0; i < NPTS; i++) {
-        if ((seen >> i & 1u) == 0u)
+    float inside = 1e9;
+    for (int i = 0; i < NI; i++) {
+        if ((seenIn >> i & 1u) == 0u)
             continue;
-        vec3 a = PTS[i], b = PTS[(i + 1) % NPTS];
-        vec2 ab = b.xy - a.xy, ap = p.xz - a.xy;
-        float l = length(ab);
-        float h = clamp(dot(ap, ab) / (l * l), 0., 1.);
-        vec2 q = ap - ab * h;
-        if (length(q) < lat) {
-            lat = length(q);
-            tSeg = i;
-            tU = h * l;
-            tLat = (ab.x * q.y - ab.y * q.x) / l;
-            tFloor = mix(a.z, b.z, h);
+        float d = box(p, IN_LO[i], IN_HI[i]);
+        if (i == 8) {
+            
+            vec2 c = mod(p.xz - vec2(0, 2), 6.) - 3.; 
+            float y = max(p.y - 4., 0.);
+            d = max(d, min(length(vec2(c.x, y)), length(vec2(c.y, y))) - 3.);
+        }
+        if (d < inside) {
+            inside = d;
+            tRoom = i;
+            tLo = IN_LO[i];
+            tHi = IN_HI[i];
         }
     }
-    float inside = max(lat - CW, max(tFloor - p.y, p.y - tFloor - CH) * .95);
-    tArena = 1e9;
-    for (int i = 0; i < 2; i++) {
-        vec4 A = ARENAS[i];
-        tArena = min(tArena, max(length(p.xz - A.xy) - A.z, max(-p.y, p.y - A.w)));
+    tInside = inside;
+    float d = -inside;
+    for (int i = 0; i < NS; i++)
+        if ((seenSo >> i & 1u) != 0u)
+            d = min(d, box(p, SO_LO[i], SO_HI[i]));
+    for (int i = 0; i < NST; i++)
+        if ((seenSo >> (NS + i) & 1u) != 0u)
+            d = min(d, stairs(p, i));
+
+    
+    if ((seenIn & 1u) != 0u) {
+        
+        d = min(d, columns(vec3(p.x, p.y, abs(p.z)), vec2(1, 3.8), 6., .4, vec3(5, 0, 0), vec3(35, 9, 6)));
+        d = min(d, max(abs(mod(p.x - 1., 6.) - 3.) - .3, box(p, vec3(0, 8.3, -6), vec3(40, 9, 6))));
     }
-    float d = -min(inside, tArena);
-    
-    float u = mod(tU, 5.) - 2.5;
-    d = min(d, max(max(abs(u) - .3, -tArena), min(CW - .3 - abs(tLat), tFloor + CH - .6 - p.y)));
-    
-    
-    vec2 c = p.xz - ARENAS[0].xy;
-    float r = abs(length(c) - 8.) - 1.;
-    d = min(d, r > 1. ? r : length(pillar(p)) - 1.);
-    c = p.xz - ARENAS[1].xy;
-    r = abs(length(c) - 6.) - 1.2;
-    float a = mod(atan(c.y, c.x) - .39 + PI / 4., PI / 2.) - PI / 4.;
-    d = min(d, r > 1. ? r : length(length(c) * vec2(cos(a), sin(a)) - vec2(6, 0)) - 1.2);
+    if ((seenIn >> 3 & 1u) != 0u) {
+        
+        d = min(d, length(abs(p.xz - vec2(68, 0)) - 8.) - 1.2);
+        d = min(d, columns(p, vec2(56, 11.6), 8., .35, vec3(53, -4, 11), vec3(83, 1, 12)));
+        
+        if (detail > 0.)
+            d = min(d, box(p, vec3(60, -8, -8), vec3(76, -6.6, 8)));
+    }
+    if ((seenIn >> 8 & 1u) != 0u)
+        
+        d = min(d, columns(p, vec2(0, 2), 6., .5 + .15 * step(p.y, 1.4) + .2 * step(3.6, p.y), vec3(27, 1, 11), vec3(51, 8, 35)));
+    if ((seenIn >> 11 & 1u) != 0u)
+        
+        d = min(d, length(abs(p.xz - vec2(4, 25)) - 1.) - .35);
     return d;
 }
 
@@ -170,34 +255,40 @@ vec3 levelNormal(vec3 p)
 float trackLength()
 {
     float s = 0.;
-    for (int i = 0; i < NPTS; i++)
-        s += length(PTS[(i + 1) % NPTS].xy - PTS[i].xy);
+    for (int i = 0; i < NR; i++)
+        s += length(ROUTE[(i + 1) % NR] - ROUTE[i]);
     return s;
 }
 
 
-float trackPos()
+float trackPos(vec3 p)
 {
-    float s = tU;
-    for (int i = 0; i < tSeg; i++)
-        s += length(PTS[i + 1].xy - PTS[i].xy);
-    return s;
+    float best = 1e9, s = 0., at = 0.;
+    for (int i = 0; i < NR; i++) {
+        vec3 a = ROUTE[i], ab = ROUTE[(i + 1) % NR] - a;
+        float h = clamp(dot(p - a, ab) / dot(ab, ab), 0., 1.);
+        float d = length(p - a - ab * h);
+        if (d < best) {
+            best = d;
+            at = s + h * length(ab);
+        }
+        s += length(ab);
+    }
+    return at;
 }
 
 
 vec3 trackPoint(float s)
 {
     s = mod(s, trackLength());
-    for (int i = 0; i < NPTS; i++) {
-        vec3 a = PTS[i], b = PTS[(i + 1) % NPTS];
-        float l = length(b.xy - a.xy);
-        if (s < l) {
-            a = mix(a, b, s / l);
-            return a.xzy;
-        }
+    for (int i = 0; i < NR; i++) {
+        vec3 a = ROUTE[i], b = ROUTE[(i + 1) % NR];
+        float l = length(b - a);
+        if (s < l)
+            return mix(a, b, s / l);
         s -= l;
     }
-    return vec3(0);
+    return ROUTE[0];
 }
 // --------------------------------------------------------------------
 // Include end: world.glsl
@@ -235,7 +326,7 @@ void addSpark(vec3 p, float power)
 void newRun()
 {
     started = 1;
-    pos = vec3(2, R_BODY + .01, 0);
+    pos = vec3(5, R_BODY + .01, 0);
     vel = vec3(0);
     yawBase = -iInput[1].x;
     light = 1.;
@@ -362,8 +453,8 @@ void update()
         }
 
         
-        level(pos);
-        int q = int(trackPos() / trackLength() * 4.);
+        float along = trackPos(pos);
+        int q = int(along / trackLength() * 4.);
         if (q == (checkpoint + 1) % 4) {
             checkpoint = q;
             if (q == 0) {
@@ -383,7 +474,7 @@ void update()
         spawnTimer -= DT;
         if (alive < min(2 + 2 * lap, MAX_ENEMIES) && spawnTimer <= 0.) {
             spawnTimer = max(_TV(spawnDelay, 2.5) - .25 * float(lap), .7);
-            vec3 s = trackPoint(trackPos() + 25. + rnd() * 15.) + vec3(rnd() * 4. - 2., 1.8 + rnd() * 1.5, rnd() * 4. - 2.);
+            vec3 s = trackPoint(along + 25. + rnd() * 15.) + vec3(rnd() * 4. - 2., 1.8 + rnd() * 1.5, rnd() * 4. - 2.);
             for (int i = 0; i < MAX_ENEMIES; i++)
                 if (enemy[i].w <= 0.) {
                     enemy[i] = vec4(s, 2. + floor(float(lap) * .5));
@@ -516,7 +607,7 @@ void makeLights()
     vec3 f = vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
     vec3 r = normalize(cross(f, vec3(0, 1, 0))), u = cross(r, f);
     lightCount = 0;
-    addLight(eye + u * .4 - f * .3, GOLD * (light * _TV(lantern, 2.) + .05));
+    addLight(eye + u * .4 - f * .3, GOLD * (light * _TV(lantern, 1.2) + .05));
     addLight(eye + r * .2 - u * .2 + f * .55, GOLD * kick * kick * 6.);
     for (int i = 0; i < MAX_BOLTS; i++)
         addLight(bolt[i].xyz, GOLD * 3. * step(1e-4, bolt[i].w));

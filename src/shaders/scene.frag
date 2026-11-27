@@ -80,43 +80,54 @@ float capsule(vec3 p, vec3 a, vec3 b, float r)
 // The scene
 
 vec3 eye, camF, camR, camU, gunAt;
+uint seenX; // what a ray can meet besides the level: the enemies (bits 0 to 9), the gun (31)
 
-// Neon tubes along the walls, after level(p). Sets neonCol.
+// Neon tubes, after level(p); sets neonCol. Two tubes along the walls of each
+// room (color, and the lower tube's height above the floor; black: none), not
+// across the doorways; and a few others.
 vec3 neonCol;
-const vec3 NEON[NPTS] = vec3[](
-    vec3(.1, .6, 1), vec3(.1, .6, 1), vec3(1, .3, .05), vec3(1, .3, .05), vec3(1, .1, .5),
-    vec3(1, .1, .5), vec3(1, .1, .5), vec3(.5, .2, 1), vec3(.5, .2, 1), vec3(.1, 1, .6));
+const vec4 ROOM_NEON[NI] = vec4[](
+    vec4(.1, .6, 1, 1.25), vec4(0), vec4(.3, .45, .7, 4.2), vec4(1, .3, .05, .25), vec4(0), vec4(0),
+    vec4(.1, 1, .4, 5.3), vec4(0), vec4(.6, .15, 1, .25), vec4(0), vec4(0), vec4(1, .1, .5, .25), vec4(.2, .4, 1, 3.25));
+
+void tube(inout float d, float t, vec3 color)
+{
+    if (t < d) {
+        d = t;
+        neonCol = color;
+    }
+}
+
 float neon(vec3 p)
 {
-    // corridors: two tubes on each wall, not in the arenas
-    float y = p.y - tFloor;
-    float d = max(length(vec2(abs(tLat) - CW + .12, min(abs(y - .3), abs(y - CH + 1.3)))) - .05, -tArena);
-    neonCol = NEON[tSeg];
-    // arenas: two rings along the wall, not across the doorways
-    for (int i = 0; i < 2; i++) {
-        vec4 A = ARENAS[i];
-        float a = max(length(vec2(length(p.xz - A.xy) - A.z + .12, min(abs(p.y - .3), abs(p.y - A.w + 2.)))) - .05,
-                      CW + .3 - abs(tLat));
-        if (a < d) {
-            d = a;
-            neonCol = i > 0 ? vec3(.6, .1, 1) : vec3(1, .25, .05);
-        }
+    // the room's tubes, 0.12 m from its walls
+    vec4 c = ROOM_NEON[tRoom];
+    vec2 q = abs(p.xz - (tLo.xz + tHi.xz) * .5) - (tHi.xz - tLo.xz) * .5 + .12;
+    float y = p.y - tLo.y - c.w;
+    float d = c.r + c.b > 0. ? length(vec2(length(max(q, 0.)) + min(max(q.x, q.y), 0.), min(abs(y), abs(y - (tRoom == 3 ? 6. : 3.))))) - .05 : 1e9;
+    neonCol = c.rgb;
+    d = max(d, -.4 - tInside); // where the wall is (not in a doorway)
+    // the other tubes, computed only near them
+    float b = max(abs(p.x - 4.) - .1, box(p, IN_LO[0], IN_HI[0]));
+    if (b < 1.) {
+        // A: the start line, a white frame across the hall
+        vec2 e = abs(vec2(p.z, p.y - 4.)) - vec2(3.3, 4.);
+        b = length(vec2(max(e.x, e.y), p.x - 4.)) - .06;
     }
-    // rings around the pillars of arena 0
-    float a = abs(length(p.xz - ARENAS[0].xy) - 8.) - 1.1;
-    if (a < 1.)
-        a = length(vec2(length(pillar(p)) - 1.03, p.y - 2.5)) - .04;
-    if (a < d) {
-        d = a;
-        neonCol = vec3(1, .25, .05);
-    }
-    // the start line: a white frame across the corridor
-    vec2 b = abs(vec2(tLat, y - CH * .5)) - vec2(CW - .1, CH * .5 - .1);
-    a = max(length(vec2(max(b.x, b.y), p.x - 4.)) - .06, length(p.xz - vec2(4, 0)) - 6.);
-    if (a < d) {
-        d = a;
-        neonCol = vec3(1);
-    }
+    tube(d, b, vec3(1));
+    b = length(abs(p.xz - vec2(68, 0)) - 8.) - 1.3;
+    if ((seenIn >> 3 & 1u) != 0u && b < 1.)
+        // C: rings around the pit's pillars
+        b = length(vec2(b + .07, min(abs(p.y + 3.), abs(p.y - 3.)))) - .05;
+    tube(d, b, vec3(1, .3, .05));
+    b = max(abs(p.y - 4.4) - .1, box(p, vec3(27, 1, 11), vec3(51, 8, 35)));
+    if ((seenIn >> 8 & 1u) != 0u && b < 1.)
+        // F: rings under the pillars' capitals
+        b = max(length(vec2(length(mod(p.xz - vec2(3, 5), 6.) - 3.) - .7, p.y - 4.4)) - .04, b);
+    tube(d, b, vec3(.6, .15, 1));
+    if ((seenIn >> 11 & 1u) != 0u)
+        // G: the pylon's core
+        tube(d, length(p.xz - vec2(4, 25)) - .45, vec3(1, .3, .7));
     return d;
 }
 
@@ -149,14 +160,15 @@ vec2 enemyShape(vec3 p, int i)
 
 float gNeon; // the distance to the neon tubes, set by map()
 
+bool withNeon = true;
 vec2 map(vec3 p)
 {
     vec2 h = vec2(level(p), M_LEVEL);
-    gNeon = neon(p);
+    gNeon = !withNeon ? 1e9 : neon(p);
     if (gNeon < h.x)
         h = vec2(gNeon, M_NEON);
     for (int i = 0; i < MAX_ENEMIES; i++) {
-        if ((seen >> (10 + i) & 1u) == 0u)
+        if ((seenX >> i & 1u) == 0u)
             continue;
         float d = length(p - enemy[i].xyz) - 1.8;
         if (d > .3)
@@ -171,7 +183,7 @@ vec2 map(vec3 p)
     vec3 g = p - eye;
     vec3 l = vec3(dot(g, camR), dot(g, camU), dot(g, camF)) - gunAt;
     float d = length(l - vec3(0, 0, .03)) - .27;
-    if (seen < 1u << 31) // not on this ray
+    if (seenX < 1u << 31) // not on this ray
         return h;
     if (d > .1)
         h.x = min(h.x, d);
@@ -227,30 +239,35 @@ bool hitSphere(vec3 ro, vec3 rd, vec3 c, float r)
     return dot(o, o) - b * b < r * r && b > -r;
 }
 
-// Sets what the ray can meet (see seen).
+// What a ray can meet: the level's parts (see world.glsl), and the rest.
 void cull(vec3 ro, vec3 rd)
 {
-    seen = 0u;
-    for (int i = 0; i < NPTS; i++) {
-        vec3 a = PTS[i], b = PTS[(i + 1) % NPTS];
-        if (hitBox(ro, rd, vec3(min(a.x, b.x), min(a.z, b.z), min(a.y, b.y)) - vec3(CW + 1., 1, CW + 1.),
-                   vec3(max(a.x, b.x), max(a.z, b.z), max(a.y, b.y)) + vec3(CW + 1., CH + 1., CW + 1.)))
-            seen |= 1u << i;
-    }
+    seenIn = seenSo = seenX = 0u;
+    for (int i = 0; i < NI; i++)
+        if (hitBox(ro, rd, IN_LO[i] - 1., IN_HI[i] + 1.))
+            seenIn |= 1u << i;
+    for (int i = 0; i < NS; i++)
+        if (hitBox(ro, rd, SO_LO[i] - .5, SO_HI[i] + .5))
+            seenSo |= 1u << i;
+    for (int i = 0; i < NST; i++)
+        if (hitBox(ro, rd, ST_LO[i] - .5, ST_HI[i] + .5))
+            seenSo |= 1u << (NS + i);
     for (int i = 0; i < MAX_ENEMIES; i++)
         if (enemy[i].w > 0. && hitSphere(ro, rd, enemy[i].xyz, 2.))
-            seen |= 1u << (10 + i);
+            seenX |= 1u << i;
     if (hitSphere(ro, rd, eye + mat3(camR, camU, camF) * (gunAt + vec3(0, 0, .03)), .3))
-        seen |= 1u << 31;
+        seenX |= 1u << 31;
 }
 
 float occlusion(vec3 p, vec3 n)
 {
     float o = 0.;
-    for (int i = 1; i < 5; i++) {
-        float d = float(i) * .15;
+    withNeon = false;
+    for (int i = 1; i < 4; i++) {
+        float d = float(i) * .2;
         o += (d - map(p + n * d).x) / d;
     }
+    withNeon = true;
     return clamp(1. - o * .2, 0., 1.);
 }
 
@@ -290,21 +307,44 @@ vec3 material(vec3 p, float m)
         return vec3(.12);
     }
     level(p);
-    float floorY = tArena < .1 ? 0. : tFloor;
+    int r = tRoom;
     if (n.y > .7) {
-        // floor: plates, dirty, with puddles
-        vec2 g = abs(fract(p.xz * .5) - .5);
-        float wet = smoothstep(.5, .65, fbm(p.xz * .3) + .1 * fbm(p.xz * 3.));
-        rough = mix(.5, .02, wet);
-        return vec3(.04) * (.6 + .6 * fbm(p.xz * 2.)) * (1. - .5 * step(.48, max(g.x, g.y))) * (1. - .6 * wet);
+        if (p.y < -6.5) {
+            // the cistern's water: dark, a mirror with ripples
+            n = normalize(n + vec3(noise(p.xz * 3. + time) - .5, 0, noise(p.xz * 3. - time + 9.) - .5) * .06);
+            rough = .02;
+            return vec3(.005);
+        }
+        if (r == 2 || r == 6 || r == 12) {
+            // stairs and ramps: metal grating
+            vec2 g = abs(fract(p.xz * 4.) - .5);
+            metal = .5;
+            rough = .4;
+            return vec3(.07, .065, .06) * (.5 + .5 * fbm(p.xz * 5.)) * (1. - .7 * step(.3, min(g.x, g.y)));
+        }
+        // stone tiles, worn, with puddles (more in the cistern)
+        vec2 g = abs(fract(p.xz / 1.5) - .5);
+        float wet = smoothstep(.55, .7, fbm(p.xz * .3) + .1 * fbm(p.xz * 3.) + (r == 3 ? .15 : 0.));
+        rough = mix(.6, .03, wet);
+        return vec3(.055, .05, .045) * (.6 + .4 * hash(floor(p.xz / 1.5))) * (.7 + .5 * fbm(p.xz * 2.))
+             * (1. - .6 * step(.48, max(g.x, g.y))) * (1. - .5 * wet);
     }
     if (n.y < -.7)
-        return vec3(.015);
-    // walls: panels
-    rough = .35;
-    metal = .3;
-    float panel = step(.47, abs(fract((p.y - floorY) * .5) - .5));
-    return vec3(.05, .05, .06) * (.6 + .6 * fbm(vec2(p.x + p.z, p.y) * 3.)) * (1. - .5 * panel);
+        return vec3(.02);
+    float w = p.x + p.z;
+    if (r == 6) {
+        // the ramp room: metal panels
+        metal = .4;
+        rough = .35;
+        vec2 e = abs(fract(vec2(w, p.y) * vec2(.5, .5)) - .5);
+        return vec3(.06, .065, .07) * (.6 + .6 * fbm(vec2(w, p.y) * 3.)) * (1. - .6 * step(.48, max(e.x, e.y)));
+    }
+    // stone blocks: rows of 0.5 m, staggered
+    float y = p.y * 2., row = floor(y);
+    vec2 b = vec2(w + .5 * mod(row, 2.), y), e = abs(fract(b) - .5);
+    rough = .7;
+    return vec3(.07, .065, .06) * (.6 + .5 * hash(vec2(floor(b.x), row))) * (.6 + .6 * fbm(vec2(w, p.y) * 4.))
+         * (1. - .7 * step(.46, max(e.x, e.y * .9 + .05)));
 }
 
 vec3 shade(vec3 p, vec3 lp, vec3 c)
@@ -357,7 +397,7 @@ vec3 render(vec3 ro, vec3 rd)
         }
         float fog = exp(-h.x * fogDensity);
         col += weight * (mix(fogColor, c, fog) + glowSum * _TV(neonGlow, .05)
-                         + scattered(ro, rd, h.x) * fogDensity * _TV(scatter, .15));
+                         + scattered(ro, rd, h.x) * fogDensity * _TV(scatter, .1));
         if (h.y < 0.)
             break;
         weight *= (f0 + (1. - f0) * pow(1. - max(dot(n, v), 0.), 5.)) * (1. - rough) * fog;
@@ -376,6 +416,7 @@ void main()
     vec2 uv = (gl_FragCoord.xy * 2. - iFrame.xy) / iFrame.y;
 
     if (iFrame.w < .5) {
+        detail = 1.;
         // camera: head bob while running, shake
         float b = sin(bob * 2.8);
         eye = pos + vec3(0, EYE + b * .04, 0) + shake * shake * .05 * vec3(sin(time * 71.), sin(time * 83.), sin(time * 61.));

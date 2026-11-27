@@ -33,9 +33,16 @@ static void resetState()
 	GLCALL(PFNGLBUFFERDATAPROC, "glBufferData")(GL_SHADER_STORAGE_BUFFER, STATE_SIZE, stateCopy, GL_DYNAMIC_COPY);
 }
 
+// The scene is drawn at most RENDER_HEIGHT lines high, then scaled up (the
+// final pass, with the HUD, is at the full resolution).
+#define RENDER_HEIGHT 900
+static int sceneWidth, sceneHeight;
+
 // Texture 1 is the previous scene (input), texture 2 the current one (attached to sceneFramebuffer).
 static void initEngine(int width, int height)
 {
+	sceneHeight = height > RENDER_HEIGHT ? RENDER_HEIGHT : height;
+	sceneWidth = width * sceneHeight / height;
 	// In a compatibility context, buffers and textures don't need glGen* (framebuffers do).
 	GLCALL(PFNGLBINDBUFFERBASEPROC, "glBindBufferBase")(GL_SHADER_STORAGE_BUFFER, 0, 1);
 	resetState();
@@ -46,15 +53,15 @@ static void initEngine(int width, int height)
 	{
 		glBindTexture(GL_TEXTURE_2D, i);
 		// floats, otherwise trails don't fade out completely at high frame rates
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, 0);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, sceneWidth, sceneHeight, 0, GL_RGBA, GL_FLOAT, 0);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); // mipmaps: bloom
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	}
 	GLCALL(PFNGLFRAMEBUFFERTEXTURE2DPROC, "glFramebufferTexture2D")(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 2, 0);
-	glViewport(0, 0, width, height);
+	glViewport(0, 0, sceneWidth, sceneHeight);
 	glClear(GL_COLOR_BUFFER_BIT);
-	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, sceneWidth, sceneHeight);
 }
 
 // Vsync can be disabled in the driver settings: then don't draw much faster than
@@ -83,13 +90,15 @@ static void stepGame(GameInput input, int steps)
 static void drawGame(int width, int height, float frameTime, int target)
 {
 	GLCALL(PFNGLUSEPROGRAMPROC, "glUseProgram")(sceneProgram);
-	GLCALL(PFNGLUNIFORM4FPROC, "glUniform4f")(0, (float)width, (float)height, frameTime, 0);
+	GLCALL(PFNGLUNIFORM4FPROC, "glUniform4f")(0, (float)sceneWidth, (float)sceneHeight, frameTime, 0);
 	GLCALL(PFNGLBINDFRAMEBUFFERPROC, "glBindFramebuffer")(GL_FRAMEBUFFER, sceneFramebuffer);
+	glViewport(0, 0, sceneWidth, sceneHeight);
 	glRects(-1, -1, 1, 1);
-	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, sceneWidth, sceneHeight);
 	GLCALL(PFNGLGENERATEMIPMAPPROC, "glGenerateMipmap")(GL_TEXTURE_2D);
 
 	GLCALL(PFNGLUNIFORM4FPROC, "glUniform4f")(0, (float)width, (float)height, frameTime, 1);
 	GLCALL(PFNGLBINDFRAMEBUFFERPROC, "glBindFramebuffer")(GL_FRAMEBUFFER, target);
+	glViewport(0, 0, width, height);
 	glRects(-1, -1, 1, 1);
 }

@@ -160,9 +160,11 @@ namespace Capture
 	static GameInput botInput(const Host& host, float dt)
 	{
 		// the track's points (x, z, floor): keep in sync with src/shaders/world.glsl
-		static const float track[][3] = {
-			{ 0, 0, 0 }, { 36, 0, 0 }, { 54, 12, 0 }, { 54, 30, 0 }, { 54, 46, 4 },
-			{ 30, 56, 4 }, { 2, 56, 4 }, { -14, 46, 4 }, { -20, 30, 0 }, { -20, 14, 0 } };
+		static const float track[][3] = { // x, z, floor
+			{ 3, 0, 0 }, { 38, 0, 0 }, { 42, 0, 0 }, { 51, 0, -4 }, { 59, 0, -4 }, { 77, 0, -4 },
+			{ 87, 0, -4 }, { 87, 11, 1 }, { 87, 13.5f, 1 }, { 53, 13.5f, 1 }, { 45, 14, 1 }, { 45, 23, 1 },
+			{ 33, 23, 1 }, { 33, 29, 1 }, { 22, 29, 1 }, { 15, 30, 1 }, { 10, 31, -3 }, { -4, 30, -3 },
+			{ -5, 18, -3 }, { -5, 12, -3 }, { -5, 4, 0 }, { -5, 0, 0 } };
 		const int count = sizeof(track) / sizeof(track[0]);
 		static GameInput in;
 		auto getBufferSubData = (PFNGLGETBUFFERSUBDATAPROC)wglGetProcAddress("glGetBufferSubData");
@@ -171,12 +173,12 @@ namespace Capture
 			if (offset >= 0) getBufferSubData(GL_SHADER_STORAGE_BUFFER, offset, size, out);
 			return offset >= 0;
 		};
-		float pos[3] = {}, yawBase = 0, enemy[16][4] = {};
+		float pos[3] = {}, yawBase = 0, enemy[10][4] = {};
 		read("pos", pos, 12);
 		read("yawBase", &yawBase, 4);
 		read("enemy", enemy, sizeof(enemy));
 
-		// the closest point on the track, then a point ahead
+		// the closest point on the route (the floor is 0.5 m below the center)
 		int best = 0;
 		float bestDist = 1e9f, bestH = 0;
 		for (int i = 0; i < count; i++)
@@ -185,27 +187,33 @@ namespace Capture
 			const float* b = track[(i + 1) % count];
 			float bx = b[0] - a[0], bz = b[1] - a[1], px = pos[0] - a[0], pz = pos[2] - a[1];
 			float h = max(0.f, min(1.f, (px * bx + pz * bz) / (bx * bx + bz * bz)));
-			float dx = px - bx * h, dz = pz - bz * h, d = dx * dx + dz * dz;
+			float dx = px - bx * h, dz = pz - bz * h, dy = pos[1] - 0.5f - (a[2] + (b[2] - a[2]) * h);
+			float d = dx * dx + dz * dz + dy * dy;
 			if (d < bestDist) bestDist = d, best = i, bestH = h;
 		}
-		const float* a = track[best];
-		const float* b = track[(best + 1) % count];
-		const float* c = track[(best + 2) % count];
-		float segLength = sqrtf((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]));
-		float ahead = bestH + 6.f / segLength; // 6 m ahead
-		float tx, tz;
-		if (ahead < 1)
-			tx = a[0] + (b[0] - a[0]) * ahead, tz = a[1] + (b[1] - a[1]) * ahead;
-		else
+		// then 4 m ahead along the route
+		float left = 4, tx = pos[0], tz = pos[2];
+		for (int i = best, n = 0; n < count; i = (i + 1) % count, n++)
 		{
-			float k = min((ahead - 1) * segLength / 6.f, 1.f);
-			tx = b[0] + (c[0] - b[0]) * k * 0.2f, tz = b[1] + (c[1] - b[1]) * k * 0.2f;
+			const float* a = track[i];
+			const float* b = track[(i + 1) % count];
+			float bx = b[0] - a[0], bz = b[1] - a[1], l = sqrtf(bx * bx + bz * bz);
+			float h = i == best ? bestH : 0;
+			float rest = (1 - h) * l;
+			if (rest >= left)
+			{
+				h += left / max(l, 1e-3f);
+				tx = a[0] + bx * h, tz = a[1] + bz * h;
+				break;
+			}
+			left -= rest;
+			tx = b[0], tz = b[1];
 		}
 		float runYaw = atan2f(tz - pos[2], tx - pos[0]);
 
 		// aim at the nearest enemy in front
 		float aimYaw = runYaw, aimPitch = 0, nearest = 30;
-		for (int i = 0; i < 16; i++)
+		for (int i = 0; i < 10; i++)
 		{
 			if (enemy[i][3] <= 0) continue;
 			float dx = enemy[i][0] - pos[0], dy = enemy[i][1] - pos[1] - 0.9f, dz = enemy[i][2] - pos[2];

@@ -1,29 +1,44 @@
 # Neon shooter (work in progress)
 
-A first-person shooter for Windows, aiming at 16 kB: a loop of dark corridors
-and arenas lit by neon, raymarched, in fog. Your light is your time: it drains,
-and killing the creatures of the dark gives it back. Run lap after lap; the
-dark gets stronger.
+A first-person shooter for Windows, aiming at 16 kB: a loop of stone halls,
+stairs and crypts lit by neon, raymarched, in fog. Your light is your time: it
+drains, and killing the creatures of the dark gives it back. Run lap after lap;
+the dark gets stronger.
 
-![The pink corridor](screenshots/shot2.jpg)
+![The crypt](screenshots/shot2.jpg)
 
 | | |
 | --- | --- |
-| ![](screenshots/shot1.jpg) | ![](screenshots/shot3.jpg) |
+| ![The start hall](screenshots/shot1.jpg) | ![The balcony above the cistern](screenshots/shot3.jpg) |
 
 ## Current state
 
-**Size:** 7326 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
+**Size:** 8313 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
 
 **Controls:** WASD: move. Mouse: look. Left button: fire. Space: jump (hold to
 jump again on landing). Escape: quit.
 
-**Features (first playable slice):**
+**Features:**
 
-* Level: a closed loop of corridors (with ramps) through two round arenas with
-  pillars. Ribs and beams every 5 m, neon tubes along the walls, a different
-  color per section, a white frame at the start line. One set of distance
-  functions for both the collisions and the rendering.
+* Level: built like a Quake map, from boxes: rooms and doorways carved out of
+  the rock, then solids, stairs and details added. A loop of about 250 m
+  (a lap takes about 24 s at full speed):
+  * A, the start hall: a 40 m nave with raised side walkways, columns, beams,
+    and a white frame at the start line;
+  * B, stairs down 4 m;
+  * C, the cistern: a 32 m hall, 14 m high, with a flooded pit (the water
+    reflects the neon), a bridge across it, stairs out of the water, four
+    pillars, and a balcony along the north wall;
+  * D, a ramp up to the balcony: you run back above the cistern, looking down
+    on the bridge you crossed;
+  * F, the crypt: a low hall of pillars under groin vaults;
+  * G, the tower: drop 4 m from a ledge, around a pylon with a glowing core;
+  * H, stairs up to the start hall.
+
+  Stone blocks, stone tiles with puddles, metal gratings on the stairs, metal
+  panels in the ramp room. Each room has its own neon color, two tubes along
+  its walls (not across the doorways). One set of distance functions for both
+  the collisions (stairs are ramps there) and the rendering.
 * Movement: Quake-style: ground and air acceleration (air strafing works),
   friction, jumps, head bob.
 * Weapon: a light gun that fires gold bolts (they light the walls as they fly),
@@ -43,10 +58,12 @@ jump again on landing). Escape: quit.
   wet floors with reflections; bloom, tone mapping, vignette that closes in
   when the light is low, red flash when hurt.
 * Sound: a dark loop; shot, hit, kill, hurt, jump and lap sounds.
-* Performance: about 8 ms per frame at 1920x1080 on a laptop RTX 4070. Each ray
-  only looks at the corridors, enemies and gun it can meet.
+* Performance: the scene is drawn at most 900 lines high, then scaled up (the
+  HUD at full resolution); 12 to 15 ms per frame at 2560x1440 on a laptop RTX
+  4070. Each ray only looks at the boxes, enemies and gun it can meet; the neon
+  tubes are those of the room a point is in.
 
-**Not yet:** level design (the loop is a sketch, about 22 s), changes per lap,
+**Not yet:** changes per lap,
 upgrades, more enemy types, a boss, title screen, music that reacts.
 
 This branch started from the pinball branch, itself from the engine of the shoot 'em up released at

@@ -3,7 +3,7 @@
 #
 #   powershell -ExecutionPolicy Bypass -File tools\screenshots.ps1
 param(
-    [string[]]$Times = @("2.5", "10", "18.9")
+    [string[]]$Times = @("1.5", "15.5", "11")
 )
 
 $ErrorActionPreference = "Stop"

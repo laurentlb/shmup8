@@ -43,7 +43,7 @@ void addSpark(vec3 p, float power)
 void newRun()
 {
     started = 1;
-    pos = vec3(2, R_BODY + .01, 0);
+    pos = vec3(5, R_BODY + .01, 0);
     vel = vec3(0);
     yawBase = -iInput[1].x;
     light = 1.;
@@ -170,8 +170,8 @@ void update()
         }
 
         // laps: the quarters of the track must be reached in order
-        level(pos);
-        int q = int(trackPos() / trackLength() * 4.);
+        float along = trackPos(pos);
+        int q = int(along / trackLength() * 4.);
         if (q == (checkpoint + 1) % 4) {
             checkpoint = q;
             if (q == 0) {
@@ -191,7 +191,7 @@ void update()
         spawnTimer -= DT;
         if (alive < min(2 + 2 * lap, MAX_ENEMIES) && spawnTimer <= 0.) {
             spawnTimer = max(_TV(spawnDelay, 2.5) - .25 * float(lap), .7);
-            vec3 s = trackPoint(trackPos() + 25. + rnd() * 15.) + vec3(rnd() * 4. - 2., 1.8 + rnd() * 1.5, rnd() * 4. - 2.);
+            vec3 s = trackPoint(along + 25. + rnd() * 15.) + vec3(rnd() * 4. - 2., 1.8 + rnd() * 1.5, rnd() * 4. - 2.);
             for (int i = 0; i < MAX_ENEMIES; i++)
                 if (enemy[i].w <= 0.) {
                     enemy[i] = vec4(s, 2. + floor(float(lap) * .5));
@@ -324,7 +324,7 @@ void makeLights()
     vec3 f = vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
     vec3 r = normalize(cross(f, vec3(0, 1, 0))), u = cross(r, f);
     lightCount = 0;
-    addLight(eye + u * .4 - f * .3, GOLD * (light * _TV(lantern, 2.) + .05));
+    addLight(eye + u * .4 - f * .3, GOLD * (light * _TV(lantern, 1.2) + .05));
     addLight(eye + r * .2 - u * .2 + f * .55, GOLD * kick * kick * 6.);
     for (int i = 0; i < MAX_BOLTS; i++)
         addLight(bolt[i].xyz, GOLD * 3. * step(1e-4, bolt[i].w));

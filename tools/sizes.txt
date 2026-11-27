@@ -22,3 +22,4 @@
 2026-11-26 39a0c56 7757 Camera: still during play, a fly-in for a new game, slow motion instead of hit-stops
 2026-11-26 160d76c 7730 Camera: continuous, game over flies back to the intro close-up; no move on slow motion
 2026-11-27 6fae633 7326 Shooter: sound effects and a darker loop, gun with glowing bands, README
+2026-11-27 54463df 8313 Shooter: a Quake-like level built from boxes (hall, stairs, cistern with a flooded pit and balcony, crypt with vaults, tower)

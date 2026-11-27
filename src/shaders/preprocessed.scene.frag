@@ -410,7 +410,7 @@ float occlusion(vec3 p, vec3 n)
 
 vec3 env(vec3 rd)
 {
-    return vec3(0.05, 0.05, 0.09) * (0.4 + 0.6 * max(rd.z, 0.))
+    return vec3(0.5, 0.6, 0.8) * (0.4 + 0.6 * max(rd.z, 0.))
          + vec3(1, 0.85, 0.65) * 4. * smoothstep(0.75, 0.92, rd.z) * smoothstep(0.3, 0.15, abs(rd.x))
          + vec3(0.3, 0.5, 1) * 1.5 * smoothstep(0.85, 0.95, -rd.y) * smoothstep(0.3, 0.1, abs(rd.z - 0.3));
 }
@@ -472,8 +472,7 @@ vec3 material(vec3 p, float m)
         if (areaDist(p.xy) > 0.) {
             
             rough = 1.;
-            glow = vec3(0.8, 0.85, 1) * stars(p.xy, 40.) * 2. + vec3(0.02, 0.005, 0.04) * fbm(p.xy * 4.) * 2.;
-            return vec3(0);
+            return vec3(0.9, 0.85, 0.75) * (0.8 + 0.2 * fbm(p.xy * 8.)); 
         }
         vec2 s = p.xy - SUN;
         float r = length(s), a = atan(s.y, s.x);
@@ -481,7 +480,7 @@ vec3 material(vec3 p, float m)
         float plank = floor(p.x / 0.065);
         float x = p.x + 0.004 * sin(p.y * 25. + plank * 3.) + 0.002 * fbm(p.xy * 60.);
         float grain = sin(x * 700. + fbm(vec2(x * 90., p.y * 6.)) * 8.) * 0.5 + sin(x * 2300.) * 0.25;
-        vec3 c = vec3(0.17, 0.06, 0.02) * (0.85 + 0.15 * grain) * (0.8 + 0.4 * hash(vec2(plank)))
+        vec3 c = mix(vec3(0.45, 0.75, 0.62), vec3(0.85, 0.75, 0.55), mod(plank, 2.)) * (0.9 + 0.1 * grain) * (0.8 + 0.4 * hash(vec2(plank)))
                * (0.85 + 0.3 * fbm(p.xy * vec2(20, 4)))
                * (1. - 0.6 * smoothstep(0.03, 0.032, abs(fract(p.x / 0.065) - 0.5) * 0.065));
         
@@ -490,7 +489,7 @@ vec3 material(vec3 p, float m)
         float gear = r - 0.195 - 0.006 * clamp(sin(a * 24.) * 4., -1., 1.);
         if (gear < 0.) {
             float cloud = fbm(p.xy * 30.);
-            c = mix(vec3(0.004, 0.008, 0.035), vec3(0.05, 0.015, 0.07), cloud * cloud * 1.5) * (1. - r * 2.);
+            c = mix(vec3(0.2, 0.35, 0.8), vec3(0.6, 0.4, 0.85), cloud * cloud * 1.5);
             glow = vec3(0.9, 0.9, 1) * stars(p.xy, 90.) * 0.6;
         }
         
@@ -529,7 +528,7 @@ vec3 material(vec3 p, float m)
     if (m == M_WALL) {
         if (p.z > 0.045) { metal = 1.; return brass; } 
         rough = 0.3;
-        return vec3(0.09, 0.035, 0.012) * (0.7 + 0.6 * fbm(vec2(p.x + p.y, p.z) * vec2(40, 300)));
+        return vec3(0.9, 0.45, 0.4) * (0.7 + 0.6 * fbm(vec2(p.x + p.y, p.z) * vec2(40, 300)));
     }
     if (m == M_APRON) {
         
@@ -547,7 +546,7 @@ vec3 material(vec3 p, float m)
             int side = p.x > CX ? 1 : 0;
             glow = vec3(1, 0.25, 0.08) * slingFlash[side] * 3.;
             rough = 0.05;
-            return vec3(0.12, 0.012, 0.01);
+            return vec3(1, 0.5, 0.6);
         }
         rough = 0.5;
         return rubber;
@@ -573,14 +572,14 @@ vec3 material(vec3 p, float m)
         
         glow = vec3(1, 0.75, 0.25) * float(targetsLit >> targetIndex(p.xy) & 1) * (2. + sin(time * 8.));
         rough = 0.1;
-        return vec3(0.35, 0.25, 0.05);
+        return vec3(1, 0.8, 0.2);
     }
     if (m >= M_PLANET && m < M_BALL) {
         int i = int(m - M_PLANET);
         if (p.z < 0.034) { rough = 0.5; return rubber; }
         if (i == 1 && abs(length(p.xy - planets[1]) - 0.044) < 0.004) { metal = 1.; return brass; }
         
-        vec3 c = i == 0 ? vec3(0.7, 0.2, 0.06) : i == 1 ? vec3(0.08, 0.25, 0.7) : vec3(0.6);
+        vec3 c = i == 0 ? vec3(1, 0.45, 0.3) : i == 1 ? vec3(0.3, 0.7, 1) : vec3(0.9);
         c *= 0.6 + 0.6 * fbm(vec2(p.z * 600., p.x * 60.));
         glow = c * flash[i + 1] * 4.;
         rough = 0.1;
@@ -648,11 +647,11 @@ vec3 render(vec3 ro, vec3 rd)
         float ao = bounce == 0 ? occlusion(p, n) : 1.;
         vec3 toSun = vec3(SUN, 0.068) - p;
         float sunPower = (0.5 + flash.x * 3.) * 0.0012 / dot(toSun, toSun);
-        vec3 c = light(key, vec3(1, 0.85, 0.7) * 1.5 * shade)
+        vec3 c = light(key, vec3(1, 0.95, 0.85) * 2. * shade)
                + light(fill, vec3(0.3, 0.45, 1) * 0.5 * ao)
                + light(normalize(toSun), vec3(1, 0.5, 0.15) * sunPower)
                
-               + albedo * mix(vec3(0.12, 0.06, 0.03), vec3(0.08, 0.1, 0.2), n.z * 0.5 + 0.5) * ao;
+               + albedo * mix(vec3(0.25, 0.22, 0.18), vec3(0.35, 0.45, 0.6), n.z * 0.5 + 0.5) * ao;
         
         for (int i = 0; i < 4; i++) {
             vec3 l = vec3(CX + (i % 2 > 0 ? 0.215 : -0.215), i > 1 ? 0.2 : -0.15, 0.04) - p;
@@ -699,19 +698,25 @@ void main()
 
     
     vec2 ca = (texCoord - 0.5) * 0.0015; 
-    vec3 col = vec3(texture(tex, texCoord + ca).r, texture(tex, texCoord).g, texture(tex, texCoord - ca).b);
+    float blur = smoothstep(0.22, 0.5, abs(texCoord.y - 0.45)) * 4.;
+    vec3 col = vec3(0);
+    for (int i = 0; i < 16; i++) {
+        float a = float(i) * 2.4, r = sqrt(float(i) / 16.);
+        col += textureLod(tex, texCoord + vec2(cos(a), sin(a)) * r * blur * 0.004 * vec2(iFrame.y / iFrame.x, 1), blur * 0.6).rgb;
+    }
+    col *= 0.6 / 16.; 
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)
-        bloom += max(textureLod(tex, texCoord, float(i)).rgb - 0.6, 0.);
+        bloom += max(textureLod(tex, texCoord, float(i)).rgb - 2., 0.);
     col += bloom * _TV(bloomAmount, 0.25) + max(textureLod(tex, 1. - texCoord, 6.).rgb - 0.6, 0.) * 0.1;
     col = col * (2.51 * col + 0.03) / (col * (2.43 * col + 0.59) + 0.14);
     
     float luma = dot(col, vec3(0.3, 0.6, 0.1));
-    col = mix(vec3(luma), col, 1.15) + vec3(-0.01, 0, 0.02) * (1. - luma);
+    col = mix(vec3(luma), col, 1.35);
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
-    col *= max(1. - pow(length(texCoord - 0.5), 1.5) * 1.2, 0.);
+    col *= max(1. - pow(length(texCoord - 0.5), 2.) * 0.6, 0.);
     col += (hash(gl_FragCoord.xy + fract(time) * 100.) - 0.5) * 0.02; 
-    col += jackpotFlash * vec3(0.35, 0.3, 0.25); 
+    col += jackpotFlash * vec3(0.1, 0.08, 0.05); 
     
     col = mix(col, col.r * vec3(0.9, 0.1, 0.05), drainFlash * 0.8);
 

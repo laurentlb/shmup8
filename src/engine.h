@@ -6,11 +6,13 @@
 
 #include "definitions.h"
 #include "glext.h"
+#include "input.h"
 
 #define STEPS_PER_SECOND 120
 #define MAX_STEPS 12 // don't try to catch up after a long pause
 #define STATE_SIZE 4096
-#define EVENT_COUNT 4
+#define EVENT_COUNT 6
+#define MOUSE_SPEED 0.0022f // radians per pixel
 
 typedef BOOL (WINAPI* PFNWGLSWAPINTERVALEXTPROC)(int interval);
 
@@ -67,11 +69,11 @@ static void limitFrameRate(HDC hDC, long frameStart)
 		Sleep(wait);
 }
 
-// input: left flipper, right flipper, plunger (1) or nudge (-1)
-static void stepGame(float x, float y, float fire, int steps)
+static void stepGame(GameInput input, int steps)
 {
+	input.steps = (float)steps;
 	GLCALL(PFNGLUSEPROGRAMPROC, "glUseProgram")(gameProgram);
-	GLCALL(PFNGLUNIFORM4FPROC, "glUniform4f")(0, x, y, fire, (float)steps);
+	GLCALL(PFNGLUNIFORM4FVPROC, "glUniform4fv")(0, 2, &input.x);
 	GLCALL(PFNGLDISPATCHCOMPUTEPROC, "glDispatchCompute")(1, 1, 1);
 	GLCALL(PFNGLMEMORYBARRIERPROC, "glMemoryBarrier")(GL_ALL_BARRIER_BITS);
 	GLCALL(PFNGLGETBUFFERSUBDATAPROC, "glGetBufferSubData")(GL_SHADER_STORAGE_BUFFER, 0, EVENT_COUNT * 4, stateCopy);

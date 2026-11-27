@@ -46,9 +46,7 @@ namespace Check
 		for (int pos = 0, chunk = 1; pos < total; pos += chunk, chunk = chunk % 5 + 1)
 		{
 			if (pos + chunk > total) chunk = total - pos;
-			float x, y, fire;
-			Capture::autoInput(pos / 120.f, x, y, fire);
-			History::advance(History::encode(x, y, fire), chunk);
+			History::advance(History::encode(Capture::autoInput(pos / 120.f)), chunk);
 		}
 		const std::vector<char> straight = readState(host.stateSize);
 		const std::vector<History::Input> inputs = History::inputs();
@@ -58,7 +56,7 @@ namespace Check
 		History::seek(30);
 		History::replaying() = true;
 		for (int pos = 30; pos < total; pos += 7)
-			History::advance(0, pos + 7 > total ? total - pos : 7);
+			History::advance(History::Input(), pos + 7 > total ? total - pos : 7);
 		const std::vector<char> replayed = readState(host.stateSize);
 
 		// The event counters are kept when seeking (no sound), skip them.
@@ -139,9 +137,7 @@ namespace Check
 		host.init(XRES, YRES);
 		for (int i = 1; i <= (int)(seconds * 60); i++)
 		{
-			float x, y, fire;
-			Capture::autoInput(i / 60.f, x, y, fire);
-			host.step(x, y, fire, 2);
+			host.step(History::decode(History::encode(Capture::autoInput(i / 60.f))), 2);
 			host.draw(XRES, YRES, 1.f / 60, fbo);
 		}
 		Run run;

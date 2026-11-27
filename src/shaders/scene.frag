@@ -9,6 +9,13 @@ layout(binding = 0) uniform sampler2D tex; // the scene pass (linear HDR)
 
 out vec4 fragColor;
 
+// Materials: the enemies' bodies are 10 + index, their eyes 30 + index.
+#define M_LEVEL 0.
+#define M_NEON 1.
+#define M_GUN 2.
+#define M_COIL 3.
+
+
 // Simple 7-segment numbers, after spalmer https://www.shadertoy.com/view/NtsXR2
 float digit7(vec2 q, int n)
 {
@@ -27,140 +34,17 @@ float digit7(vec2 q, int n)
     return d * sqrt(.5) - .05;
 }
 
-void digits7(inout vec3 o, vec3 c, vec2 q, float scale, uint value, int digits)
+// A number right-aligned at q (at least minDigits digits, with zeros).
+void digits7(inout vec3 o, vec3 c, vec2 q, float scale, int value, int minDigits)
 {
     float d = 1e9;
-    for (int i = 0; i < digits; i++) {
-        d = min(d, digit7(q, int(value % 10u)));
-        value /= 10u;
+    for (int i = 0; i < 6; i++) {
+        d = min(d, digit7(q, value % 10));
+        value /= 10;
         q.x += 1.25;
-        if (value == 0u) break;
+        if (value == 0 && i >= minDigits - 1) break;
     }
-    o += c * (clamp(.5 - iFrame.x / scale * d * .5, 0., 1.) + .3 * exp(-30. * max(d, 0.)));
-}
-
-// ---------------------------------------------------------------------------
-// The table in 3D
-
-vec2 planets[3];
-
-// A 2D shape (distance d) extruded from the floor up to height, with edges
-// rounded by r; the footprint stays the same.
-float extrude(float d, float z, float height, float r)
-{
-    vec2 w = vec2(d + r, abs(z - height * .5) - height * .5 + r);
-    return min(max(w.x, w.y), 0.) + length(max(w, 0.)) - r;
-}
-
-float seg3(vec3 p, vec3 a, vec3 b)
-{
-    vec3 pa = p - a, ba = b - a;
-    return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0., 1.));
-}
-
-float planetHeight(int i)
-{
-    return 0.034 + planetRadius(i) * 1.3;
-}
-
-vec2 map(vec3 p)
-{
-    vec2 q = mirror(p.xy);
-    float area = areaDist(p.xy);
-    vec2 h = vec2(p.z, M_FLOOR);
-    h = hit(h, extrude(min(max(-area, area - 0.03), laneDist(p.xy)), p.z, 0.05, 0.004), M_WALL);
-    h = hit(h, extrude(boxDist(p.xy - vec2(CX, -0.56), vec2(0.245, 0.07)), p.z, 0.022, 0.006), M_APRON);
-    h = hit(h, extrude(railDist(q), p.z, 0.026, 0.005), M_RAIL);
-    // slingshots: a rubber band at the ball's height, a plastic cover above
-    float sling = slingDist(q);
-    h = hit(h, min(extrude(sling, p.z, 0.024, 0.004), extrude(sling - 0.003, p.z - 0.025, 0.005, 0.002)), M_SLING);
-    h = hit(h, extrude(postDist(q), p.z, 0.032, 0.003), M_POST);
-    h = hit(h, extrude(gateDist(p.xy), p.z - 0.01, 0.025, 0.001), M_ARM);
-    for (int i = 0; i < 2; i++)
-        h = hit(h, extrude(flipperDist(p.xy, i), p.z - 0.002, 0.022, 0.005), M_FLIP + float(i));
-
-    // the sun: a brass skirt under a sphere
-    vec3 s = p - vec3(SUN, 0);
-    h = hit(h, min(extrude(length(s.xy) - 0.03, p.z, 0.03, 0.004), length(s - vec3(0, 0, 0.068)) - 0.036 * (1. + 0.15 * flash.x)), M_SUN);
-
-    // planets: a rubber ring at the ball's height, a sphere above, an arm from the sun
-    float arms = 1e9;
-    for (int i = 0; i < 3; i++) {
-        float r = planetRadius(i), z = planetHeight(i);
-        vec3 d = p - vec3(planets[i], 0);
-        float body = min(extrude(length(d.xy) - r * 0.8, p.z, 0.034, 0.003), length(d - vec3(0, 0, z)) - r * 1.3 * (1. + 0.25 * flash[i + 1]));
-        if (i == 1) { // a ring
-            d.z -= z;
-            d.xz *= rot(0.4);
-            body = min(body, length(vec2(length(d.xy) - r * 2.2, d.z)) - 0.0015);
-        }
-        h = hit(h, body, M_PLANET + float(i));
-        vec3 from = i > 1 ? vec3(planets[1], planetHeight(1)) : vec3(SUN, 0.068);
-        arms = min(arms, seg3(p, from, vec3(planets[i], z)));
-    }
-    h = hit(h, arms - 0.0022, M_ARM);
-    // plunger
-    h = hit(h, seg3(p, vec3(LANE_X, -0.502 - plunger * 0.04, BALL_R), vec3(LANE_X, -0.7, BALL_R)) - 0.008, M_ARM);
-
-    h = hit(h, extrude(targetDist(q), p.z, 0.03, 0.003), M_TARGET);
-    for (int b = 0; b < ballCount; b++)
-        h = hit(h, length(p - vec3(ball[b], BALL_R)) - BALL_R, M_BALL);
-    return h;
-}
-
-vec3 normal(vec3 p)
-{
-    vec2 e = vec2(1, -1) * 1e-4;
-    return normalize(e.xyy * map(p + e.xyy).x + e.yyx * map(p + e.yyx).x +
-                     e.yxy * map(p + e.yxy).x + e.xxx * map(p + e.xxx).x);
-}
-
-// Returns the distance along the ray and the material; distance 9 when leaving the table.
-vec2 march(vec3 ro, vec3 rd)
-{
-    // everything is below z = 0.11
-    float t = ro.z > 0.11 ? (ro.z - 0.11) / max(-rd.z, 1e-3) : 0.;
-    for (int i = 0; i < 150; i++) {
-        vec3 p = ro + rd * t;
-        vec2 h = map(p);
-        if (h.x < 1e-4 * (1. + t * 4.))
-            return vec2(t, h.y);
-        if (p.z > 0.12 && rd.z > 0. || t > 4.)
-            break;
-        t += h.x;
-    }
-    return vec2(9);
-}
-
-float shadow(vec3 p, vec3 l)
-{
-    float s = 1., t = 0.003;
-    for (int i = 0; i < 40 && t < 0.3; i++) {
-        float d = map(p + l * t).x;
-        s = min(s, 16. * d / t);
-        if (s < 0.01) break;
-        t += clamp(d, 0.002, 0.03);
-    }
-    return clamp(s, 0., 1.);
-}
-
-float occlusion(vec3 p, vec3 n)
-{
-    float o = 0.;
-    for (int i = 1; i < 6; i++) {
-        float d = float(i) * 0.006;
-        o += (d - map(p + n * d).x) / d;
-    }
-    return clamp(1. - o * 0.25, 0., 1.);
-}
-
-// The room above the table, seen in reflections: dark, with a warm light
-// panel above the table and a cool one behind the player.
-vec3 env(vec3 rd)
-{
-    return vec3(0.05, 0.05, 0.09) * (0.4 + 0.6 * max(rd.z, 0.))
-         + vec3(1, 0.85, 0.65) * 4. * smoothstep(0.75, 0.92, rd.z) * smoothstep(0.3, 0.15, abs(rd.x))
-         + vec3(0.3, 0.5, 1) * 1.5 * smoothstep(0.85, 0.95, -rd.y) * smoothstep(0.3, 0.1, abs(rd.z - 0.3));
+    o += c * (clamp(.5 - iFrame.y / scale * d * .5, 0., 1.) + .2 * exp(-30. * max(d, 0.)));
 }
 
 float hash(vec2 p)
@@ -175,301 +59,373 @@ float noise(vec2 p)
     return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + 1.), f.x), f.y);
 }
 
-// 0 to 1, rough details at several scales
 float fbm(vec2 p)
 {
-    return noise(p) * 0.5 + noise(p * 2.13 + 7.) * 0.3 + noise(p * 4.37 + 3.) * 0.2;
+    return noise(p) * .5 + noise(p * 2.13 + 7.) * .3 + noise(p * 4.37 + 3.) * .2;
 }
 
-// Small stars on a grid of cells (density: cells per meter).
-float stars(vec2 p, float density)
+float smin(float a, float b, float k)
 {
-    vec2 c = floor(p * density);
-    float h = hash(c);
-    vec2 q = fract(p * density) - 0.25 - 0.5 * vec2(h, fract(h * 17.));
-    return step(0.8, h) * smoothstep(0.12, 0., length(q)) * (0.6 + 0.4 * sin(time * 3. + h * 60.));
+    float h = clamp(.5 + .5 * (b - a) / k, 0., 1.);
+    return mix(b, a, h) - k * h * (1. - h);
 }
 
-// A round lamp insert (q: position from its center, r: radius, on: 0 to 1).
-float lampDist, lampOn;
-vec3 lampColor;
-void lamp(vec2 q, float r, float on, vec3 color)
+float capsule(vec3 p, vec3 a, vec3 b, float r)
 {
-    if (length(q) < r) {
-        lampDist = length(q) / r;
-        lampOn = on;
-        lampColor = color;
+    vec3 pa = p - a, ba = b - a;
+    return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0., 1.)) - r;
+}
+
+// ---------------------------------------------------------------------------
+// The scene
+
+vec3 eye, camF, camR, camU, gunAt;
+
+// Neon tubes along the walls, after level(p). Sets neonCol.
+vec3 neonCol;
+const vec3 NEON[NPTS] = vec3[](
+    vec3(.1, .6, 1), vec3(.1, .6, 1), vec3(1, .3, .05), vec3(1, .3, .05), vec3(1, .1, .5),
+    vec3(1, .1, .5), vec3(1, .1, .5), vec3(.5, .2, 1), vec3(.5, .2, 1), vec3(.1, 1, .6));
+float neon(vec3 p)
+{
+    // corridors: two tubes on each wall, not in the arenas
+    float y = p.y - tFloor;
+    float d = max(length(vec2(abs(tLat) - CW + .12, min(abs(y - .3), abs(y - CH + 1.3)))) - .05, -tArena);
+    neonCol = NEON[tSeg];
+    // arenas: two rings along the wall, not across the doorways
+    for (int i = 0; i < 2; i++) {
+        vec4 A = ARENAS[i];
+        float a = max(length(vec2(length(p.xz - A.xy) - A.z + .12, min(abs(p.y - .3), abs(p.y - A.w + 2.)))) - .05,
+                      CW + .3 - abs(tLat));
+        if (a < d) {
+            d = a;
+            neonCol = i > 0 ? vec3(.6, .1, 1) : vec3(1, .25, .05);
+        }
     }
+    // rings around the pillars of arena 0
+    float a = abs(length(p.xz - ARENAS[0].xy) - 8.) - 1.1;
+    if (a < 1.)
+        a = length(vec2(length(pillar(p)) - 1.03, p.y - 2.5)) - .04;
+    if (a < d) {
+        d = a;
+        neonCol = vec3(1, .25, .05);
+    }
+    // the start line: a white frame across the corridor
+    vec2 b = abs(vec2(tLat, y - CH * .5)) - vec2(CW - .1, CH * .5 - .1);
+    a = max(length(vec2(max(b.x, b.y), p.x - 4.)) - .06, length(p.xz - vec2(4, 0)) - 6.);
+    if (a < d) {
+        d = a;
+        neonCol = vec3(1);
+    }
+    return d;
 }
 
-// Surface at p (material m): returns the albedo, and sets metal (0 to 1),
-// glow (emitted light) and rough (0: mirror, to 1).
-float metal, rough;
-vec3 glow;
+float neonAt(vec3 p)
+{
+    level(p);
+    return neon(p);
+}
+
+vec2 enemyShape(vec3 p, int i)
+{
+    vec3 e = enemy[i].xyz;
+    float s = max(enemyInfo[i].x, .05);
+    vec3 f = normalize(eye - e), r = normalize(cross(f, vec3(0, 1, 0))), u = cross(r, f);
+    vec3 q = p - e;
+    vec3 l = vec3(dot(q, r), dot(q, u), dot(q, f)) / s;
+    float t = time * 3. + float(i) * 1.7;
+    float body = length(l * vec3(1, 1.15, .8)) - .5;
+    // tentacles trailing behind
+    for (int k = 0; k < 5; k++) {
+        float a = float(k) * 1.257 + sin(t * .3) * .3;
+        vec3 tip = vec3(cos(a) * .7, sin(a) * .7, -1.3) + .2 * vec3(sin(t + float(k) * 2.), cos(t * 1.3 + float(k)), 0);
+        body = smin(body, capsule(l, vec3(cos(a), sin(a), 0) * .25, tip, .07), .2);
+    }
+    // an eye in a socket
+    body = -smin(-body, length(l - vec3(0, 0, .55)) - .27, .05);
+    float eyeD = length(l - vec3(0, 0, .3)) - .2;
+    return vec2(min(body, eyeD) * s * .8, eyeD < body ? 30. + float(i) : 10. + float(i));
+}
+
+float gNeon; // the distance to the neon tubes, set by map()
+
+vec2 map(vec3 p)
+{
+    vec2 h = vec2(level(p), M_LEVEL);
+    gNeon = neon(p);
+    if (gNeon < h.x)
+        h = vec2(gNeon, M_NEON);
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+        if ((seen >> (10 + i) & 1u) == 0u)
+            continue;
+        float d = length(p - enemy[i].xyz) - 1.8;
+        if (d > .3)
+            h.x = min(h.x, d);
+        else {
+            vec2 e = enemyShape(p, i);
+            if (e.x < h.x)
+                h = e;
+        }
+    }
+    // the gun, in front of the camera
+    vec3 g = p - eye;
+    vec3 l = vec3(dot(g, camR), dot(g, camU), dot(g, camF)) - gunAt;
+    float d = length(l - vec3(0, 0, .03)) - .27;
+    if (seen < 1u << 31) // not on this ray
+        return h;
+    if (d > .1)
+        h.x = min(h.x, d);
+    else {
+        d = min(length(vec3(l.xy, l.z - clamp(l.z, -.12, .22))) - .03,
+                length(max(abs(l - vec3(0, -.035, -.1)) - vec3(.03, .04, .1), 0.)) - .012);
+        if (d < h.x)
+            h = vec2(d, M_GUN);
+        float z = l.z - .04;
+        z -= clamp(floor(z / .07 + .5), -1., 1.) * .07;
+        d = length(vec2(length(l.xy) - .036, z)) - .006;
+        if (d < h.x)
+            h = vec2(d, M_COIL);
+    }
+    return h;
+}
+
+vec3 normal(vec3 p)
+{
+    vec2 e = vec2(1, -1) * 1e-3;
+    return normalize(e.xyy * map(p + e.xyy).x + e.yyx * map(p + e.yyx).x +
+                     e.yxy * map(p + e.yxy).x + e.xxx * map(p + e.xxx).x);
+}
+
+float fogDensity;
+vec3 glowSum; // neon glow in the fog along the ray
+
+// Returns the distance along the ray and the material (-1: nothing).
+vec2 march(vec3 ro, vec3 rd)
+{
+    float t = 0.;
+    for (int i = 0; i < 200; i++) {
+        vec2 h = map(ro + rd * t);
+        glowSum += neonCol * exp(-gNeon * 3. - t * fogDensity) * min(h.x, 1.);
+        if (h.x < 2e-4 * (1. + t * 4.))
+            return vec2(t, h.y);
+        t += h.x;
+        if (t > 100.)
+            break;
+    }
+    return vec2(t, -1);
+}
+
+bool hitBox(vec3 ro, vec3 rd, vec3 lo, vec3 hi)
+{
+    vec3 a = (lo - ro) / rd, b = (hi - ro) / rd;
+    vec3 n = min(a, b), f = max(a, b);
+    return max(max(n.x, n.y), max(n.z, 0.)) <= min(min(f.x, f.y), f.z);
+}
+
+bool hitSphere(vec3 ro, vec3 rd, vec3 c, float r)
+{
+    vec3 o = c - ro;
+    float b = dot(o, rd);
+    return dot(o, o) - b * b < r * r && b > -r;
+}
+
+// Sets what the ray can meet (see seen).
+void cull(vec3 ro, vec3 rd)
+{
+    seen = 0u;
+    for (int i = 0; i < NPTS; i++) {
+        vec3 a = PTS[i], b = PTS[(i + 1) % NPTS];
+        if (hitBox(ro, rd, vec3(min(a.x, b.x), min(a.z, b.z), min(a.y, b.y)) - vec3(CW + 1., 1, CW + 1.),
+                   vec3(max(a.x, b.x), max(a.z, b.z), max(a.y, b.y)) + vec3(CW + 1., CH + 1., CW + 1.)))
+            seen |= 1u << i;
+    }
+    for (int i = 0; i < MAX_ENEMIES; i++)
+        if (enemy[i].w > 0. && hitSphere(ro, rd, enemy[i].xyz, 2.))
+            seen |= 1u << (10 + i);
+    if (hitSphere(ro, rd, eye + mat3(camR, camU, camF) * (gunAt + vec3(0, 0, .03)), .3))
+        seen |= 1u << 31;
+}
+
+float occlusion(vec3 p, vec3 n)
+{
+    float o = 0.;
+    for (int i = 1; i < 5; i++) {
+        float d = float(i) * .15;
+        o += (d - map(p + n * d).x) / d;
+    }
+    return clamp(1. - o * .2, 0., 1.);
+}
+
+// Surface at p (material m): returns the albedo, sets rough, metal and glow.
+vec3 n, v, f0, glow;
+float rough, metal;
 vec3 material(vec3 p, float m)
 {
-    // worn metal: the tarnish varies, and so does the polish
-    float wear = fbm(p.xy * 300. + p.z * 200.);
-    vec3 brass = vec3(0.85, 0.6, 0.3) * (0.7 + 0.4 * wear);
-    vec3 rubber = vec3(0.02) * (0.8 + 0.4 * wear);
+    rough = .5;
     metal = 0.;
     glow = vec3(0);
-    rough = 0.15 + 0.2 * wear;
-    lampDist = 1.;
-    if (m == M_FLOOR) {
-        if (areaDist(p.xy) > 0.) {
-            // the table floats in space
-            rough = 1.;
-            glow = vec3(0.8, 0.85, 1) * stars(p.xy, 40.) * 2. + vec3(0.02, 0.005, 0.04) * fbm(p.xy * 4.) * 2.;
-            return vec3(0);
-        }
-        vec2 s = p.xy - SUN;
-        float r = length(s), a = atan(s.y, s.x);
-        // planks along the table, each its own tone, with a fine grain, under a lacquer
-        float plank = floor(p.x / 0.065);
-        float x = p.x + 0.004 * sin(p.y * 25. + plank * 3.) + 0.002 * fbm(p.xy * 60.);
-        float grain = sin(x * 700. + fbm(vec2(x * 90., p.y * 6.)) * 8.) * 0.5 + sin(x * 2300.) * 0.25;
-        vec3 c = vec3(0.17, 0.06, 0.02) * (0.85 + 0.15 * grain) * (0.8 + 0.4 * hash(vec2(plank)))
-               * (0.85 + 0.3 * fbm(p.xy * vec2(20, 4)))
-               * (1. - 0.6 * smoothstep(0.03, 0.032, abs(fract(p.x / 0.065) - 0.5) * 0.065));
-        // the lacquer: worn and smudged in places
-        rough = 0.05 + 0.15 * smoothstep(0.4, 0.8, fbm(p.xy * 25.));
-        // a night sky painted under the orrery, with nebulae
-        float gear = r - 0.195 - 0.006 * clamp(sin(a * 24.) * 4., -1., 1.);
-        if (gear < 0.) {
-            float cloud = fbm(p.xy * 30.);
-            c = mix(vec3(0.004, 0.008, 0.035), vec3(0.05, 0.015, 0.07), cloud * cloud * 1.5) * (1. - r * 2.);
-            glow = vec3(0.9, 0.9, 1) * stars(p.xy, 90.) * 0.6;
-        }
-        // brass inlays: the orbits, the toothed wheel
-        float d = min(min(abs(r - 0.075), abs(r - 0.14)) - 0.001, abs(gear) - 0.002);
-        if (d < 0.) {
-            // gilded: partly diffuse, so that it doesn't only reflect the dark room
-            metal = 0.5;
-            rough = 0.3;
-            return brass;
-        }
-        // inserts: top lanes, multiplier (x2 to x5), stars in front of the
-        // targets, ball save, and a clock dial of 12 lamps around the sun
-        for (int i = 0; i < 4; i++) {
-            if (i < 3)
-                lamp(p.xy - vec2(CX + 0.06 * float(i - 1), 0.37), 0.009, float(lanesLit >> i & 1), vec3(1, 0.5, 0.1));
-            lamp(p.xy - vec2(CX - 0.045 + 0.03 * float(i), -0.27), 0.007, float(mult >= i + 2), vec3(0.2, 0.6, 1));
-        }
-        vec2 q = mirror(p.xy);
-        q -= q.x < CX - 0.09 ? vec2(CX - 0.135, -0.16) : vec2(CX - 0.045, -0.19);
-        lamp(q, 0.016 * (0.6 + 0.4 * cos(5. * atan(q.x, q.y))), float(targetsLit >> targetIndex(p.xy) & 1) + 0.5 * flash.x, vec3(1, 0.8, 0.3));
-        lamp(p.xy - vec2(CX, -0.37), 0.01, float(ballSave > 0. && fract(time * (ballSave < 2. ? 4. : 1.5)) < 0.6), vec3(1, 0.15, 0.1));
-        float k = floor(a * 1.91 + 0.5); // 12 / 2 pi
-        lamp(s - 0.052 * vec2(cos(k / 1.91), sin(k / 1.91)), 0.006, step(fract((k - time * 4.) / 12.), 0.3) * 0.5 + flash.x * 2., vec3(1, 0.45, 0.1));
-        if (lampDist < 1.) {
-            // colored glass with a frosted pattern, brighter in the middle when lit
-            rough = 0.05;
-            glow = lampColor * lampOn * (4. - 2.5 * lampDist * lampDist) * (0.8 + 0.4 * noise(p.xy * 3000.));
-            return lampColor * 0.08;
-        }
-        // alignment: a beam from the sun through the planets, and a shockwave
-        float wave = alignTime * 0.35 - r;
-        glow += vec3(1, 0.7, 0.3) * (exp(-wave * wave * 3000.) * max(1. - alignTime * 0.5, 0.) * 3.
-             + alignment() * exp(-pow(p.x - CX, 2.) * 3000.) * step(p.y, SUN.y) * 1.5);
-        return c;
+    if (m >= 30.) {
+        glow = RED * (4. + 10. * enemyInfo[int(m - 30.)].y);
+        return vec3(0);
     }
-    if (m == M_WALL) {
-        if (p.z > 0.045) { metal = 1.; return brass; } // a brass rail on top
-        rough = 0.3;
-        return vec3(0.09, 0.035, 0.012) * (0.7 + 0.6 * fbm(vec2(p.x + p.y, p.z) * vec2(40, 300)));
+    if (m >= 10.) {
+        // a black shell with glowing veins, white when hit
+        int i = int(m - 10.);
+        vec3 q = p - enemy[i].xyz;
+        float veins = abs(fbm(q.xy * 6. + q.z * 4. + time) - .5);
+        glow = RED * smoothstep(.06, 0., veins) * 1.5 + vec3(3) * enemyInfo[i].y;
+        rough = .15;
+        return vec3(.01);
     }
-    if (m == M_APRON) {
-        // painted metal, worn on the edges
-        rough = 0.35;
-        return mix(vec3(0.03, 0.025, 0.05), brass * 0.5, smoothstep(0.75, 0.9, wear));
+    if (m == M_NEON) {
+        neonAt(p);
+        glow = neonCol * 6.;
+        return vec3(0);
     }
-    if (m == M_RAIL || m == M_ARM) {
+    if (m == M_COIL) {
+        glow = GOLD * (light * 1.5 + kick * 3.);
+        return vec3(0);
+    }
+    if (m == M_GUN) {
         metal = 1.;
-        rough *= 0.6;
-        return m == M_ARM ? brass : vec3(0.7, 0.7, 0.72) * (0.85 + 0.2 * wear);
+        rough = .4;
+        return vec3(.12);
     }
-    if (m == M_SLING) {
-        if (p.z > 0.024) {
-            // tinted plastic cover, lit from inside when kicking
-            int side = p.x > CX ? 1 : 0;
-            glow = vec3(1, 0.25, 0.08) * slingFlash[side] * 3.;
-            rough = 0.05;
-            return vec3(0.12, 0.012, 0.01);
-        }
-        rough = 0.5;
-        return rubber;
+    level(p);
+    float floorY = tArena < .1 ? 0. : tFloor;
+    if (n.y > .7) {
+        // floor: plates, dirty, with puddles
+        vec2 g = abs(fract(p.xz * .5) - .5);
+        float wet = smoothstep(.5, .65, fbm(p.xz * .3) + .1 * fbm(p.xz * 3.));
+        rough = mix(.5, .02, wet);
+        return vec3(.04) * (.6 + .6 * fbm(p.xz * 2.)) * (1. - .5 * step(.48, max(g.x, g.y))) * (1. - .6 * wet);
     }
-    if (m == M_POST || m == M_FLIP || m == M_FLIP + 1.) {
-        // brass, with a black rubber ring at the ball's height
-        if (p.z > 0.004 && p.z < 0.02) {
-            rough = 0.5;
-            return rubber;
-        }
-        metal = 1.;
-        return brass;
-    }
-    if (m == M_SUN) {
-        metal = 1.;
-        // multiball: the jackpot when lit, white-blue and pulsing
-        if (p.z > 0.035)
-            glow = mix(vec3(1, 0.5, 0.15), vec3(0.6, 0.8, 1.2) * (1.5 + sin(time * 12.)), float(ballCount + pending > 1 && jackpotLit > 0))
-                 * (1.5 + flash.x * 8.) * (0.8 + 0.4 * fbm(p.xy * 400. + time));
-        return brass;
-    }
-    if (m == M_TARGET) {
-        // a plastic face, glowing when lit
-        glow = vec3(1, 0.75, 0.25) * float(targetsLit >> targetIndex(p.xy) & 1) * (2. + sin(time * 8.));
-        rough = 0.1;
-        return vec3(0.35, 0.25, 0.05);
-    }
-    if (m >= M_PLANET && m < M_BALL) {
-        int i = int(m - M_PLANET);
-        if (p.z < 0.034) { rough = 0.5; return rubber; }
-        if (i == 1 && abs(length(p.xy - planets[1]) - 0.044) < 0.004) { metal = 1.; return brass; }
-        // enamel with painted bands and blotches
-        vec3 c = i == 0 ? vec3(0.7, 0.2, 0.06) : i == 1 ? vec3(0.08, 0.25, 0.7) : vec3(0.6);
-        c *= 0.6 + 0.6 * fbm(vec2(p.z * 600., p.x * 60.));
-        glow = c * flash[i + 1] * 4.;
-        rough = 0.1;
-        return c;
-    }
-    // the ball: chrome, with tiny scratches
-    metal = 1.;
-    rough = 0.01 + 0.03 * wear;
-    return vec3(0.95);
+    if (n.y < -.7)
+        return vec3(.015);
+    // walls: panels
+    rough = .35;
+    metal = .3;
+    float panel = step(.47, abs(fract((p.y - floorY) * .5) - .5));
+    return vec3(.05, .05, .06) * (.6 + .6 * fbm(vec2(p.x + p.z, p.y) * 3.)) * (1. - .5 * panel);
 }
 
-// Light from a direction (or point, then L is not normalized and falls off).
-// Light from direction l on the surface being shaded (n, v).
-vec3 n, v, albedo, f0;
-vec3 light(vec3 l, vec3 color)
+vec3 shade(vec3 p, vec3 lp, vec3 c)
 {
-    float nl = max(dot(n, l), 0.);
+    vec3 l = lp - p;
+    float d2 = dot(l, l);
+    l *= inversesqrt(d2);
     vec3 h = normalize(l + v);
-    float k = 2. / max(rough * rough, 0.002);
+    float k = 2. / max(rough * rough, .002);
     float spec = (k + 8.) / 25. * pow(max(dot(n, h), 0.), k);
-    return color * nl * (albedo + f0 * spec);
+    return c * max(dot(n, l), 0.) * spec * f0 / (d2 + .3);
 }
 
-// Glow of the balls' trails along the ray, up to distance tMax. The trail
-// interleaves the balls: the previous position of a ball is ballCount entries later.
-vec3 trailGlow(vec3 ro, vec3 rd, float tMax)
+// Light scattered by the fog toward the camera, from the point lights, along the ray up to tMax.
+vec3 scattered(vec3 ro, vec3 rd, float tMax)
 {
-    vec3 col = vec3(0);
-    int n = max(ballCount, 1);
-    // where the ray crosses the plane of the balls' centers
-    float t = (BALL_R - ro.z) / rd.z;
-    for (int i = 0; i < TRAIL - n; i++) {
-        vec3 a = vec3(trail[i].xy, BALL_R), b = vec3(trail[i + n].xy, BALL_R);
-        float age = float(i) / float(TRAIL), w = BALL_R * (0.9 - 0.7 * age);
-        float d = seg3(ro + rd * t, a, b);
-        if (t < tMax && distance(a, b) < 0.1 && trail[i].w == trail[i + n].w) // not across the table for a new ball
-            col += mix(vec3(0.6, 0.8, 1), vec3(1, 0.3, 0.05), age) * smoothstep(0.4, 2., trail[i].z) * (1. - age)
-                 * exp(-d * d / (w * w)) * 0.6;
+    vec3 c = vec3(0);
+    for (int i = 0; i < lightCount; i++) {
+        vec3 color = lightCol[i].rgb, o = lightPos[i].xyz - ro;
+        float b = dot(o, rd), h = sqrt(max(dot(o, o) - b * b, 0.) + .3);
+        c += color * (atan((tMax - b) / h) + atan(b / h)) / h * (i < 2 ? .1 : 1.); // less for the lantern and muzzle
     }
-    return col;
+    return c;
 }
 
 vec3 render(vec3 ro, vec3 rd)
 {
-    const vec3 key = normalize(vec3(-0.3, -0.45, 1.));
-    const vec3 fill = normalize(vec3(0.7, 0.6, 0.5));
+    const vec3 fogColor = vec3(.004, .005, .012);
     vec3 col = vec3(0), weight = vec3(1);
-    vec3 ro0 = ro, rd0 = rd;
-    float tHit = 9.;
     for (int bounce = 0; bounce < 2; bounce++) {
+        glowSum = vec3(0);
+        cull(ro, rd);
         vec2 h = march(ro, rd);
-        if (bounce == 0) tHit = h.x;
-        if (h.x > 8.) {
-            col += weight * env(rd);
-            break;
+        vec3 p = ro + rd * h.x, c = fogColor;
+        if (h.y >= 0.) {
+            n = normal(p);
+            v = -rd;
+            vec3 albedo = material(p, h.y);
+            f0 = mix(vec3(.04), albedo, metal);
+            albedo *= 1. - metal;
+            float ao = occlusion(p, n);
+            // neon: by the distance to the tubes, a bit off the surface (so
+            // that surfaces facing away get less)
+            float d = neonAt(p + n * .3);
+            c = albedo * (neonCol * _TV(neonLight, 2.) / (1. + d * d * 3.) + vec3(.01, .012, .02)) * ao + glow;
+            for (int i = 0; i < lightCount; i++) {
+                vec3 color = lightCol[i].rgb, l = lightPos[i].xyz - p;
+                c += albedo * color * max(dot(n, normalize(l)), 0.) / (dot(l, l) + .3) + shade(p, lightPos[i].xyz, color);
+            }
         }
-        vec3 p = ro + rd * h.x;
-        n = normal(p);
-        v = -rd;
-        albedo = material(p, h.y);
-        f0 = mix(vec3(h.y == M_FLOOR ? 0.07 : 0.04), albedo, metal); // lacquered playfield
-        albedo *= 1. - metal;
-
-        float shade = bounce == 0 ? shadow(p + n * 0.001, key) : 1.;
-        float ao = bounce == 0 ? occlusion(p, n) : 1.;
-        vec3 toSun = vec3(SUN, 0.068) - p;
-        float sunPower = (0.5 + flash.x * 3.) * 0.0012 / dot(toSun, toSun);
-        vec3 c = light(key, vec3(1, 0.85, 0.7) * 1.5 * shade)
-               + light(fill, vec3(0.3, 0.45, 1) * 0.5 * ao)
-               + light(normalize(toSun), vec3(1, 0.5, 0.15) * sunPower)
-               // ambient: the warm table below, the dark room above
-               + albedo * mix(vec3(0.12, 0.06, 0.03), vec3(0.08, 0.1, 0.2), n.z * 0.5 + 0.5) * ao;
-        // GI lamps along the side walls
-        for (int i = 0; i < 4; i++) {
-            vec3 l = vec3(CX + (i % 2 > 0 ? 0.215 : -0.215), i > 1 ? 0.2 : -0.15, 0.04) - p;
-            c += light(normalize(l), vec3(1, 0.6, 0.3) * 0.0005 / dot(l, l)) * ao;
-        }
-        col += weight * (c + glow);
-
-        float fresnel = pow(1. - max(dot(n, v), 0.), 5.);
-        weight *= (f0 + (1. - f0) * fresnel) * (1. - rough) * ao;
-        if (max(weight.x, max(weight.y, weight.z)) < 0.02)
+        float fog = exp(-h.x * fogDensity);
+        col += weight * (mix(fogColor, c, fog) + glowSum * _TV(neonGlow, .05)
+                         + scattered(ro, rd, h.x) * fogDensity * _TV(scatter, .15));
+        if (h.y < 0.)
             break;
-        ro = p + n * 0.002;
-        // a rough surface blurs the reflection (noisy, like brushed metal)
+        weight *= (f0 + (1. - f0) * pow(1. - max(dot(n, v), 0.), 5.)) * (1. - rough) * fog;
+        if (rough > .3 || max(weight.x, max(weight.y, weight.z)) < .02)
+            break;
+        ro = p + n * .01;
         vec2 f = gl_FragCoord.xy;
-        rd = normalize(reflect(rd, n) + rough * 0.5 * (vec3(hash(f), hash(f + 1.), hash(f + 2.)) - 0.5));
+        rd = normalize(reflect(rd, n) + rough * .3 * (vec3(hash(f), hash(f + 1.), hash(f + 2.)) - .5));
     }
-    return col + trailGlow(ro0, rd0, tHit);
+    return col;
 }
 
 void main()
 {
     vec2 texCoord = gl_FragCoord.xy / iFrame.xy;
-    vec2 uv = (gl_FragCoord.xy * 2. - iFrame.xy) / iFrame.x;
+    vec2 uv = (gl_FragCoord.xy * 2. - iFrame.xy) / iFrame.y;
 
-    if (iFrame.w < 0.5) {
-        for (int i = 0; i < 3; i++)
-            planets[i] = planetPos(i, time);
-        // Camera: the whole table in view, still, so that the player can read
-        // the ball. A new game flies in from a close-up of the orrery (s: 0 to
-        // 1); game over flies back to it, so the camera never jumps.
-        float s = balls > 0 ? smoothstep(0.5, 5., camTime) : smoothstep(0., 3., gameOver);
-        vec3 ta = mix(vec3(SUN, 0.03), vec3(CX, _TV(camY, -0.1), 0), s);
-        float pitch = mix(0.25, _TV(camPitch, 0.88), s), yaw = (s - 1.) * 1.2;
-        vec3 ro = ta + vec3(sin(yaw) * cos(pitch), -cos(yaw) * cos(pitch), sin(pitch))
-                     * mix(0.3, _TV(camDistance, 1.3), s * s);
-        ro += shake * shake * 0.004 * vec3(sin(time * 71.), sin(time * 83.), sin(time * 61.));
-        vec3 fw = normalize(ta - ro);
-        vec3 rt = normalize(cross(fw, vec3(0, 0, 1)));
-        vec3 rd = normalize(uv.x * rt + uv.y * cross(rt, fw) + _TV(focal, 1.9) * fw);
+    if (iFrame.w < .5) {
+        // camera: head bob while running, shake
+        float b = sin(bob * 2.8);
+        eye = pos + vec3(0, EYE + b * .04, 0) + shake * shake * .05 * vec3(sin(time * 71.), sin(time * 83.), sin(time * 61.));
+        camF = vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
+        camR = normalize(cross(camF, vec3(0, 1, 0)));
+        camU = cross(camR, camF);
+        gunAt = vec3(.22 + sin(bob * 1.4) * .01, -.21 + b * .01, .36 - kick * .06);
+        fogDensity = _TV(fog, .03) + (1. - light) * .08;
+
+        vec3 rd = normalize(uv.x * camR + uv.y * camU + (_TV(focal, 1.6) - kick * .03) * camF);
         // A NaN would spread through the bloom.
-        fragColor = vec4(clamp(render(ro, rd), 0., 50.), 1);
+        fragColor = vec4(clamp(render(eye, rd), 0., 50.), 1);
         return;
     }
 
-    // Final image. Bloom: the mipmaps of the scene; a faint lens ghost.
-    vec2 ca = (texCoord - 0.5) * 0.0015; // chromatic aberration, toward the edges
+    // Final image. Bloom: the mipmaps of the scene.
+    vec2 ca = (texCoord - .5) * .002; // chromatic aberration, toward the edges
     vec3 col = vec3(texture(tex, texCoord + ca).r, texture(tex, texCoord).g, texture(tex, texCoord - ca).b);
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)
-        bloom += max(textureLod(tex, texCoord, float(i)).rgb - 0.6, 0.);
-    col += bloom * _TV(bloomAmount, 0.25) + max(textureLod(tex, 1. - texCoord, 6.).rgb - 0.6, 0.) * 0.1;
-    col = col * (2.51 * col + 0.03) / (col * (2.43 * col + 0.59) + 0.14);
-    // grading: cool shadows, warm highlights, a little more saturation
-    float luma = dot(col, vec3(0.3, 0.6, 0.1));
-    col = mix(vec3(luma), col, 1.15) + vec3(-0.01, 0, 0.02) * (1. - luma);
+        bloom += max(textureLod(tex, texCoord, float(i)).rgb - .4, 0.);
+    col += bloom * _TV(bloomAmount, .3);
+    col = col * (2.51 * col + .03) / (col * (2.43 * col + .59) + .14);
+    // grading: cold shadows, a little more saturation
+    float luma = dot(col, vec3(.3, .6, .1));
+    col = mix(vec3(luma), col, 1.2) + vec3(-.005, 0, .015) * (1. - luma);
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
-    col *= max(1. - pow(length(texCoord - 0.5), 1.5) * 1.2, 0.);
-    col += (hash(gl_FragCoord.xy + fract(time) * 100.) - 0.5) * 0.02; // grain
-    col += jackpotFlash * vec3(0.35, 0.3, 0.25); // jackpot
-    // a drain: red, darker
-    col = mix(col, col.r * vec3(0.9, 0.1, 0.05), drainFlash * 0.8);
+    // the vignette closes in when the light is low; red when hurt
+    float edge = length(texCoord - .5);
+    col *= max(1. - pow(edge, 1.5) * (1.2 + (1. - light) * 2.), 0.);
+    col = mix(col, vec3(col.r + .3, 0, 0), hurt * smoothstep(.2, .7, edge));
+    col += lapFlash * GOLD * .3;
+    col *= max(1. - dead * .5, 0.);
+    col += (hash(gl_FragCoord.xy + fract(time) * 100.) - .5) * .02; // grain
 
-    vec3 amber = vec3(1, 0.45, 0.1) * (1. + 2. * max(max(flash.x, flash.y), max(flash.z, flash.w)));
-    if (balls > 0) {
-        // a big award blinks in place of the score
-        digits7(col, amber * (awardTime > 0. ? 3. * step(0.4, fract(awardTime * 3.)) : 1.), uv * 18. - vec2(16.5, 8.), 18., uint(awardTime > 0. ? award : score), 7);
-        digits7(col, amber * 0.6, uv * 18. - vec2(-16.5, 8.), 18., uint(balls), 1);
-    } else {
-        digits7(col, amber, uv * 6. - vec2(1.8, 0), 6., uint(score), 7);
-    }
+    // HUD: crosshair (red on hits), lap time, best lap, lap, light
+    vec2 c = abs(uv);
+    float aim = max(step(c.x + c.y, .004), step(abs(max(c.x, c.y) - .03 - hitMark * .01), .002) * step(min(c.x, c.y), .002));
+    col = mix(col, mix(vec3(.9), RED * 2., hitMark), aim * .8);
+    vec3 cold = vec3(.5, .8, 1);
+    int cs = int(lapTime * 100.);
+    digits7(col, cold, uv * 22. - vec2(-.5, 19.5), 22., cs % 100, 2);
+    digits7(col, cold, uv * 22. - vec2(-3.5, 19.5), 22., cs / 100, 1);
+    col += cold * smoothstep(.06, .02, length(uv * 22. - vec2(-2.4, 18.3)));
+    if (bestLap > 0.)
+        digits7(col, cold * .5, uv * 40. - vec2(1.5, 33.), 40., int(bestLap * 100.), 3);
+    digits7(col, cold, uv * 22. - vec2(-34., 19.5), 22., lap, 1);
+    float bar = step(abs(uv.y + .9), .006) * step(abs(uv.x), .35 * light);
+    col += bar * GOLD * (light < .25 ? step(.5, fract(time * 3.)) + .3 : .8);
     fragColor = vec4(col, 1);
 }

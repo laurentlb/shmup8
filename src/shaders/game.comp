@@ -3,356 +3,342 @@
 
 layout(local_size_x = 1) in;
 
-// x: left flipper, y: right flipper, z: 1 pull the plunger, -1 nudge; w: number of steps
-layout(location = 0) uniform vec4 iInput;
+// [0] x: strafe, y: move, z: buttons (1 fire + 2 jump), w: number of steps
+// [1] x: yaw, y: pitch (radians)
+layout(location = 0) uniform vec4 iInput[2];
 
 #include "tweaks.frag"
 #include "state.glsl"
 #include "world.glsl"
 
-const float STEP = 1. / 120.;
-float DT; // the game time step: shorter in slow motion
-#define SUBSTEPS 8 // the ball moves less than half its radius per substep
+const float DT = 1. / 120.;
 
-bool multiball()
+float rnd()
 {
-    return ballCount + pending > 1;
+    rng = rng * 1664525u + 1013904223u;
+    return float(rng >> 8) / 16777216.;
 }
 
-// Velocity of the collider surface at p.
-vec2 surfaceVelocity(vec2 p, float m)
+vec3 rndDir()
 {
-    if (m >= M_PLANET && m < M_BALL) {
-        int i = int(m - M_PLANET);
-        return (planetPos(i, time + 0.01) - planetPos(i, time - 0.01)) * 50.;
-    }
-    if (m >= M_FLIP && m < M_SUN) {
-        int i = int(m - M_FLIP);
-        vec2 r = p - flipPivot(i);
-        return flipVel[i] * (i > 0 ? -1. : 1.) * vec2(-r.y, r.x);
-    }
-    return vec2(0);
+    return normalize(vec3(rnd(), rnd(), rnd()) - .5);
 }
 
-// A big award: scored, and shown in the display for a moment.
-void bigAward(int points)
+// Quake-style: accelerate toward wish, up to the speed cap along it.
+void accelerate(vec3 wish, float cap, float accel)
 {
-    award = points * mult;
-    score += award;
-    awardTime = 2.;
+    float add = cap - dot(vel, wish);
+    if (add > 0.)
+        vel += wish * min(add, accel * DT);
 }
 
-void bumper(int b, int i, vec2 n, int points)
+void addSpark(vec3 p, float power)
 {
-    if (flash[i] < 0.8) {
-        vel[b] += n * _TV(bumperKick, 0.55);
-        flash[i] = 1.;
-        score += points * mult;
-        bumperEvents++;
-        shake = max(shake, 0.4);
-        if (i == 0) {
-            slowMo = 0.08;
-            // multiball: the sun is the jackpot when lit, and it grows
-            if (multiball() && jackpotLit > 0) {
-                jackpotLit = 0;
-                bigAward(jackpot);
-                jackpotFlash = 1.;
-                slowMo = 0.6;
-                shake = 1.;
-                slingEvents++;
+    int k = 0;
+    for (int i = 1; i < MAX_SPARKS; i++)
+        if (spark[i].w < spark[k].w) k = i;
+    spark[k] = vec4(p, power);
+}
+
+void newRun()
+{
+    started = 1;
+    pos = vec3(2, R_BODY + .01, 0);
+    vel = vec3(0);
+    yawBase = -iInput[1].x;
+    light = 1.;
+    lap = 1;
+    checkpoint = 0;
+    lapTime = 0.;
+    dead = 0.;
+    spawnTimer = 2.;
+    for (int i = 0; i < MAX_ENEMIES; i++)
+        enemy[i].w = 0.;
+    for (int i = 0; i < MAX_ORBS; i++)
+        orb[i].w = 0.;
+}
+
+void hitEnemy(int i, vec3 dir)
+{
+    enemy[i].w--;
+    enemyInfo[i].y = 1.;
+    enemyVel[i].xyz += dir * 3.;
+    hitEvents++;
+    hitMark = 1.;
+    if (enemy[i].w <= 0.) {
+        // it bursts and releases its light
+        enemy[i].w = 0.;
+        killEvents++;
+        kills++;
+        shake = max(shake, .4);
+        addSpark(enemy[i].xyz, 4.);
+        for (int k = 0, n = 0; k < MAX_ORBS && n < 3; k++)
+            if (orb[k].w <= 0.) {
+                orb[k] = vec4(enemy[i].xyz, 1);
+                orbVel[k].xyz = rndDir() * 6. + vec3(0, 3, 0);
+                n++;
             }
-        }
-    }
-}
-
-// More balls (3 at most), launched one after the other from the shooter lane.
-void addBalls(int n)
-{
-    pending = min(pending + n, 3 - ballCount);
-}
-
-// Star targets: when the four are lit, the planets align and multiball starts.
-// During multiball, they light the jackpot (on the sun) again.
-void target(vec2 p)
-{
-    int k = targetIndex(p);
-    if ((targetsLit & 1 << k) != 0) {
-        score += 50 * mult;
-        return;
-    }
-    targetsLit |= 1 << k;
-    score += 250 * mult;
-    slingEvents++;
-    if (targetsLit == 15) {
-        targetsLit = 0;
-        shake = 1.;
-        flash = vec4(1);
-        bumperEvents++;
-        if (multiball()) {
-            // the jackpot is lit again and grows, and once per multiball a
-            // ball is added
-            jackpotLit = 1;
-            jackpot += 2500;
-            bigAward(2500);
-            if (ballAdded == 0)
-                addBalls(1);
-            ballAdded = 1;
-            slowMo = 0.6;
-            return;
-        }
-        // each multiball needs one more set of targets than the previous one
-        if (++sets <= multiballs) {
-            bigAward(2000);
-            slowMo = 0.4;
-            return;
-        }
-        sets = 0;
-        multiballs++;
-        bigAward(5000);
-        addBalls(2);
-        ballSave = max(ballSave, 12.);
-        alignTime = 1e-3;
-        if (jackpot == 0)
-            jackpot = 5000;
-        jackpotLit = 1;
-        launchDelay = 1.5;
-        slowMo = 1.5;
-    }
-}
-
-void collide(int b)
-{
-    vec2 p = ball[b];
-    vec2 h = field(p, vel[b].y < 0.);
-    if (h.x >= BALL_R)
-        return;
-    float m = h.y;
-    vec2 e = vec2(1e-4, 0);
-    vec2 n = normalize(vec2(field(p + e, vel[b].y < 0.).x - field(p - e, vel[b].y < 0.).x,
-                            field(p + e.yx, vel[b].y < 0.).x - field(p - e.yx, vel[b].y < 0.).x));
-    vec2 vs = surfaceVelocity(p - n * h.x, m);
-    ball[b] += n * (BALL_R - h.x);
-
-    vec2 v = vel[b] - vs;
-    float vn = dot(v, n);
-    if (vn >= 0.)
-        return;
-    float bounce = m == M_RAIL || m == M_SLING || m == M_POST ? _TV(rubberBounce, 0.7)
-                 : m == M_FLIP || m == M_FLIP + 1. ? _TV(flipperBounce, 0.45)
-                 : _TV(wallBounce, 0.5);
-    vel[b] = vs + v - (1. + bounce) * vn * n;
-
-    if (m == M_SUN) bumper(b, 0, n, 100);
-    if (m >= M_PLANET && m < M_BALL) bumper(b, int(m - M_PLANET) + 1, n, m > M_PLANET + 1.5 ? 500 : 50);
-    if (m == M_TARGET && vn < -0.2) target(p);
-    if (m == M_SLING) {
-        int side = p.x > CX ? 1 : 0;
-        if ((side > 0 ? -n.x : n.x) > 0.5 && slingFlash[side] < 0.5) {
-            vel[b] += n * _TV(slingKick, 0.75);
-            slingFlash[side] = 1.;
-            score += 10 * mult;
-            slingEvents++;
-            shake = max(shake, 0.3);
-        }
-    }
-}
-
-// Balls bounce off each other (same mass).
-void collideBalls()
-{
-    for (int i = 0; i < ballCount; i++)
-        for (int j = i + 1; j < ballCount; j++) {
-            vec2 d = ball[j] - ball[i];
-            float l = length(d);
-            if (l > 2. * BALL_R || l < 1e-6) continue;
-            vec2 n = d / l;
-            ball[i] -= n * (BALL_R - l * 0.5);
-            ball[j] += n * (BALL_R - l * 0.5);
-            float vn = dot(vel[j] - vel[i], n);
-            if (vn < 0.) {
-                vel[i] += n * vn * 0.95;
-                vel[j] -= n * vn * 0.95;
-            }
-        }
-}
-
-bool inLane(vec2 p)
-{
-    return p.x > 0.226 && p.y < -0.3;
-}
-
-// A new ball in the shooter lane, with a ball save.
-void serve()
-{
-    ball[0] = vec2(LANE_X, -0.5 + BALL_R);
-    vel[0] = vec2(0);
-    ballCount = 1;
-    ballSave = _TV(ballSaveTime, 8.);
-}
-
-// Top lanes: rolling through the three of them raises the multiplier.
-void lanes(vec2 p)
-{
-    int k = int(floor((p.x - CX + 0.09) / 0.06));
-    if (p.y > 0.4 && p.y < 0.44 && k >= 0 && k < 3) {
-        if ((lanesLit & 1 << k) == 0) {
-            lanesLit |= 1 << k;
-            score += 100 * mult;
-            slingEvents++;
-        }
-    }
-    if (lanesLit == 7) {
-        lanesLit = 0;
-        mult = min(mult + 1, 5);
-        bigAward(1000);
-        flash = vec4(1);
-        bumperEvents++;
-        shake = 1.;
-        slowMo = 0.4;
     }
 }
 
 void update()
 {
-    drainFlash = max(drainFlash - STEP * 2., 0.);
-    jackpotFlash = max(jackpotFlash - STEP * 2., 0.);
-    awardTime = max(awardTime - STEP, 0.);
-    // the camera's intro: faster while a key is held
-    camTime += STEP * (dot(abs(iInput.xyz), vec3(1)) > 0. ? 4. : 1.);
-    // slow motion: 20% of the speed, back to normal during the last 0.25 s
-    slowMo = max(slowMo - STEP, 0.);
-    DT = STEP * (1. - 0.8 * min(slowMo * 4., 1.));
     time += DT;
-    if (alignTime > 0.)
-        alignTime = alignTime > 4. ? 0. : alignTime + DT;
-    // light trails: a ball's position every other step, or during multiball
-    // each step and one ball after the other (w: the ball)
-    if ((++steps & 1) == 0 || ballCount > 1) {
-        for (int i = TRAIL - 1; i > 0; i--)
-            trail[i] = trail[i - 1];
-        int b = steps % max(ballCount, 1);
-        trail[0] = vec4(ball[b], length(vel[b]), b);
-    }
-    flash = max(flash - DT * 4., 0.);
-    slingFlash = max(slingFlash - DT * 4., 0.);
+    if (started == 0)
+        newRun();
     shake = max(shake - DT * 3., 0.);
+    hurt = max(hurt - DT * 2., 0.);
+    kick = max(kick - DT * 6., 0.);
+    hitMark = max(hitMark - DT * 5., 0.);
+    lapFlash = max(lapFlash - DT, 0.);
+    for (int i = 0; i < MAX_SPARKS; i++)
+        spark[i].w = max(spark[i].w - DT * 5., 0.);
 
-    if (balls <= 0) {
-        ballCount = 0;
-        pending = 0;
-        gameOver -= DT;
-        if (gameOver <= 0.) {
-            score = 0;
-            balls = 3;
-            mult = 1;
-            lanesLit = 0;
-            targetsLit = 0;
-            jackpot = 0;
-            sets = 0;
-            multiballs = 0;
-            camTime = 0.;
-            serve();
+    float fire = mod(iInput[0].z, 2.), jump = step(2., iInput[0].z);
+    yaw = iInput[1].x + yawBase;
+    pitch = iInput[1].y;
+    vec3 fw = vec3(cos(yaw), 0, sin(yaw)), rt = vec3(-fw.z, 0, fw.x);
+    vec3 look = vec3(fw.x * cos(pitch), sin(pitch), fw.z * cos(pitch));
+    vec3 eye = pos + vec3(0, EYE, 0);
+
+    if (dead > 0.) {
+        dead += DT;
+        vel = vec3(0);
+        if (dead > 3.)
+            newRun();
+    } else {
+        lapTime += DT;
+        light -= DT * (_TV(drain, .012) + .004 * float(lap));
+        if (light <= 0.) {
+            light = 0.;
+            dead = DT;
+            hurtEvents++;
+        }
+
+        // running and jumping
+        vec3 wish = fw * iInput[0].y + rt * iInput[0].x;
+        float wl = length(wish);
+        if (wl > 0.)
+            wish /= wl;
+        float speed = _TV(runSpeed, 10.);
+        if (grounded > 0) {
+            float s = length(vel.xz);
+            if (s > 0.)
+                vel.xz *= max(s - max(s, 3.) * _TV(friction, 6.) * DT, 0.) / s;
+            accelerate(wish, speed * sign(wl), speed * _TV(accel, 10.));
+            bob += s * DT;
+            if (jump > 0.) {
+                vel.y = _TV(jumpSpeed, 7.);
+                jumpEvents++;
+            }
+        } else
+            accelerate(wish, sign(wl), speed * _TV(airAccel, 1.));
+        vel.y -= _TV(gravity, 20.) * DT;
+        pos += vel * DT;
+        grounded = 0;
+        for (int k = 0; k < 3; k++) {
+            float d = level(pos);
+            if (d >= R_BODY)
+                break;
+            vec3 n = levelNormal(pos);
+            pos += n * (R_BODY - d);
+            vel -= n * min(dot(vel, n), 0.);
+            if (n.y > .7)
+                grounded = 1;
+        }
+
+        // shooting: the bolt leaves the gun toward what the crosshair points at
+        cooldown -= DT;
+        if (fire > 0. && cooldown <= 0.) {
+            cooldown = _TV(fireDelay, .11);
+            kick = 1.;
+            shotEvents++;
+            float t = 0.;
+            for (int k = 0; k < 40 && t < 80.; k++) {
+                float d = level(eye + look * t);
+                if (d < .05)
+                    break;
+                t += d;
+            }
+            vec3 muzzle = eye + look * .5 + rt * .2 - cross(rt, look) * .15;
+            for (int k = 0; k < MAX_BOLTS; k++)
+                if (bolt[k].w <= 0.) {
+                    bolt[k] = vec4(muzzle, 1.2);
+                    boltVel[k].xyz = normalize(eye + look * max(t, 2.) - muzzle) * _TV(boltSpeed, 70.);
+                    break;
+                }
+        }
+
+        // laps: the quarters of the track must be reached in order
+        level(pos);
+        int q = int(trackPos() / trackLength() * 4.);
+        if (q == (checkpoint + 1) % 4) {
+            checkpoint = q;
+            if (q == 0) {
+                lap++;
+                lapEvents++;
+                bestLap = bestLap > 0. ? min(bestLap, lapTime) : lapTime;
+                lapTime = 0.;
+                light = min(light + .25, 1.);
+                lapFlash = 1.;
+            }
+        }
+
+        // more enemies appear ahead, more of them on each lap
+        int alive = 0;
+        for (int i = 0; i < MAX_ENEMIES; i++)
+            alive += int(enemy[i].w > 0.);
+        spawnTimer -= DT;
+        if (alive < min(2 + 2 * lap, MAX_ENEMIES) && spawnTimer <= 0.) {
+            spawnTimer = max(_TV(spawnDelay, 2.5) - .25 * float(lap), .7);
+            vec3 s = trackPoint(trackPos() + 25. + rnd() * 15.) + vec3(rnd() * 4. - 2., 1.8 + rnd() * 1.5, rnd() * 4. - 2.);
+            for (int i = 0; i < MAX_ENEMIES; i++)
+                if (enemy[i].w <= 0.) {
+                    enemy[i] = vec4(s, 2. + floor(float(lap) * .5));
+                    enemyVel[i] = vec4(0);
+                    enemyInfo[i] = vec4(0, 0, 1.5, 0);
+                    break;
+                }
         }
     }
 
-    // multiball: launch the waiting balls when the shooter lane is free
-    launchDelay -= DT;
-    bool laneFree = true;
-    for (int b = 0; b < ballCount; b++)
-        laneFree = laneFree && !inLane(ball[b]);
-    if (pending > 0 && launchDelay <= 0. && laneFree) {
-        ball[ballCount] = vec2(LANE_X, -0.45);
-        vel[ballCount++] = vec2(0, _TV(autoLaunchSpeed, 2.8));
-        pending--;
-        launchDelay = 0.8;
-        flipperEvents++;
-    }
-
-    vec2 up = iInput.xy;
-    for (int i = 0; i < 2; i++)
-        if (up[i] > prevInput[i]) {
-            flipperEvents++;
-            // lane change: the lit lanes move toward the flipper's side
-            lanesLit = (i > 0 ? lanesLit << 1 | lanesLit >> 2 : lanesLit >> 1 | lanesLit << 2) & 7;
+    // bolts
+    for (int k = 0; k < MAX_BOLTS; k++) {
+        if (bolt[k].w <= 0.)
+            continue;
+        bolt[k].w -= DT;
+        vec3 p = bolt[k].xyz, v = boltVel[k].xyz, dir = normalize(v);
+        float len = length(v) * DT;
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            if (enemy[i].w <= 0.)
+                continue;
+            vec3 e = enemy[i].xyz - p;
+            float h = clamp(dot(e, dir), 0., len);
+            if (length(e - dir * h) < .7 * enemyInfo[i].x + .1) {
+                hitEnemy(i, dir);
+                addSpark(p + dir * h, 1.5);
+                bolt[k].w = 0.;
+                break;
+            }
         }
-
-    const float h = DT / float(SUBSTEPS);
-    for (int s = 0; s < SUBSTEPS; s++) {
-        for (int i = 0; i < 2; i++) {
-            float speed = up[i] > 0. ? _TV(flipUpSpeed, 25.) : _TV(flipDownSpeed, 12.);
-            float a = clamp((up[i] > 0. ? FLIP_UP : FLIP_REST) - flip[i], -speed * h, speed * h);
-            flipVel[i] = a / h;
-            flip[i] += a;
+        float t = 0.;
+        for (int s = 0; s < 4 && t < len && bolt[k].w > 0.; s++) {
+            float d = level(p + dir * t);
+            if (d < .05) {
+                addSpark(p + dir * (t - .1), 1.);
+                bolt[k].w = 0.;
+            }
+            t += d;
         }
-        for (int b = 0; b < ballCount; b++) {
-            vel[b].y -= _TV(gravity, 1.1) * h;
-            ball[b] += vel[b] * h;
-            collide(b);
+        bolt[k].xyz += v * DT;
+    }
+
+    // enemies: they float toward the player and charge when close
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+        if (enemy[i].w <= 0.)
+            continue;
+        vec4 info = enemyInfo[i];
+        info.x = min(info.x + DT, 1.);
+        info.yzw = max(info.yzw - vec3(6, 1, 1) * DT, 0.);
+        vec3 e = enemy[i].xyz, v = enemyVel[i].xyz;
+        vec3 to = eye - vec3(0, .3, 0) - e;
+        float dist = length(to);
+        to /= dist;
+        if (enemyVel[i].w > 0.)
+            enemyVel[i].w -= DT;
+        else {
+            v += (to * (_TV(enemySpeed, 4.) + .5 * float(lap)) - v) * DT * 2.;
+            v.y += sin(time * 2. + float(i)) * DT * 2.;
+            if (dist < 9. && info.z <= 0. && dead == 0.) {
+                v = to * (12. + float(lap));
+                enemyVel[i].w = .6;
+                info.z = 2.5;
+            }
         }
-        collideBalls();
-    }
-
-    bool inPlayfield = false;
-    for (int b = 0; b < ballCount; b++) {
-        lanes(ball[b]);
-        inPlayfield = inPlayfield || ball[b].x < 0.22;
-        vel[b] *= 1. - _TV(rollingDamping, 0.1) * DT;
-        float speed = length(vel[b]);
-        if (speed > 3.2)
-            vel[b] *= 3.2 / speed;
-    }
-    if (inPlayfield)
-        ballSave = max(ballSave - DT, 0.); // counts once a ball is in the playfield
-
-    // plunger: pull, then release
-    if (iInput.z > 0. && camTime > 5.) // not during the intro
-        plunger = min(plunger + DT * 1.2, 1.);
-    else if (plunger > 0.) {
-        for (int b = 0; b < ballCount; b++)
-            if (ball[b].x > 0.226 && ball[b].y < -0.45)
-                vel[b].y = plunger * _TV(plungerSpeed, 2.6) + 0.4;
-        plunger = 0.;
-    }
-    // nudge
-    if (iInput.z < 0. && prevInput.z >= 0. && shake < 0.5) {
-        for (int b = 0; b < ballCount; b++)
-            vel[b] += vec2(0, 0.25);
-        shake = 1.;
-    }
-    prevInput.xyz = iInput.xyz;
-
-    // drains
-    for (int b = ballCount - 1; b >= 0; b--)
-        if (ball[b].y < -0.53) {
-            drainEvents++;
+        // spread out
+        for (int j = 0; j < MAX_ENEMIES; j++) {
+            vec3 d = e - enemy[j].xyz;
+            float l = length(d);
+            if (j != i && enemy[j].w > 0. && l < 2.5 && l > 0.)
+                v += d / l * (2.5 - l) * DT * 8.;
+        }
+        // keep away from the walls
+        float dl = level(e);
+        if (dl < 1.) {
+            vec3 n = levelNormal(e);
+            v += n * (1. - dl) * DT * 30.;
+            if (dl < .6) {
+                e += n * (.6 - dl);
+                v -= n * min(dot(v, n), 0.) * 1.5;
+            }
+        }
+        e += v * DT * info.x;
+        // a bite
+        vec3 body = pos + vec3(0, .5, 0) - e;
+        if (length(body) < 1.3 && dead == 0. && info.x >= 1. && info.w <= 0.) {
+            light -= _TV(biteDamage, .12);
+            hurt = 1.;
             shake = 1.;
-            ball[b] = ball[--ballCount];
-            vel[b] = vel[ballCount];
-            if (ballSave > 0. && multiball())
-                addBalls(1); // saved during multiball: launched again
+            hurtEvents++;
+            vel += normalize(body) * 8. + vec3(0, 3, 0);
+            v = -normalize(body) * 8.;
+            enemyVel[i].w = 0.;
+            info.zw = vec2(2, 1.5);
         }
-    if (!multiball())
-        ballAdded = 0;
-    if (balls > 0 && ballCount + pending == 0) {
-        drainFlash = 1.;
-        if (ballSave > 0.) {
-            serve();
-            ballSave = 0.;
-            flash = vec4(1);
-        } else {
-            mult = 1;
-            jackpot = 0;
-            if (--balls > 0)
-                serve();
-            else
-                gameOver = 3.;
-        }
+        enemy[i].xyz = e;
+        enemyVel[i].xyz = v;
+        enemyInfo[i] = info;
+        // far away: gone (others appear ahead)
+        if (dist > 70. || dead > 0.)
+            enemy[i].w = 0.;
     }
 
+    // released light flies to the player
+    for (int k = 0; k < MAX_ORBS; k++) {
+        if (orb[k].w <= 0.)
+            continue;
+        vec3 to = pos + vec3(0, .6, 0) - orb[k].xyz;
+        float d = length(to);
+        orbVel[k].xyz = orbVel[k].xyz * .985 + to / d * 40. * DT;
+        orb[k].xyz += orbVel[k].xyz * DT;
+        if (d < .8) {
+            orb[k].w = 0.;
+            light = min(light + _TV(orbLight, .04), 1.);
+        }
+    }
+}
+
+void addLight(vec3 p, vec3 c)
+{
+    if (lightCount < MAX_LIGHTS && c.r > 0.) {
+        lightPos[lightCount].xyz = p;
+        lightCol[lightCount++].rgb = c;
+    }
+}
+
+// The point lights: the player's lantern and muzzle flash, bolts, sparks,
+// released light, the enemies' eyes.
+void makeLights()
+{
+    vec3 eye = pos + vec3(0, EYE, 0);
+    vec3 f = vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
+    vec3 r = normalize(cross(f, vec3(0, 1, 0))), u = cross(r, f);
+    lightCount = 0;
+    addLight(eye + u * .4 - f * .3, GOLD * (light * _TV(lantern, 2.) + .05));
+    addLight(eye + r * .2 - u * .2 + f * .55, GOLD * kick * kick * 6.);
+    for (int i = 0; i < MAX_BOLTS; i++)
+        addLight(bolt[i].xyz, GOLD * 3. * step(1e-4, bolt[i].w));
+    for (int i = 0; i < MAX_SPARKS; i++)
+        addLight(spark[i].xyz, GOLD * spark[i].w * 2.);
+    for (int i = 0; i < MAX_ORBS; i++)
+        addLight(orb[i].xyz, GOLD * 1.5 * orb[i].w);
+    for (int i = 0; i < MAX_ENEMIES; i++)
+        addLight(enemy[i].xyz + normalize(eye - enemy[i].xyz) * .6, RED * .6 * enemyInfo[i].x * step(1e-4, enemy[i].w));
 }
 
 void main()
 {
-    for (int i = 0; i < int(iInput.w); i++)
+    for (int i = 0; i < int(iInput[0].w); i++)
         update();
+    makeLights();
 }

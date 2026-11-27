@@ -5,42 +5,42 @@
 // declaration changes. The event counters must stay first.
 
 // Not "const int": Shader Minifier would drop constants used only in the buffer declaration.
-#define TRAIL 32
-#define MAX_BALLS 4
+#define MAX_BOLTS 12
+#define MAX_ENEMIES 10
+#define MAX_SPARKS 8
+#define MAX_ORBS 12
+#define MAX_LIGHTS 24
 
 layout(std430, binding = 0) buffer State {
     // Event counters, they trigger the sound effects.
     // Same order as SFX in src/music/song.py.
-    int bumperEvents, flipperEvents, drainEvents, slingEvents;
+    int shotEvents, hitEvents, killEvents, hurtEvents, jumpEvents, lapEvents;
 
-    vec2 ball[MAX_BALLS], vel[MAX_BALLS]; // the first ballCount are in play
-    vec2 flip, flipVel; // flipper angles (mirrored for the right one), angular velocities
-    float camTime;      // since the game started (for the camera's intro)
-    vec2 slingFlash;    // 1 when kicking, then decreases
-    vec4 flash;         // sun, planets, moon: 1 when hit, then decreases
-    vec4 prevInput;
-    float time;         // never reset: the orrery keeps turning
-    float plunger;      // 0 to 1 while pulling
-    float shake;        // camera shake
-    float gameOver;     // > 0: waiting for a new game
-    float ballSave;     // > 0: a drain gives the ball back
-    float slowMo;       // > 0: slow motion for a moment on big hits
-    float drainFlash;   // 1 on a drain, then decreases
-    int score, balls;   // balls left, including the one in play
-    int mult;           // score multiplier, 1 to 5
-    int lanesLit;       // top lanes, one bit each
-    int steps;
-    int ballCount;      // balls on the table
-    int pending;        // balls waiting to be launched (multiball)
-    float launchDelay;
-    int targetsLit;     // the four star targets, one bit each
-    float alignTime;    // > 0: seconds since the planets started to align
-    int jackpot;        // value of the next jackpot (multiball)
-    int jackpotLit;     // the sun gives the jackpot; a star target relights it
-    int ballAdded;      // the targets already added a ball during this multiball
-    int sets;           // completed sets of targets toward the next multiball
-    int multiballs;     // played in this game: each one needs one more set
-    float jackpotFlash;
-    int award; float awardTime; // the last big award, shown in the display
-    vec4 trail[TRAIL];  // recent ball positions (xy) and speeds (z), the newest first
+    vec3 pos; float yaw;     // pos: the center of the player's sphere; yaw, pitch: the view
+    vec3 vel; float pitch;
+    float yawBase;           // added to the input's yaw: a new run faces along the track
+    float light;             // 0 to 1, drains; kills give light back; 0: the dark takes you
+    float lapTime, bestLap;
+    int lap;
+    int checkpoint;          // the last quarter of the track reached
+    float time;
+    float cooldown;          // before the next shot
+    float kick;              // 1 on a shot, then decreases (recoil)
+    float shake, hurt, hitMark, lapFlash;
+    float dead;              // > 0: seconds since the light ran out
+    float bob;               // distance walked (head and gun bob)
+    int grounded, started, kills;
+    uint rng;
+    float spawnTimer;
+    vec4 bolt[MAX_BOLTS];        // xyz, w: life left (s), 0: free
+    vec4 boltVel[MAX_BOLTS];
+    vec4 enemy[MAX_ENEMIES];     // xyz, w: health, 0: free
+    vec4 enemyVel[MAX_ENEMIES];  // xyz, w: > 0 while charging
+    vec4 enemyInfo[MAX_ENEMIES]; // x: appearing (0 to 1), y: hit flash, z: before the next charge, w: before the next bite
+    vec4 spark[MAX_SPARKS];      // impacts: xyz, w: intensity (decreases)
+    vec4 orb[MAX_ORBS];          // light released by a kill, flies to the player: xyz, w: 1, 0: free
+    vec4 orbVel[MAX_ORBS];
+    // the point lights for the rendering, made by the gameplay (xyz, color)
+    int lightCount;
+    vec4 lightPos[MAX_LIGHTS], lightCol[MAX_LIGHTS];
 };

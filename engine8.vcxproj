@@ -664,6 +664,7 @@ call preprocess_shaders.bat --minify</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="src\definitions.h" />
+    <ClInclude Include="src\input.h" />
     <ClInclude Include="src\edit\editor.h" />
     <ClInclude Include="src\edit\editui.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>

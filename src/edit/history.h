@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include "../input.h"
+
 // Editor only: records the inputs of every game step and keeps a copy of the
 // game state every second, to go back in time and replay.
 //
@@ -14,14 +16,22 @@
 // replaying from an earlier point uses the new code with the same inputs.
 namespace History
 {
-	// One byte per step: 1 x < 0, 2 x > 0, 4 y > 0, 8 y < 0, 16 fire > 0, 32 fire < 0.
-	typedef unsigned char Input;
-	Input encode(float x, float y, float fire);
-	void decode(Input input, float& x, float& y, float& fire);
+	// The input of a step: keys (1 left, 2 right, 4 forward, 8 back, 16 fire,
+	// 32 jump) and the view angles, quantized (live inputs are quantized too,
+	// so that a replay gives the same game).
+	struct Input
+	{
+		unsigned char keys;
+		short yaw, pitch; // yaw: a turn is 65536; pitch: 1/20000 radian
+		bool operator==(const Input& o) const { return keys == o.keys && yaw == o.yaw && pitch == o.pitch; }
+		bool operator!=(const Input& o) const { return !(*this == o); }
+	};
+	Input encode(const GameInput& input);
+	GameInput decode(Input input);
 
 	// step: advances the game (see stepGame). events: the counters read back by the host,
 	// at the beginning of the state.
-	void init(void (*step)(float x, float y, float fire, int steps), int* events, int eventCount, int stateSize);
+	void init(void (*step)(GameInput input, int steps), int* events, int eventCount, int stateSize);
 
 	// The state was reset (restart or new layout): go to step 0, keep the inputs.
 	void restart();
@@ -41,7 +51,10 @@ namespace History
 	int length(); // recorded steps
 	bool& replaying();
 
-	// Text file, one line per run of identical inputs: "count input".
+	// The input of the previous step (zero at step 0).
+	Input last();
+
+	// Text file, one line per run of identical inputs: "count keys yaw pitch".
 	bool save(const std::string& path);
 	bool load(const std::string& path, std::vector<Input>& inputs);
 	bool load(const std::string& path); // into the history, and restart

@@ -30,7 +30,6 @@ static float key(int vk)
 {
 	return (float)((GetAsyncKeyState(vk) >> 15) & 1);
 }
-
 #ifndef EDITOR_CONTROLS
 
 #pragma code_seg(".main")
@@ -62,6 +61,8 @@ void entrypoint(void)
 
 	long previousTime = timeGetTime(); // ms
 	int remainder = 0; // elapsed time that wasn't simulated yet, in 1/(1000 * STEPS_PER_SECOND) s
+	static GameInput input;
+	SetCursorPos(xres / 2, yres / 2);
 	do
 	{
 		// minimal message handling so Windows doesn't consider the application as frozen
@@ -73,7 +74,18 @@ void entrypoint(void)
 			elapsed = 1000 * MAX_STEPS / STEPS_PER_SECOND;
 		remainder += elapsed * STEPS_PER_SECOND;
 
-		stepGame(key(VK_LEFT), key(VK_RIGHT), key(VK_DOWN) - key(VK_UP), remainder / 1000);
+		// mouse look: the cursor goes back to the center of the screen
+		POINT cursor;
+		GetCursorPos(&cursor);
+		SetCursorPos(xres / 2, yres / 2);
+		input.yaw += (cursor.x - xres / 2) * MOUSE_SPEED;
+		input.pitch -= (cursor.y - yres / 2) * MOUSE_SPEED;
+		if (input.pitch > 1.5f) input.pitch = 1.5f;
+		if (input.pitch < -1.5f) input.pitch = -1.5f;
+		input.x = key('D') - key('A');
+		input.y = key('W') - key('S');
+		input.buttons = key(VK_LBUTTON) + 2 * key(VK_SPACE);
+		stepGame(input, remainder / 1000);
 		remainder %= 1000;
 		drawGame(xres, yres, elapsed * 0.001f, 0);
 		SwapBuffers(hDC);
@@ -141,15 +153,54 @@ int __cdecl main(int argc, char* argv[])
 		else if (editor.takeCodeChanged())
 			History::invalidate();
 
-		// gameplay
+		// gameplay. Tab captures the mouse for mouse look (and the left button
+		// fires); without it, the arrows turn and F fires.
 		ImGuiIO& io = ImGui::GetIO();
 		const bool focus = GetForegroundWindow() == hwnd && !io.WantTextInput && !io.KeyCtrl;
-		float x = 0, y = 0, fire = 0;
+		static GameInput input;
+		static bool mouseLook, tabDown;
+		bool moved = false;
+		if (focus && key(VK_TAB) && !tabDown)
+		{
+			mouseLook = !mouseLook;
+			ShowCursor(!mouseLook);
+		}
+		tabDown = key(VK_TAB) > 0;
+		if (!focus && mouseLook)
+		{
+			mouseLook = false;
+			ShowCursor(1);
+		}
+		// While replaying or paused, the view follows the recorded inputs.
+		if (History::replaying() || !EditUI::playing())
+		{
+			GameInput recorded = History::decode(History::last());
+			input.yaw = recorded.yaw;
+			input.pitch = recorded.pitch;
+		}
+		input.x = input.y = input.buttons = 0;
 		if (focus)
 		{
-			x = key(VK_LEFT);
-			y = key(VK_RIGHT);
-			fire = key(VK_DOWN) - key(VK_UP);
+			input.x = key('D') - key('A');
+			input.y = key('W') - key('S');
+			input.buttons = key('F') + 2 * key(VK_SPACE);
+			float turn = (key(VK_RIGHT) - key(VK_LEFT)) * 2.f * elapsed;
+			float look = (key(VK_UP) - key(VK_DOWN)) * 1.5f * elapsed;
+			if (mouseLook)
+			{
+				RECT r;
+				GetClientRect(hwnd, &r);
+				POINT center = { r.right / 2, r.bottom / 2 }, cursor;
+				ClientToScreen(hwnd, &center);
+				GetCursorPos(&cursor);
+				SetCursorPos(center.x, center.y);
+				turn += (cursor.x - center.x) * MOUSE_SPEED;
+				look -= (cursor.y - center.y) * MOUSE_SPEED;
+				input.buttons += key(VK_LBUTTON);
+			}
+			moved = turn != 0 || look != 0;
+			input.yaw += turn;
+			input.pitch = max(-1.5f, min(1.5f, input.pitch + look));
 		}
 		float gameElapsed = EditUI::playing() ? elapsed * EditUI::speed() : 0.f;
 		remainder += gameElapsed * STEPS_PER_SECOND;
@@ -164,8 +215,8 @@ int __cdecl main(int argc, char* argv[])
 
 		GLCALL(PFNGLUSEPROGRAMPROC, "glUseProgram")(gameProgram);
 		EditUI::Tweaks::apply(gameProgram);
-		History::Input live = History::encode(x, y, fire);
-		if (live && History::replaying())
+		History::Input live = History::encode(input);
+		if ((live.keys || moved) && History::replaying())
 			History::replaying() = false; // the player takes over
 		History::advance(live, steps);
 

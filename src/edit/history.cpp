@@ -4,12 +4,13 @@
 #include "glext.h"
 
 #include <cstdio>
+#include <cmath>
 
 namespace History
 {
 	static const int SNAPSHOT_STEPS = 120; // one second
 
-	static void (*stepGame)(float, float, float, int);
+	static void (*stepGame)(GameInput, int);
 	static int* events;
 	static int eventCount;
 	static int stateSize;
@@ -24,16 +25,28 @@ namespace History
 	GLFN(PFNGLBUFFERSUBDATAPROC, glBufferSubData)
 	#undef GLFN
 
-	Input encode(float x, float y, float fire)
+	static const float PI = 3.14159265f;
+
+	Input encode(const GameInput& in)
 	{
-		return (Input)((x < 0) | (x > 0) << 1 | (y > 0) << 2 | (y < 0) << 3 | (fire > 0) << 4 | (fire < 0) << 5);
+		int buttons = (int)in.buttons;
+		Input input;
+		input.keys = (unsigned char)((in.x < 0) | (in.x > 0) << 1 | (in.y > 0) << 2 | (in.y < 0) << 3 | (buttons & 3) << 4);
+		float turns = in.yaw / (2 * PI);
+		input.yaw = (short)(int)floorf((turns - floorf(turns)) * 65536.f + 0.5f); // wraps
+		input.pitch = (short)(int)floorf(in.pitch * 20000.f + 0.5f);
+		return input;
 	}
 
-	void decode(Input input, float& x, float& y, float& fire)
+	GameInput decode(Input input)
 	{
-		x = (float)((input >> 1 & 1) - (input & 1));
-		y = (float)((input >> 2 & 1) - (input >> 3 & 1));
-		fire = (float)((input >> 4 & 1) - (input >> 5 & 1));
+		GameInput in = {};
+		in.x = (float)((input.keys >> 1 & 1) - (input.keys & 1));
+		in.y = (float)((input.keys >> 2 & 1) - (input.keys >> 3 & 1));
+		in.buttons = (float)(input.keys >> 4 & 3);
+		in.yaw = input.yaw * (2 * PI / 65536.f);
+		in.pitch = input.pitch / 20000.f;
+		return in;
 	}
 
 	static void takeSnapshot()
@@ -44,7 +57,7 @@ namespace History
 		glGetBufferSubData_()(GL_SHADER_STORAGE_BUFFER, 0, stateSize, &snapshots[i][0]);
 	}
 
-	void init(void (*step)(float, float, float, int), int* eventCounters, int counterCount, int size)
+	void init(void (*step)(GameInput, int), int* eventCounters, int counterCount, int size)
 	{
 		stepGame = step;
 		events = eventCounters;
@@ -87,9 +100,7 @@ namespace History
 				recorded.insert(recorded.end(), n, input);
 			}
 
-			float x, y, fire;
-			decode(input, x, y, fire);
-			stepGame(x, y, fire, n);
+			stepGame(decode(input), n);
 			pos += n;
 			steps -= n;
 			if (pos % SNAPSHOT_STEPS == 0)
@@ -119,7 +130,7 @@ namespace History
 		while (k > 0 && snapshots[k].empty()) k--;
 		glBufferSubData_()(GL_SHADER_STORAGE_BUFFER, 0, stateSize, &snapshots[k][0]);
 		pos = k * SNAPSHOT_STEPS;
-		run(0, target - pos, true);
+		run(Input(), target - pos, true);
 
 		glBufferSubData_()(GL_SHADER_STORAGE_BUFFER, 0, eventCount * 4, counters);
 		for (int i = 0; i < eventCount; i++) events[i] = counters[i];
@@ -132,6 +143,8 @@ namespace History
 		// the snapshot at the current step (if any) is still right
 	}
 
+	Input last() { return pos > 0 && pos <= (int)recorded.size() ? recorded[pos - 1] : Input(); }
+
 	int position() { return pos; }
 	int length() { return (int)recorded.size(); }
 	bool& replaying() { return replay; }
@@ -141,12 +154,12 @@ namespace History
 	{
 		FILE* f = fopen(path.c_str(), "w");
 		if (!f) return false;
-		fprintf(f, "# shmup8 inputs: steps (1/120 s) and keys (1 left, 2 right, 4 up, 8 down, 16 fire)\n");
+		fprintf(f, "# shmup8 inputs: steps (1/120 s), keys (1 left, 2 right, 4 forward, 8 back, 16 fire, 32 jump), yaw (65536 a turn), pitch (1/20000 rad)\n");
 		for (size_t i = 0; i < recorded.size();)
 		{
 			size_t j = i;
 			while (j < recorded.size() && recorded[j] == recorded[i]) j++;
-			fprintf(f, "%u %u\n", (unsigned)(j - i), (unsigned)recorded[i]);
+			fprintf(f, "%u %u %d %d\n", (unsigned)(j - i), (unsigned)recorded[i].keys, recorded[i].yaw, recorded[i].pitch);
 			i = j;
 		}
 		return fclose(f) == 0;
@@ -162,13 +175,15 @@ namespace History
 		while (fgets(line, sizeof(line), f))
 		{
 			if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
-			unsigned count, input;
-			if (sscanf(line, "%u %u", &count, &input) != 2 || input > 31)
+			unsigned count, keys;
+			int yaw, pitch;
+			if (sscanf(line, "%u %u %d %d", &count, &keys, &yaw, &pitch) != 4 || keys > 63)
 			{
 				ok = false;
 				break;
 			}
-			inputs.insert(inputs.end(), count, (Input)input);
+			Input input = { (unsigned char)keys, (short)yaw, (short)pitch };
+			inputs.insert(inputs.end(), count, input);
 		}
 		fclose(f);
 		return ok;

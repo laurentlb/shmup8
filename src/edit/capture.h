@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../input.h"
+
 // Headless capture (editor build only): play the game with scripted inputs,
 // offscreen and with a fixed time step, then save PNGs, a video or the audio.
 // Two runs give the same simulation.
@@ -17,9 +19,9 @@
 //     --width W          render width, the height keeps the aspect (default: XRES)
 //     --set NAME=VALUE   override a _TV value (repeatable)
 //     --fps N            frame rate, a divisor or multiple of 60 (default: 60)
-//     --keys bot|auto|none|FILE  a bot that flips when the ball is near (default),
-//                        scripted inputs (flip and launch at fixed times), or
-//                        inputs saved by the editor (the video then lasts as long)
+//     --keys bot|auto|none|FILE  a bot that runs along the track and shoots
+//                        (default), scripted inputs, or inputs saved by the
+//                        editor (the video then lasts as long)
 //     --wav FILE         also save the sound (60 fps only)
 //     --trace SECONDS    print the state at this interval (with --end, no frame needed)
 //
@@ -29,7 +31,7 @@ namespace Capture
 	// The functions of the game, which are static in main.cpp.
 	struct Host
 	{
-		void (*step)(float x, float y, float fire, int steps);
+		void (*step)(GameInput input, int steps);
 		void (*draw)(int width, int height, float frameTime, int target);
 		void (*audio)(float* out, const volatile int* events);
 		int* events;
@@ -40,7 +42,7 @@ namespace Capture
 	};
 
 	// The default scripted inputs, at time t (in seconds).
-	void autoInput(float t, float& x, float& y, float& fire);
+	GameInput autoInput(float t);
 
 	// Offscreen RGBA8 framebuffer, 0 on failure.
 	unsigned offscreenFramebuffer(int width, int height);

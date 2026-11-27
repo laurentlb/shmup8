@@ -142,75 +142,90 @@ namespace Capture
 		return sheet.Save(widen(path).c_str(), &pngClsid, NULL) == Gdiplus::Ok;
 	}
 
-	void autoInput(float t, float& x, float& y, float& fire)
+	GameInput autoInput(float t)
 	{
-		// pinball: flip now and then, pull the plunger for 1 s every 10 s
-		x = (float)(sinf(t * 2.3f) > 0.6f);
-		y = (float)(sinf(t * 1.9f + 1.f) > 0.6f);
-		fire = (float)(fmodf(t, 10.f) < 1.f);
+		// walk forward while turning slowly, strafe, shoot, jump now and then
+		GameInput in = {};
+		in.y = 1;
+		in.x = (float)((sinf(t * 0.7f) > 0.5f) - (sinf(t * 0.7f) < -0.5f));
+		in.buttons = (float)((fmodf(t, 2.f) < 1.f) + 2 * (fmodf(t, 3.f) < 0.1f));
+		in.yaw = 0.4f * sinf(t * 0.3f);
+		in.pitch = 0.1f * sinf(t * 0.5f);
+		return in;
 	}
 
-	// Plays like a person would (for videos): flips when a ball comes near a
-	// flipper, pulls the plunger when a ball is in the shooter lane. Reads the
-	// "ball" and "vel" arrays and "ballCount" (or a single ball if there is no
-	// count); the table's coordinates are those of src/shaders/world.glsl.
-	static void botInput(const Host& host, float dt, float& x, float& y, float& fire)
+	// Plays like a person would (for screenshots and videos): runs along the
+	// track and shoots the nearest enemy in view. Reads "pos", "yawBase",
+	// "enemy" and "enemyInfo" in the state.
+	static GameInput botInput(const Host& host, float dt)
 	{
-		static float hold[2], plunge;
-		x = y = fire = 0;
-		const int ballOffset = StateView::offset(host.gameProgram, host.sceneProgram, "ball");
-		const int velOffset = StateView::offset(host.gameProgram, host.sceneProgram, "vel");
-		const int countOffset = StateView::offset(host.gameProgram, host.sceneProgram, "ballCount");
-		if (ballOffset < 0 || velOffset < 0) return;
+		// the track's points (x, z, floor): keep in sync with src/shaders/world.glsl
+		static const float track[][3] = {
+			{ 0, 0, 0 }, { 36, 0, 0 }, { 54, 12, 0 }, { 54, 30, 0 }, { 54, 46, 4 },
+			{ 30, 56, 4 }, { 2, 56, 4 }, { -14, 46, 4 }, { -20, 30, 0 }, { -20, 14, 0 } };
+		const int count = sizeof(track) / sizeof(track[0]);
+		static GameInput in;
 		auto getBufferSubData = (PFNGLGETBUFFERSUBDATAPROC)wglGetProcAddress("glGetBufferSubData");
-		int count = 1;
-		if (countOffset >= 0) getBufferSubData(GL_SHADER_STORAGE_BUFFER, countOffset, 4, &count);
-		count = max(0, min(count, 8));
-		float ball[16], vel[16];
-		if (count > 0)
-		{
-			getBufferSubData(GL_SHADER_STORAGE_BUFFER, ballOffset, count * 8, ball);
-			getBufferSubData(GL_SHADER_STORAGE_BUFFER, velOffset, count * 8, vel);
-		}
+		auto read = [&](const char* name, void* out, int size) {
+			int offset = StateView::offset(host.gameProgram, host.sceneProgram, name);
+			if (offset >= 0) getBufferSubData(GL_SHADER_STORAGE_BUFFER, offset, size, out);
+			return offset >= 0;
+		};
+		float pos[3] = {}, yawBase = 0, enemy[16][4] = {};
+		read("pos", pos, 12);
+		read("yawBase", &yawBase, 4);
+		read("enemy", enemy, sizeof(enemy));
 
-		const float cx = -0.019f;
-		bool inLane = false, nearFlipper[2] = { false, false };
-		for (int b = 0; b < count; b++)
+		// the closest point on the track, then a point ahead
+		int best = 0;
+		float bestDist = 1e9f, bestH = 0;
+		for (int i = 0; i < count; i++)
 		{
-			const float bx = ball[b * 2], by = ball[b * 2 + 1], vy = vel[b * 2 + 1];
-			inLane = inLane || (bx > 0.226f && by < -0.45f);
-			for (int i = 0; i < 2; i++)
-			{
-				const float side = i ? bx - cx : cx - bx;
-				// the ball is above the flipper and close
-				nearFlipper[i] = nearFlipper[i] || (side > -0.01f && side < 0.11f && by < -0.36f && by > -0.47f && vy < 0.2f);
-			}
+			const float* a = track[i];
+			const float* b = track[(i + 1) % count];
+			float bx = b[0] - a[0], bz = b[1] - a[1], px = pos[0] - a[0], pz = pos[2] - a[1];
+			float h = max(0.f, min(1.f, (px * bx + pz * bz) / (bx * bx + bz * bz)));
+			float dx = px - bx * h, dz = pz - bz * h, d = dx * dx + dz * dz;
+			if (d < bestDist) bestDist = d, best = i, bestH = h;
 		}
-
-		if (inLane)
-		{
-			// pull for 0.8 s, then release
-			plunge += dt;
-			fire = (float)(plunge > 0.4f && plunge < 1.2f);
-			if (plunge > 2.f) plunge = 0;
-		}
+		const float* a = track[best];
+		const float* b = track[(best + 1) % count];
+		const float* c = track[(best + 2) % count];
+		float segLength = sqrtf((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]));
+		float ahead = bestH + 6.f / segLength; // 6 m ahead
+		float tx, tz;
+		if (ahead < 1)
+			tx = a[0] + (b[0] - a[0]) * ahead, tz = a[1] + (b[1] - a[1]) * ahead;
 		else
-			plunge = 0;
-
-		for (int i = 0; i < 2; i++)
 		{
-			// flip, keep it up a moment
-			if (hold[i] == 0 && nearFlipper[i])
-				hold[i] = 0.2f;
-			if (hold[i] > 0)
-			{
-				hold[i] -= dt;
-				(i ? y : x) = 1;
-				if (hold[i] <= 0) hold[i] = -0.15f; // down for a moment before the next flip
-			}
-			else if (hold[i] < 0)
-				hold[i] = min(hold[i] + dt, 0.f);
+			float k = min((ahead - 1) * segLength / 6.f, 1.f);
+			tx = b[0] + (c[0] - b[0]) * k * 0.2f, tz = b[1] + (c[1] - b[1]) * k * 0.2f;
 		}
+		float runYaw = atan2f(tz - pos[2], tx - pos[0]);
+
+		// aim at the nearest enemy in front
+		float aimYaw = runYaw, aimPitch = 0, nearest = 30;
+		for (int i = 0; i < 16; i++)
+		{
+			if (enemy[i][3] <= 0) continue;
+			float dx = enemy[i][0] - pos[0], dy = enemy[i][1] - pos[1] - 0.9f, dz = enemy[i][2] - pos[2];
+			float d = sqrtf(dx * dx + dy * dy + dz * dz);
+			float y = atan2f(dz, dx), off = fabsf(remainderf(y - runYaw, 6.2831853f));
+			if (d < nearest && off < 1.3f)
+				nearest = d, aimYaw = y, aimPitch = atan2f(dy, sqrtf(dx * dx + dz * dz));
+		}
+
+		// turn smoothly toward the target; the game adds yawBase to the input
+		float want = aimYaw - yawBase;
+		float diff = remainderf(want - in.yaw, 6.2831853f);
+		in.yaw += max(-1.f, min(1.f, diff * 8.f * dt)) * (fabsf(diff) > 0.01f);
+		in.pitch += (aimPitch - in.pitch) * min(1.f, 6.f * dt);
+		// move toward the running direction, whatever the view direction
+		float rel = runYaw - (in.yaw + yawBase);
+		in.y = cosf(rel) > 0.38f ? 1.f : cosf(rel) < -0.38f ? -1.f : 0.f;
+		in.x = sinf(rel) > 0.38f ? 1.f : sinf(rel) < -0.38f ? -1.f : 0.f;
+		in.buttons = (float)(nearest < 30);
+		return in;
 	}
 
 	unsigned offscreenFramebuffer(int width, int height)
@@ -280,6 +295,7 @@ namespace Capture
 			else if (a[0] == '-') return usage();
 			else times.push_back((float)atof(a));
 		}
+		printf("renderer: %s\n", (const char*)glGetString(GL_RENDERER));
 		const bool video = !videoPath.empty();
 		if ((times.empty() && !video && trace <= 0) || cols < 1 || (fps != 30 && fps != 60 && fps != 120) || end <= 0)
 			return usage();
@@ -355,25 +371,27 @@ namespace Capture
 		for (int i = 1; i <= frameCount; ++i)
 		{
 			const float t = (float)i / fps;
-			float x = 0, y = 0, fire = 0;
+			GameInput input = {};
+			if (nextShot < times.size() && t >= times[nextShot] - 0.001f)
+				glFinish(); // measure this frame only
 			QueryPerformanceCounter(&start);
 			if (!recorded.empty())
 			{
 				// one step at a time: the inputs can change at every step
 				for (int s = (i - 1) * stepsPerFrame; s < i * stepsPerFrame; s++)
 				{
-					if (s < (int)recorded.size()) History::decode(recorded[s], x, y, fire);
-					else x = y = fire = 0;
-					host.step(x, y, fire, 1);
+					if (s < (int)recorded.size()) input = History::decode(recorded[s]);
+					else input = GameInput();
+					host.step(input, 1);
 				}
 			}
 			else
 			{
 				if (keys == "auto")
-					autoInput(t, x, y, fire);
+					input = autoInput(t);
 				else if (keys == "bot")
-					botInput(host, 1.f / fps, x, y, fire);
-				host.step(x, y, fire, stepsPerFrame);
+					input = History::decode(History::encode(botInput(host, 1.f / fps)));
+				host.step(input, stepsPerFrame);
 			}
 			host.draw(width, height, 1.f / fps, fbo);
 			if (trace > 0 && i % max(1, (int)(trace * fps + .5f)) == 0)

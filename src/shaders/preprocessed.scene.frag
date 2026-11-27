@@ -486,6 +486,7 @@ vec3 material(vec3 p, float m)
                * (1. - 0.6 * smoothstep(0.03, 0.032, abs(fract(p.x / 0.065) - 0.5) * 0.065));
         
         rough = 0.05 + 0.15 * smoothstep(0.4, 0.8, fbm(p.xy * 25.));
+        c = vec3(dot(c, vec3(0.3, 0.6, 0.1))) * 2.;
         
         float gear = r - 0.195 - 0.006 * clamp(sin(a * 24.) * 4., -1., 1.);
         if (gear < 0.) {
@@ -529,7 +530,7 @@ vec3 material(vec3 p, float m)
     if (m == M_WALL) {
         if (p.z > 0.045) { metal = 1.; return brass; } 
         rough = 0.3;
-        return vec3(0.09, 0.035, 0.012) * (0.7 + 0.6 * fbm(vec2(p.x + p.y, p.z) * vec2(40, 300)));
+        return vec3(0.05) * (0.7 + 0.6 * fbm(vec2(p.x + p.y, p.z) * vec2(40, 300)));
     }
     if (m == M_APRON) {
         
@@ -625,7 +626,7 @@ vec3 trailGlow(vec3 ro, vec3 rd, float tMax)
 
 vec3 render(vec3 ro, vec3 rd)
 {
-    const vec3 key = normalize(vec3(-0.3, -0.45, 1.));
+    const vec3 key = normalize(vec3(-0.6, 0.35, 0.7));
     const vec3 fill = normalize(vec3(0.7, 0.6, 0.5));
     vec3 col = vec3(0), weight = vec3(1);
     vec3 ro0 = ro, rd0 = rd;
@@ -645,14 +646,17 @@ vec3 render(vec3 ro, vec3 rd)
         albedo *= 1. - metal;
 
         float shade = bounce == 0 ? shadow(p + n * 0.001, key) : 1.;
+        
+        vec3 g = p + key * (0.3 - p.z) / key.z;
+        shade *= smoothstep(0.3, 0.5, abs(fract((g.y - g.x * 0.3) * 10.) - 0.5) * 2.);
         float ao = bounce == 0 ? occlusion(p, n) : 1.;
         vec3 toSun = vec3(SUN, 0.068) - p;
         float sunPower = (0.5 + flash.x * 3.) * 0.0012 / dot(toSun, toSun);
-        vec3 c = light(key, vec3(1, 0.85, 0.7) * 1.5 * shade)
-               + light(fill, vec3(0.3, 0.45, 1) * 0.5 * ao)
+        vec3 c = light(key, vec3(1, 0.95, 0.9) * 3. * shade)
+               + light(fill, vec3(0.3, 0.45, 1) * 0.1 * ao)
                + light(normalize(toSun), vec3(1, 0.5, 0.15) * sunPower)
                
-               + albedo * mix(vec3(0.12, 0.06, 0.03), vec3(0.08, 0.1, 0.2), n.z * 0.5 + 0.5) * ao;
+               + albedo * 0.03 * ao;
         
         for (int i = 0; i < 4; i++) {
             vec3 l = vec3(CX + (i % 2 > 0 ? 0.215 : -0.215), i > 1 ? 0.2 : -0.15, 0.04) - p;
@@ -707,10 +711,13 @@ void main()
     col = col * (2.51 * col + 0.03) / (col * (2.43 * col + 0.59) + 0.14);
     
     float luma = dot(col, vec3(0.3, 0.6, 0.1));
-    col = mix(vec3(luma), col, 1.15) + vec3(-0.01, 0, 0.02) * (1. - luma);
+    float warm = smoothstep(0.2, 0.5, col.r - col.b);
+    col = mix(vec3(luma), col * vec3(1, 0.6, 0.3) * 1.3, warm);
+    col = smoothstep(0.05, 0.95, col);
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
     col *= max(1. - pow(length(texCoord - 0.5), 1.5) * 1.2, 0.);
-    col += (hash(gl_FragCoord.xy + fract(time) * 100.) - 0.5) * 0.02; 
+    col += (hash(gl_FragCoord.xy + fract(time) * 100.) - 0.5) * 0.08; 
+    col *= step(0.1, texCoord.y) * step(texCoord.y, 0.9); 
     col += jackpotFlash * vec3(0.35, 0.3, 0.25); 
     
     col = mix(col, col.r * vec3(0.9, 0.1, 0.05), drainFlash * 0.8);

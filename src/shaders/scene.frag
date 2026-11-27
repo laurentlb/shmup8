@@ -316,7 +316,10 @@ vec3 material(vec3 p, float m)
         return vec3(0);
     }
     if (m == M_COIL) {
-        glow = GOLD * (light * 1.5 + kick * 3.);
+        // one band lit per power level of the gun
+        vec3 g = p - eye;
+        float band = floor((dot(g, camF) - gunAt.z - .04) / .07 + .5) + 1.;
+        glow = GOLD * (light * 1.5 + kick * 3.) * (band < float(min(lap, 3)) ? 1. : .08);
         return vec3(0);
     }
     if (m == M_GUN) {

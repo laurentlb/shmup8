@@ -13,7 +13,7 @@ the dark gets stronger.
 
 ## Current state
 
-**Size:** 8940 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
+**Size:** 9015 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
 
 **Controls:** WASD: move. Mouse: look. Left button: fire. Space: jump (hold to
 jump again on landing). Escape: quit.
@@ -42,7 +42,9 @@ jump again on landing). Escape: quit.
 * Movement: Quake-style: ground and air acceleration (air strafing works),
   friction, jumps, head bob.
 * Weapon: a light gun that fires gold bolts (they light the walls as they fly),
-  recoil, muzzle flash; bolts converge on what the crosshair points at.
+  recoil, muzzle flash; bolts converge on what the crosshair points at. It gets
+  better on each lap (faster, then two and three bolts); a glowing band on the
+  barrel per level.
 * Enemies, big and readable in the dark (a red eye, glowing veins, a red
   light), white for an instant when hit, bursting into light when killed:
   * wraiths weave toward you (hard to snipe) and charge when close; a bite
@@ -73,7 +75,7 @@ jump again on landing). Escape: quit.
   4070. Each ray only looks at the boxes, enemies and gun it can meet; the neon
   tubes are those of the room a point is in.
 
-**Not yet:** upgrades, a boss, title screen, music that reacts, tuning by
+**Not yet:** a boss, title screen, music that reacts, tuning by
 playing (the difficulty was only tried with a bot that never misses).
 
 This branch started from the pinball branch, itself from the engine of the shoot 'em up released at

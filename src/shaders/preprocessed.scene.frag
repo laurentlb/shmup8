@@ -24,7 +24,7 @@ layout(binding = 0) uniform sampler2D tex;
 
 
 
-#define MAX_BOLTS 12
+#define MAX_BOLTS 24
 #define MAX_ENEMIES 10
 #define MAX_SPARKS 8
 #define MAX_ORBS 12
@@ -605,7 +605,10 @@ vec3 material(vec3 p, float m)
         return vec3(0);
     }
     if (m == M_COIL) {
-        glow = GOLD * (light * 1.5 + kick * 3.);
+        
+        vec3 g = p - eye;
+        float band = floor((dot(g, camF) - gunAt.z - .04) / .07 + .5) + 1.;
+        glow = GOLD * (light * 1.5 + kick * 3.) * (band < float(min(lap, 3)) ? 1. : .08);
         return vec3(0);
     }
     if (m == M_GUN) {

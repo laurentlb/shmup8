@@ -5,7 +5,7 @@
 // declaration changes. The event counters must stay first.
 
 // Not "const int": Shader Minifier would drop constants used only in the buffer declaration.
-#define MAX_BOLTS 12
+#define MAX_BOLTS 24
 #define MAX_ENEMIES 10
 #define MAX_SPARKS 8
 #define MAX_ORBS 12

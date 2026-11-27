@@ -25,8 +25,8 @@ layout(std430, binding = 0)buffer State{
   float prevButtons;
   uint rng;
   float spawnTimer;
-  vec4 bolt[12];
-  vec4 boltVel[12];
+  vec4 bolt[24];
+  vec4 boltVel[24];
   vec4 enemy[10];
   int enemyKind[10];
   vec4 enemyVel[10];
@@ -393,7 +393,14 @@ vec3 material(vec3 p,float m)
   if(m==1.)
     return neonAt(p),glow=neonCol*6.,vec3(0);
   if(m==3.)
-    return glow=vec3(1,.75,.4)*(light*1.5+kick*3.),vec3(0);
+    {
+      vec3 g=p-eye;
+      float band=floor((dot(g,camF)-gunAt.z-.04)/.07+.5)+1.;
+      glow=vec3(1,.75,.4)*(light*1.5+kick*3.)*(band<float(min(lap,3))?
+        1.:
+        .08);
+      return vec3(0);
+    }
   if(m==2.)
     return metal=1.,rough=.4,vec3(.12);
   level(p);
@@ -586,8 +593,8 @@ layout(std430, binding = 0)buffer State{
   float prevButtons;
   uint rng;
   float spawnTimer;
-  vec4 bolt[12];
-  vec4 boltVel[12];
+  vec4 bolt[24];
+  vec4 boltVel[24];
   vec4 enemy[10];
   int enemyKind[10];
   vec4 enemyVel[10];
@@ -848,7 +855,8 @@ void update()
       cooldown-=DT;
       if(fire>0.&&cooldown<=0.)
         {
-          cooldown=.11;
+          int power=min(lap-1,3);
+          cooldown=.11-.01*float(power);
           kick=1.;
           shotEvents++;
           float t=0.;
@@ -859,14 +867,10 @@ void update()
                 break;
               t+=d;
             }
-          vec3 muzzle=eye+look*.5+rt*.2-cross(rt,look)*.15;
-          for(int k=0;k<12;k++)
+          vec3 muzzle=eye+look*.5+rt*.2-cross(rt,look)*.15,dir=normalize(eye+look*max(t,2.)-muzzle);
+          for(int j=0,k=0;j<max(power,1)&&k<24;k++)
             if(bolt[k].w<=0.)
-              {
-                bolt[k]=vec4(muzzle,1.2);
-                boltVel[k].xyz=normalize(eye+look*max(t,2.)-muzzle)*70.;
-                break;
-              }
+              bolt[k]=vec4(muzzle,.8),boltVel[k].xyz=normalize(dir+rt*(float(j++)-float(max(power,1)-1)*.5)*.035)*70.;
         }
       wl=trackPos(pos);
       int q=int(wl/trackLength()*4.);
@@ -900,7 +904,7 @@ void update()
               }
         }
     }
-  for(int k=0;k<12;k++)
+  for(int k=0;k<24;k++)
     {
       if(bolt[k].w<=0.)
         continue;
@@ -1040,7 +1044,7 @@ void makeLights()
     addLight(enemy[i].xyz+normalize(eye-enemy[i].xyz)*.9,enemy[i].w<0.?
       vec3(4)*-enemy[i].w:
       vec3(1,.05,.12)*1.5*enemyInfo[i].x*step(1e-4,enemy[i].w));
-  for(int i=0;i<12;i++)
+  for(int i=0;i<24;i++)
     addLight(bolt[i].xyz,vec3(1,.75,.4)*2.*step(1e-4,bolt[i].w));
   for(int i=0;i<8;i++)
     addLight(spark[i].xyz,vec3(1,.75,.4)*spark[i].w*2.);

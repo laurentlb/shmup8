@@ -28,7 +28,7 @@ layout(location = 0) uniform vec4 iInput[2];
 
 
 
-#define MAX_BOLTS 12
+#define MAX_BOLTS 24
 #define MAX_ENEMIES 10
 #define MAX_SPARKS 8
 #define MAX_ORBS 12
@@ -452,7 +452,9 @@ void update()
         
         cooldown -= DT;
         if (fire > 0. && cooldown <= 0.) {
-            cooldown = _TV(fireDelay, .11);
+            
+            int power = min(lap - 1, 3);
+            cooldown = _TV(fireDelay, .11) - .01 * float(power);
             kick = 1.;
             shotEvents++;
             float t = 0.;
@@ -463,11 +465,11 @@ void update()
                 t += d;
             }
             vec3 muzzle = eye + look * .5 + rt * .2 - cross(rt, look) * .15;
-            for (int k = 0; k < MAX_BOLTS; k++)
+            vec3 dir = normalize(eye + look * max(t, 2.) - muzzle);
+            for (int j = 0, k = 0; j < max(power, 1) && k < MAX_BOLTS; k++)
                 if (bolt[k].w <= 0.) {
-                    bolt[k] = vec4(muzzle, 1.2);
-                    boltVel[k].xyz = normalize(eye + look * max(t, 2.) - muzzle) * _TV(boltSpeed, 70.);
-                    break;
+                    bolt[k] = vec4(muzzle, .8);
+                    boltVel[k].xyz = normalize(dir + rt * (float(j++) - float(max(power, 1) - 1) * .5) * .035) * _TV(boltSpeed, 70.);
                 }
         }
 

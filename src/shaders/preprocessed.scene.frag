@@ -625,7 +625,7 @@ vec3 trailGlow(vec3 ro, vec3 rd, float tMax)
 
 vec3 render(vec3 ro, vec3 rd)
 {
-    const vec3 key = normalize(vec3(-0.3, -0.45, 1.));
+    const vec3 key = normalize(vec3(-0.9, 0.25, 0.32));
     const vec3 fill = normalize(vec3(0.7, 0.6, 0.5));
     vec3 col = vec3(0), weight = vec3(1);
     vec3 ro0 = ro, rd0 = rd;
@@ -645,10 +645,12 @@ vec3 render(vec3 ro, vec3 rd)
         albedo *= 1. - metal;
 
         float shade = bounce == 0 ? shadow(p + n * 0.001, key) : 1.;
+        
+        shade *= 0.75 + 0.5 * fbm(p.xy * 12. + p.z * 5.);
         float ao = bounce == 0 ? occlusion(p, n) : 1.;
         vec3 toSun = vec3(SUN, 0.068) - p;
-        float sunPower = (0.5 + flash.x * 3.) * 0.0012 / dot(toSun, toSun);
-        vec3 c = light(key, vec3(1, 0.85, 0.7) * 1.5 * shade)
+        float sunPower = (1. + flash.x * 3.) * 0.0015 / dot(toSun, toSun);
+        vec3 c = light(key, vec3(1, 0.62, 0.3) * 4. * shade)
                + light(fill, vec3(0.3, 0.45, 1) * 0.5 * ao)
                + light(normalize(toSun), vec3(1, 0.5, 0.15) * sunPower)
                
@@ -669,7 +671,21 @@ vec3 render(vec3 ro, vec3 rd)
         vec2 f = gl_FragCoord.xy;
         rd = normalize(reflect(rd, n) + rough * 0.5 * (vec3(hash(f), hash(f + 1.), hash(f + 2.)) - 0.5));
     }
+    col = mix(col, vec3(0.5, 0.3, 0.15) * 0.3, 1. - exp(-min(tHit, 3.) * 0.12));
     return col + trailGlow(ro0, rd0, tHit);
+}
+
+vec3 ro, fw, rt;
+void camera()
+{
+    float s = balls > 0 ? smoothstep(0.5, 5., camTime) : smoothstep(0., 3., gameOver);
+    vec3 ta = mix(vec3(SUN, 0.03), vec3(CX, _TV(camY, -0.1), 0), s);
+    float pitch = mix(0.25, _TV(camPitch, 0.88), s), yaw = (s - 1.) * 1.2;
+    ro = ta + vec3(sin(yaw) * cos(pitch), -cos(yaw) * cos(pitch), sin(pitch))
+            * mix(0.3, _TV(camDistance, 1.3), s * s);
+    ro += shake * shake * 0.004 * vec3(sin(time * 71.), sin(time * 83.), sin(time * 61.));
+    fw = normalize(ta - ro);
+    rt = normalize(cross(fw, vec3(0, 0, 1)));
 }
 
 void main()
@@ -683,14 +699,7 @@ void main()
         
         
         
-        float s = balls > 0 ? smoothstep(0.5, 5., camTime) : smoothstep(0., 3., gameOver);
-        vec3 ta = mix(vec3(SUN, 0.03), vec3(CX, _TV(camY, -0.1), 0), s);
-        float pitch = mix(0.25, _TV(camPitch, 0.88), s), yaw = (s - 1.) * 1.2;
-        vec3 ro = ta + vec3(sin(yaw) * cos(pitch), -cos(yaw) * cos(pitch), sin(pitch))
-                     * mix(0.3, _TV(camDistance, 1.3), s * s);
-        ro += shake * shake * 0.004 * vec3(sin(time * 71.), sin(time * 83.), sin(time * 61.));
-        vec3 fw = normalize(ta - ro);
-        vec3 rt = normalize(cross(fw, vec3(0, 0, 1)));
+        camera();
         vec3 rd = normalize(uv.x * rt + uv.y * cross(rt, fw) + _TV(focal, 1.9) * fw);
         
         fragColor = vec4(clamp(render(ro, rd), 0., 50.), 1);
@@ -700,6 +709,18 @@ void main()
     
     vec2 ca = (texCoord - 0.5) * 0.0015; 
     vec3 col = vec3(texture(tex, texCoord + ca).r, texture(tex, texCoord).g, texture(tex, texCoord - ca).b);
+    camera();
+    vec3 sd = vec3(SUN, 0.068) - ro;
+    vec2 sun = vec2(dot(sd, rt), dot(sd, cross(rt, fw))) * _TV(focal, 1.9) / dot(sd, fw);
+    sun = (sun * iFrame.x / iFrame.xy + 1.) * 0.5;
+    vec3 rays = vec3(0);
+    float decay = 1.;
+    for (int i = 0; i < 64; i++) {
+        vec2 q = mix(texCoord, sun, float(i) / 64. * 0.9 + hash(gl_FragCoord.xy) * 0.014);
+        rays += max(textureLod(tex, q, 3.).rgb - 0.3, 0.) * decay;
+        decay *= 0.97;
+    }
+    col += rays * vec3(1, 0.7, 0.4) * 0.05;
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)
         bloom += max(textureLod(tex, texCoord, float(i)).rgb - 0.6, 0.);
@@ -707,7 +728,7 @@ void main()
     col = col * (2.51 * col + 0.03) / (col * (2.43 * col + 0.59) + 0.14);
     
     float luma = dot(col, vec3(0.3, 0.6, 0.1));
-    col = mix(vec3(luma), col, 1.15) + vec3(-0.01, 0, 0.02) * (1. - luma);
+    col = mix(vec3(luma), col, 1.1) * vec3(1.05, 0.97, 0.85) + vec3(0.01, 0.02, 0.04) * (1. - luma);
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
     col *= max(1. - pow(length(texCoord - 0.5), 1.5) * 1.2, 0.);
     col += (hash(gl_FragCoord.xy + fract(time) * 100.) - 0.5) * 0.02; 

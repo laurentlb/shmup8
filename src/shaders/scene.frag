@@ -229,11 +229,17 @@ vec3 material(vec3 p, float m)
         float plank = floor(p.x / 0.065);
         float x = p.x + 0.004 * sin(p.y * 25. + plank * 3.) + 0.002 * fbm(p.xy * 60.);
         float grain = sin(x * 700. + fbm(vec2(x * 90., p.y * 6.)) * 8.) * 0.5 + sin(x * 2300.) * 0.25;
-        vec3 c = vec3(0.17, 0.06, 0.02) * (0.85 + 0.15 * grain) * (0.8 + 0.4 * hash(vec2(plank)))
+        vec3 c = vec3(0.012, 0.01, 0.02) * (0.85 + 0.15 * grain) * (0.8 + 0.4 * hash(vec2(plank)))
                * (0.85 + 0.3 * fbm(p.xy * vec2(20, 4)))
                * (1. - 0.6 * smoothstep(0.03, 0.032, abs(fract(p.x / 0.065) - 0.5) * 0.065));
         // the lacquer: worn and smudged in places
-        rough = 0.05 + 0.15 * smoothstep(0.4, 0.8, fbm(p.xy * 25.));
+        rough = 0.02 + 0.06 * smoothstep(0.4, 0.8, fbm(p.xy * 25.));
+        float e = field(p.xy, false).x;
+        vec3 neon = mix(vec3(0, 0.9, 1), vec3(1, 0.1, 0.7), smoothstep(-0.5, 0.5, p.y));
+        glow += neon * (exp(-e * 900.) * 2.5 + exp(-e * 120.) * 0.15);
+        // a faint grid
+        vec2 g = abs(fract(p.xy / 0.04) - 0.5) * 0.04;
+        glow += neon * 0.25 * exp(-min(g.x, g.y) * 2000.);
         // a night sky painted under the orrery, with nebulae
         float gear = r - 0.195 - 0.006 * clamp(sin(a * 24.) * 4., -1., 1.);
         if (gear < 0.) {
@@ -275,9 +281,9 @@ vec3 material(vec3 p, float m)
         return c;
     }
     if (m == M_WALL) {
-        if (p.z > 0.045) { metal = 1.; return brass; } // a brass rail on top
+        if (p.z > 0.045) { rough = 0.05; glow = mix(vec3(0, 0.9, 1), vec3(1, 0.1, 0.7), smoothstep(-0.5, 0.5, p.y)) * smoothstep(0.047, 0.05, p.z) * 1.2; return vec3(0.01); }
         rough = 0.3;
-        return vec3(0.09, 0.035, 0.012) * (0.7 + 0.6 * fbm(vec2(p.x + p.y, p.z) * vec2(40, 300)));
+        return vec3(0.01) * (0.7 + 0.6 * fbm(vec2(p.x + p.y, p.z) * vec2(40, 300)));
     }
     if (m == M_APRON) {
         // painted metal, worn on the edges
@@ -293,7 +299,7 @@ vec3 material(vec3 p, float m)
         if (p.z > 0.024) {
             // tinted plastic cover, lit from inside when kicking
             int side = p.x > CX ? 1 : 0;
-            glow = vec3(1, 0.25, 0.08) * slingFlash[side] * 3.;
+            glow = vec3(1, 0.1, 0.7) * (0.6 + slingFlash[side] * 5.);
             rough = 0.05;
             return vec3(0.12, 0.012, 0.01);
         }
@@ -396,15 +402,15 @@ vec3 render(vec3 ro, vec3 rd)
         float ao = bounce == 0 ? occlusion(p, n) : 1.;
         vec3 toSun = vec3(SUN, 0.068) - p;
         float sunPower = (0.5 + flash.x * 3.) * 0.0012 / dot(toSun, toSun);
-        vec3 c = light(key, vec3(1, 0.85, 0.7) * 1.5 * shade)
+        vec3 c = light(key, vec3(0.6, 0.7, 1) * 0.5 * shade)
                + light(fill, vec3(0.3, 0.45, 1) * 0.5 * ao)
                + light(normalize(toSun), vec3(1, 0.5, 0.15) * sunPower)
                // ambient: the warm table below, the dark room above
-               + albedo * mix(vec3(0.12, 0.06, 0.03), vec3(0.08, 0.1, 0.2), n.z * 0.5 + 0.5) * ao;
+               + albedo * vec3(0.04, 0.05, 0.1) * ao;
         // GI lamps along the side walls
         for (int i = 0; i < 4; i++) {
             vec3 l = vec3(CX + (i % 2 > 0 ? 0.215 : -0.215), i > 1 ? 0.2 : -0.15, 0.04) - p;
-            c += light(normalize(l), vec3(1, 0.6, 0.3) * 0.0005 / dot(l, l)) * ao;
+            c += light(normalize(l), (i % 2 > 0 ? vec3(1, 0.1, 0.7) : vec3(0, 0.9, 1)) * 0.0006 / dot(l, l)) * ao;
         }
         col += weight * (c + glow);
 
@@ -450,12 +456,12 @@ void main()
     vec3 col = vec3(texture(tex, texCoord + ca).r, texture(tex, texCoord).g, texture(tex, texCoord - ca).b);
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)
-        bloom += max(textureLod(tex, texCoord, float(i)).rgb - 0.6, 0.);
-    col += bloom * _TV(bloomAmount, 0.25) + max(textureLod(tex, 1. - texCoord, 6.).rgb - 0.6, 0.) * 0.1;
+        bloom += max(textureLod(tex, texCoord, float(i)).rgb - 0.5, 0.) * float(i) * 0.2;
+    col += bloom * 0.35 + max(textureLod(tex, 1. - texCoord, 6.).rgb - 0.6, 0.) * 0.1;
     col = col * (2.51 * col + 0.03) / (col * (2.43 * col + 0.59) + 0.14);
     // grading: cool shadows, warm highlights, a little more saturation
     float luma = dot(col, vec3(0.3, 0.6, 0.1));
-    col = mix(vec3(luma), col, 1.15) + vec3(-0.01, 0, 0.02) * (1. - luma);
+    col = mix(vec3(luma), col, 1.4);
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
     col *= max(1. - pow(length(texCoord - 0.5), 1.5) * 1.2, 0.);
     col += (hash(gl_FragCoord.xy + fract(time) * 100.) - 0.5) * 0.02; // grain

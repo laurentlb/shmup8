@@ -428,7 +428,7 @@ void update()
             newRun();
     } else {
         lapTime += DT;
-        light -= DT * (_TV(drain, .014) + .005 * float(lap));
+        light -= DT * (_TV(drain, .014) + .007 * float(lap));
         if (light <= 0.) {
             light = 0.;
             dead = DT;
@@ -502,7 +502,7 @@ void update()
                 lapEvents++;
                 bestLap = bestLap > 0. ? min(bestLap, lapTime) : lapTime;
                 lapTime = 0.;
-                light = min(light + .25, 1.);
+                light = min(light + _TV(lapLight, .1), 1.);
                 lapFlash = 1.;
             }
         }
@@ -665,7 +665,7 @@ void update()
         orb[k].xyz += orbVel[k].xyz * DT;
         if (d < .8 && dead == 0.) {
             orb[k].w = 0.;
-            light = min(light + _TV(orbLight, .025), 1.);
+            light = min(light + _TV(orbLight, .015), 1.);
         }
     }
 }

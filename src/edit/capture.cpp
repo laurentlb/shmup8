@@ -226,8 +226,9 @@ namespace Capture
 		// turn smoothly toward the target; the game adds yawBase to the input
 		float want = aimYaw - yawBase;
 		float diff = remainderf(want - in.yaw, 6.2831853f);
-		in.yaw += max(-1.f, min(1.f, diff * 8.f * dt)) * (fabsf(diff) > 0.01f);
-		in.pitch += (aimPitch - in.pitch) * min(1.f, 6.f * dt);
+		// at most 5 radians per second, easing in: like a hand on a mouse
+		in.yaw += max(-5.f * dt, min(5.f * dt, diff * 6.f * dt));
+		in.pitch += max(-3.f * dt, min(3.f * dt, (aimPitch - in.pitch) * 5.f * dt));
 		// move toward the running direction, whatever the view direction
 		float rel = runYaw - (in.yaw + yawBase);
 		in.y = cosf(rel) > 0.38f ? 1.f : cosf(rel) < -0.38f ? -1.f : 0.f;

@@ -737,7 +737,7 @@ vec3 scattered(vec3 ro, vec3 rd, float tMax)
     for (int i = 0; i < lightCount; i++) {
         vec3 color = lightCol[i].rgb, o = lightPos[i].xyz - ro;
         float b = dot(o, rd), h2 = max(dot(o, o) - b * b, 0.), h = sqrt(h2 + .3);
-        c += color * ((atan((tMax - b) / h) + atan(b / h)) / h * fogDensity * _TV(scatter, .07) * (i < 2 ? .1 : 1.) 
+        c += color * ((atan((tMax - b) / h) + atan(b / h)) / h * _TV(scatter, .002) * exp(-b * fogDensity) * (i < 2 ? .1 : 1.) 
                       + step(2., float(i)) * step(0., b) * step(b, tMax) * _TV(core, .001) / (h2 + 1e-4));
     }
     return c;

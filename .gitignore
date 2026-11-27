@@ -294,3 +294,4 @@ __pycache__/
 dump*.dmp
 *.mp4
 __pycache__/
+video/

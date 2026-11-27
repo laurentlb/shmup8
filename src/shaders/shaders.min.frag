@@ -506,7 +506,7 @@ vec3 scattered(vec3 ro,vec3 rd,float tMax)
     {
       vec3 color=lightCol[i].xyz,o=lightPos[i].xyz-ro;
       float b=dot(o,rd),h2=max(dot(o,o)-b*b,0.),h=sqrt(h2+.3);
-      c+=color*((atan((tMax-b)/h)+atan(b/h))/h*fogDensity*.07*(i<2?
+      c+=color*((atan((tMax-b)/h)+atan(b/h))/h*.002*exp(-b*fogDensity)*(i<2?
         .1:
         1.)+step(2.,float(i))*step(0.,b)*step(b,tMax)*.001/(h2+1e-4));
     }
@@ -882,7 +882,7 @@ void update()
   else
     {
       lapTime+=DT;
-      light-=DT*(.014+.005*float(lap));
+      light-=DT*(.014+.007*float(lap));
       if(light<=0.)
         light=0.,dead=DT,hurtEvents++,record=max(record,lap-1);
       vec3 wish=fw*iInput[0].y+rt*iInput[0].x;
@@ -943,7 +943,7 @@ void update()
           if(q==0)
             lap++,lapEvents++,bestLap=bestLap>0.?
               min(bestLap,lapTime):
-              lapTime,lapTime=0.,light=min(light+.25,1.),lapFlash=1.;
+              lapTime,lapTime=0.,light=min(light+.1,1.),lapFlash=1.;
         }
       q=0;
       for(int i=0;i<10;i++)
@@ -1087,7 +1087,7 @@ void update()
       orbVel[k].xyz=orbVel[k].xyz*.985+to/d*40.*DT;
       orb[k].xyz+=orbVel[k].xyz*DT;
       if(d<.8&&dead==0.)
-        orb[k].w=0.,light=min(light+.025,1.);
+        orb[k].w=0.,light=min(light+.015,1.);
     }
 }
 void addLight(vec3 p,vec3 c)

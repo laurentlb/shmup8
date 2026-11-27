@@ -82,22 +82,27 @@ def instrument(name, units):
 
 
 MUSIC = [
-    instrument("Kick", swept(osc(0, 52), 48, 96, 64) + out(62, 0)),
-    instrument("Hat", [env(52), noise(), mulp(), highpass(96)] + out(14, 10, 80)),
-    instrument("Bass", [env(72, r=60), osc(1, 64, color=100), mulp(), lowpass(40, 64)] + out(44, 0)),
-    instrument("Arp", [env(68, r=64), osc(2, 64, color=40), mulp(), lowpass(56, 90)] + out(16, 30, 48)),
+    instrument("Kick", swept(osc(0, 52), 48, 96, 64) + out(56, 0)),
+    instrument("Hat", [env(48), noise(), mulp(), highpass(100)] + out(10, 12, 80)),
+    instrument("Bass", [env(70, r=60), osc(1, 64, color=100), mulp(), lowpass(34, 50)] + out(48, 0)),
+    instrument("Arp", [env(60, r=64), osc(2, 64, color=30), mulp(), lowpass(46, 100)] + out(10, 40, 48)),
 ]
 SFX = [  # same order as the event counters in src/shaders/state.glsl
-    # bumpers: a bell, two sines with an inharmonic ratio
-    instrument("Chime", [env(76), osc(0, 76, gain=110), osc(0, 93, gain=48), addp(), mulp()] + out(36, 56)),
-    # flippers: a short low thunk and a click
-    instrument("Flipper", [env(44), noise(), mulp(), lowpass(40, 100)]
-               + swept(osc(0, 40), 52, 80, 54) + [addp()] + out(70, 6)),
-    # drain: a falling tone
-    instrument("Drain", swept(osc(1, 52, color=30), 84, 36, 90, [lowpass(56)]) + out(60, 64)),
-    # slingshots: a snap
-    instrument("Sling", [env(40), noise(), mulp(), highpass(80)]
-               + swept(osc(0, 82), 44, 92, 50) + [addp()] + out(34, 20)),
+    # shot: a zap falling fast, with a breath of noise
+    instrument("Shot", swept(osc(1, 84, color=90), 38, 110, 52, [lowpass(80, 90)])
+               + [env(36), noise(), mulp(), highpass(90), addp()] + out(30, 24)),
+    # enemy hit: a short metallic tick
+    instrument("Hit", [env(40), noise(), mulp(), highpass(100)]
+               + swept(osc(0, 96), 40, 90, 44) + [addp()] + out(30, 10)),
+    # kill: a bell over a low burst
+    instrument("Kill", [env(78), osc(0, 79, gain=100), osc(0, 97, gain=44), addp(), mulp()]
+               + swept(osc(1, 50, color=60), 60, 100, 70, [lowpass(50)]) + [addp()] + out(44, 70)),
+    # hurt: a low, dirty thud
+    instrument("Hurt", swept(osc(1, 40, color=20), 64, 90, 76, [lowpass(46, 60)]) + out(80, 30)),
+    # jump: a soft thump
+    instrument("Jump", swept(osc(0, 46), 44, 84, 48) + out(40, 0)),
+    # lap: two bright tones, a fifth apart
+    instrument("Lap", [env(90), osc(0, 84, gain=90), osc(0, 91, gain=70), addp(), mulp()] + out(30, 90)),
 ]
 GLOBAL = instrument("Global", [
     unit("in", channel=2, stereo=1),
@@ -121,8 +126,8 @@ def arp(chord):
     return [chord[i % 4] if i % 2 == 0 else H for i in range(16)]
 
 
-ROOTS = [57, 53, 60, 55]  # A F C G
-CHORDS = [(81, 84, 88, 93), (77, 81, 84, 89), (79, 84, 88, 91), (79, 83, 86, 91)]
+ROOTS = [50, 46, 53, 48]  # D Bb F C, low and minor
+CHORDS = [(74, 77, 81, 86), (74, 77, 82, 86), (72, 77, 81, 84), (72, 76, 79, 84)]
 TRACKS = [
     dict(numvoices=1, order=[0] * 8, patterns=[every(4, 60)]),
     dict(numvoices=1, order=[-1] * 4 + [0] * 4, patterns=[every(4, 72, 2)]),

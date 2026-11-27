@@ -176,15 +176,13 @@ vec2 map(vec3 p)
     if (d > .1)
         h.x = min(h.x, d);
     else {
-        d = min(length(vec3(l.xy, l.z - clamp(l.z, -.12, .22))) - .03,
-                length(max(abs(l - vec3(0, -.035, -.1)) - vec3(.03, .04, .1), 0.)) - .012);
-        if (d < h.x)
-            h = vec2(d, M_GUN);
+        // a barrel with three glowing bands, on a box
         float z = l.z - .04;
         z -= clamp(floor(z / .07 + .5), -1., 1.) * .07;
-        d = length(vec2(length(l.xy) - .036, z)) - .006;
+        d = min(length(vec3(l.xy, l.z - clamp(l.z, -.12, .22))) - .03 + step(abs(z), .012) * .004,
+                length(max(abs(l - vec3(0, -.035, -.1)) - vec3(.03, .04, .1), 0.)) - .012);
         if (d < h.x)
-            h = vec2(d, M_COIL);
+            h = vec2(d, abs(z) < .012 && length(l.xy) < .04 ? M_COIL : M_GUN);
     }
     return h;
 }

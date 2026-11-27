@@ -222,14 +222,13 @@ vec2 map(vec3 p)
     h.x=min(h.x,d);
   else
     {
-      d=min(length(vec3(p.xy,p.z-clamp(p.z,-.12,.22)))-.03,length(max(abs(p-vec3(0,-.035,-.1))-vec3(.03,.04,.1),0.))-.012);
-      if(d<h.x)
-        h=vec2(d,2);
       float z=p.z-.04;
       z-=clamp(floor(z/.07+.5),-1.,1.)*.07;
-      d=length(vec2(length(p.xy)-.036,z))-.006;
+      d=min(length(vec3(p.xy,p.z-clamp(p.z,-.12,.22)))-.03+step(abs(z),.012)*.004,length(max(abs(p-vec3(0,-.035,-.1))-vec3(.03,.04,.1),0.))-.012);
       if(d<h.x)
-        h=vec2(d,3);
+        h=vec2(d,abs(z)<.012&&length(p.xy)<.04?
+          3.:
+          2.);
     }
   return h;
 }

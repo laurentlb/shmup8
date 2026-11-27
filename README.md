@@ -1,69 +1,55 @@
-# Orrery pinball (work in progress)
+# Neon shooter (work in progress)
 
-A pinball game for Windows in 8 kB: a clockwork orrery under glass, raymarched in
-3D, with 2D physics. The table is one set of distance functions: the physics and
-the rendering use the same shapes, including the planets that orbit the sun.
+A first-person shooter for Windows, aiming at 16 kB: a loop of dark corridors
+and arenas lit by neon, raymarched, in fog. Your light is your time: it drains,
+and killing the creatures of the dark gives it back. Run lap after lap; the
+dark gets stronger.
 
-![The orrery](screenshots/shot3.jpg)
+![The pink corridor](screenshots/shot2.jpg)
 
 | | |
 | --- | --- |
-| ![](screenshots/shot1.jpg) | ![](screenshots/shot2.jpg) |
+| ![](screenshots/shot1.jpg) | ![](screenshots/shot3.jpg) |
 
 ## Current state
 
-**Size:** 7411 bytes (Release, before the latest changes), 7730 bytes (Snapshot, the fast build used to
-follow the size), out of 8192. History in `tools/sizes.txt`.
+**Size:** 7377 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
 
-**Controls:** left / right arrows: flippers. Down: pull the plunger, release to
-launch. Up: nudge. Escape: quit.
+**Controls:** WASD: move. Mouse: look. Left button: fire. Space: jump (hold to
+jump again on landing). Escape: quit.
 
-**Features:**
+**Features (first playable slice):**
 
-* Table: shooter lane with a one-way gate, two slingshots, outlanes and inlanes,
-  side deflectors, top lane posts, flippers.
-* Orrery: the sun and two planets (one with a ring and a moon) are bumpers that
-  move along their orbits; they hit the ball at their own speed.
-* Physics: 2D, real table gravity (1.1 m/s²), 8 substeps per 1/120 s step, flipper and bumper surface speed,
-  restitution per material, plunger strength from the pull time, nudge.
-* Rules: 3 balls, score, game over screen, a new game after 3 s. Top lanes:
-  rolling through all three raises the multiplier (x2 to x5), and the flippers
-  move the lit lanes. Ball save during the first 8 s of each ball.
-* Star targets and multiball: four round targets below the orrery light up
-  when hit. A full set aligns the planets (shockwave, beam of light) and
-  starts a 3-ball multiball with a ball save; each multiball needs one more
-  set. During multiball the sun is the jackpot: lit at the start, then a full
-  set of stars relights it and makes it grow (+2500). The first set also adds
-  a ball.
-* Big awards (jackpot, multiball, multiplier) blink in the score display.
-* Lamps: top lanes, multiplier, ball save, stars (blinks faster when it ends), a clock
-  dial with a light chase around the sun.
-* Rendering: raymarched 3D with a warm key light (soft shadows), a cool fill
-  light, the sun as a point light and four warm GI lamps along the walls;
-  per-material roughness, reflections blurred by roughness, ambient occlusion.
-  Rounded shapes; brass flippers and posts with black rubber, ruby plastic
-  sling covers, chrome rails and ball; lacquered wood planks, gilded inlays, a
-  starry night sky painted under the orrery, lamp inserts as colored glass.
-  Noise everywhere (tarnish, stains, smudges, nebulae) against a too clean
-  look. The table floats in a starfield.
-* Ball light trails (every ball during multiball): glow from blue to orange
-  when the ball is fast.
-* Post: thresholded mipmap bloom, lens ghost, chromatic aberration, color
-  grading, vignette, grain.
-* Camera: still during play, with the whole table in view; it shakes on hits,
-  nudges and drains. A new game starts with a 5 s fly-in from a low close-up
-  of the orrery (the plunger waits; hold a key to speed it up), and game over
-  flies back into it: the camera moves continuously, without cuts.
-* Juice: slow motion on big events (1.5 s at the multiball start, shorter on
-  jackpots, completed sets and lanes, a blip on sun hits), planets and sun swell and
-  glow when hit, red flash on drains, score digits brighten on hits.
-* Sound: music; a chime for bumpers, a thunk for flippers, a snap for
-  slingshots and lanes, a falling tone for drains.
+* Level: a closed loop of corridors (with ramps) through two round arenas with
+  pillars. Ribs and beams every 5 m, neon tubes along the walls, a different
+  color per section, a white frame at the start line. One set of distance
+  functions for both the collisions and the rendering.
+* Movement: Quake-style: ground and air acceleration (air strafing works),
+  friction, jumps, head bob.
+* Weapon: a light gun that fires gold bolts (they light the walls as they fly),
+  recoil, muzzle flash; bolts converge on what the crosshair points at.
+* Enemies: floating creatures with a red eye and trailing tentacles. They come
+  toward you, spread out, avoid the walls, and charge when close; a bite costs
+  light and knocks you back. They appear ahead on the track, more of them and
+  faster on each lap.
+* Light: drains over time (faster on each lap). A kill releases three orbs of
+  light that fly back to you. A lap gives some light back. At zero, the dark
+  takes you, and a new run starts.
+* Laps: the track's quarters must be reached in order. Lap clock, best lap, lap
+  number, light bar, crosshair (red on hits).
+* Rendering: raymarched; neon light from the distance to the tubes; point lights
+  (bolts, impacts, orbs, the enemies' eyes, your lantern) made by the gameplay
+  shader; fog with light scattered from them, thicker when your light is low;
+  wet floors with reflections; bloom, tone mapping, vignette that closes in
+  when the light is low, red flash when hurt.
+* Sound: a dark loop; shot, hit, kill, hurt, jump and lap sounds.
+* Performance: about 8 ms per frame at 1920x1080 on a laptop RTX 4070. Each ray
+  only looks at the corridors, enemies and gun it can meet.
 
-**Not yet:** ramps, tilt, a title screen, music that fits
-the theme, hand-tuned flipper feel.
+**Not yet:** level design (the loop is a sketch, about 22 s), changes per lap,
+upgrades, more enemy types, a boss, title screen, music that reacts.
 
-This branch started from the engine of the shoot 'em up released at
+This branch started from the pinball branch, itself from the engine of the shoot 'em up released at
 https://laurentlb.itch.io/shmup8 (branch `main`, 3 kB, made for
 https://langjamgamejam.com with a custom language and a bytecode VM).
 
@@ -72,15 +58,15 @@ The game is made of shaders only:
 | File | Content |
 | --- | --- |
 | `src/shaders/game.comp` | Gameplay, with fixed steps of 1/120 s |
-| `src/shaders/scene.frag` | Rendering (pass 0: raymarched scene, pass 1: bloom, tone mapping, score) |
+| `src/shaders/scene.frag` | Rendering (pass 0: raymarched scene, pass 1: bloom, tone mapping, HUD) |
 | `src/shaders/state.glsl` | Game state, a GPU buffer shared by both shaders |
-| `src/shaders/world.glsl` | The table's shapes, shared by the physics and the rendering |
+| `src/shaders/world.glsl` | The level's shapes, shared by the collisions and the rendering |
 | `src/engine.h` | Runs the two shaders |
 | `src/audio.h` | Streams the music, triggers the sound effects |
 | `src/music/song.py` | Song and sound effects |
 | `src/main.cpp` | Window and main loop (release and editor) |
 
-The host sends the inputs, and reads back event counters (bumpers, flippers, drains, slingshots).
+The host sends the inputs (keys and view angles), and reads back event counters (shots, hits, kills, hurts, jumps, laps).
 When a counter changes, the matching sound effect is played.
 
 ## Building
@@ -95,7 +81,8 @@ development, Snapshot or Release for the final executable.
 
 Run `out\cat-debug.exe` from the root of the repository.
 
-* Arrows: play. F1: show/hide the panel.
+* WASD: move, arrows: turn, F: fire, Space: jump. Tab: mouse look (the left
+  button fires); Tab again to get the cursor back. F1: show/hide the panel.
 * P: pause, O: advance by one frame, R: restart.
 * Shaders are reloaded when a file changes, and the game goes on. If the
   state declaration changed, it restarts.
@@ -120,11 +107,11 @@ out\cat-debug.exe --capture --video replay.mp4 --keys inputs.txt
 out\cat-debug.exe --capture --end 10 --trace 0.1
 ```
 
-By default, a bot plays: it flips when a ball comes near a flipper, and
-pulls the plunger (`--keys auto` for fixed scripted inputs).
+By default, a bot plays: it runs along the track and shoots the nearest enemy
+in front (`--keys auto` for fixed scripted inputs).
 
 `--trace` prints the state (small arrays included) at an interval:
-handy to follow the ball.
+handy to follow the player.
 
 See `src/edit/capture.h` for the options.
 
@@ -141,8 +128,7 @@ powershell -ExecutionPolicy Bypass -File tools\check.ps1 -Log
 Builds the release and the editor, prints the size, and runs a self-test
 (`out\cat-debug.exe --check`): rewinding gives the same state as playing straight,
 and the minified shaders of the release play and render like the editor's
-(gameplay over 3 s, within a float tolerance since pinball is chaotic; rendering
-of the same state).
+(gameplay over 3 s, within a float tolerance; rendering of the same state).
 A successful release build doesn't prove that: the shaders are only compiled
 when the game starts. `-Log` appends the size to `tools/sizes.txt`. It builds the Snapshot
 configuration (Crinkler's instant mode, 5 s); `-Config Release` for the

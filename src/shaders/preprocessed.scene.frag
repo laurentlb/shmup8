@@ -698,11 +698,15 @@ void main()
     }
 
     
-    vec2 ca = (texCoord - 0.5) * 0.0015; 
+    vec2 cc = texCoord - 0.5;
+    texCoord = 0.5 + cc * (1. + dot(cc, cc) * 0.25) * 0.97;
+    uv = (texCoord * iFrame.xy * 2. - iFrame.xy) / iFrame.x;
+    
+    vec2 ca = vec2(0.0015, 0); 
     vec3 col = vec3(texture(tex, texCoord + ca).r, texture(tex, texCoord).g, texture(tex, texCoord - ca).b);
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)
-        bloom += max(textureLod(tex, texCoord, float(i)).rgb - 0.6, 0.);
+        bloom += max(textureLod(tex, texCoord, float(i)).rgb - 0.3, 0.);
     col += bloom * _TV(bloomAmount, 0.25) + max(textureLod(tex, 1. - texCoord, 6.).rgb - 0.6, 0.) * 0.1;
     col = col * (2.51 * col + 0.03) / (col * (2.43 * col + 0.59) + 0.14);
     
@@ -723,5 +727,13 @@ void main()
     } else {
         digits7(col, amber, uv * 6. - vec2(1.8, 0), 6., uint(score), 7);
     }
+    
+    float line = texCoord.y * 240.;
+    col *= 0.55 + 0.6 * pow(sin(line * 3.14159), 2.) * (1. - 0.3 * dot(col, vec3(0.33)));
+    int m = int(gl_FragCoord.x) % 3;
+    col *= mix(vec3(1), vec3(m == 0, m == 1, m == 2) * 1.8 + 0.25, 0.5);
+    col *= 1.25;
+    vec2 e = abs(texCoord - 0.5) - 0.5 + 0.03;
+    col *= smoothstep(0.02, 0., length(max(e, 0.)) - 0.03);
     fragColor = vec4(col, 1);
 }

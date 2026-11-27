@@ -139,7 +139,7 @@ namespace StateView
 			// small arrays are printed in full ([a,b,...]), big ones are skipped
 			const int size = typeSize(f.type);
 			const int count = f.arraySize > 1 ? f.arraySize : 1;
-			if (count > 8 || f.offset + (count - 1) * f.arrayStride + size > stateSize) continue;
+			if (count > 16 || f.offset + (count - 1) * f.arrayStride + size > stateSize) continue;
 			const bool isFloat = f.type == GL_FLOAT || f.type == GL_FLOAT_VEC2 || f.type == GL_FLOAT_VEC3 || f.type == GL_FLOAT_VEC4;
 			const int n = size / 4;
 			std::string all;

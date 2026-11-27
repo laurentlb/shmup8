@@ -13,10 +13,10 @@ the dark gets stronger.
 
 ## Current state
 
-**Size:** 9458 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
+**Size:** 10778 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
 
-**Controls:** WASD: move. Mouse: look. Left button: fire. Space: jump (hold to
-jump again on landing). Escape: quit.
+**Controls:** WASD: move. Mouse: look. Left button: light gun. Right button:
+rocket. Space: jump (hold to jump again on landing). Escape: quit.
 
 **Features:**
 
@@ -44,19 +44,31 @@ jump again on landing). Escape: quit.
   the collisions (stairs are ramps there) and the rendering.
 * Movement: Quake-style: ground and air acceleration (air strafing works),
   friction, jumps, head bob.
-* Weapon: a light gun that fires gold bolts (they light the walls as they fly),
-  recoil, muzzle flash; bolts converge on what the crosshair points at. It gets
-  better on each lap (faster, then two and three bolts); a glowing band on the
-  barrel per level.
-* Enemies, big and readable in the dark (a red eye, glowing veins, a red
-  light), white for an instant when hit, bursting into light when killed:
+* Weapons:
+  * a light gun, unlimited: gold bolts that light the walls as they fly,
+    converging on what the crosshair points at. It gets better on each lap
+    (faster, then two and three bolts); a glowing band on the barrel per level;
+  * a rocket launcher under the barrel, with limited rockets (5 at the start,
+    15 at most): slow rockets, explosions with area damage and knockback, a
+    ball of fire; the blast pushes you without hurting you (rocket jumps).
+* Ammo crates: six turning orange diamonds, +3 rockets each, some off the route
+  (on the hall's walkway, at the bottom of the flooded pit, in corners); they
+  come back on each lap.
+* Enemies, readable in the dark (a red eye, glowing veins, a red light),
+  white for an instant when hit, bursting into light when killed:
   * wraiths weave toward you (hard to snipe) and charge when close; a bite
     costs light and knocks you back;
   * spitters, balls with a ring of turning spikes, keep their distance, circle,
-    and fire slow red shots you can dodge (only when they see you).
+    and fire slow red shots you can dodge;
+  * skitters, small spiders running on six legs, come in packs on the floor
+    and leap at you; one hit kills them, but look down;
+  * brutes, from lap 3: big armored balls with horns, slow, tough (rockets
+    help), firing three shots at once; they release a lot of light.
 
   They appear on the route, mostly ahead, sometimes behind; more of them,
-  faster, tougher, and more spitters on each lap.
+  faster, tougher, and more spitters on each lap. Each one checks now and then
+  whether it sees you: then it attacks; otherwise it follows the route toward
+  you (through the doorways, not into walls).
 * Light: drains over time (faster on each lap). A kill releases three orbs of
   light that fly back to you. A lap gives some light back. At zero, the dark
   takes you.
@@ -72,10 +84,13 @@ jump again on landing). Escape: quit.
   gameplay shader, with a bright core; fog with light scattered from them, thicker when your light is low;
   wet floors with reflections; bloom, tone mapping, vignette that closes in
   when the light is low, red flash when hurt.
-* Sound: a dark loop; shot, hit, kill, hurt, jump, lap and spitter sounds.
+* Sound: a dark loop; shot, hit, kill, hurt, jump, lap, enemy shot, rocket,
+  explosion and ammo sounds.
 * Performance: the scene is drawn at most 810 lines high, then scaled up (the
-  HUD at full resolution); 10 to 13 ms per frame at 2560x1440 on a laptop RTX
-  4070 (`out\cat-debug.exe --check` prints it). Each ray only looks at the
+  HUD at full resolution); in the release, the resolution goes down to 60% when
+  a frame takes more than 14 ms, and back up (dynamic resolution). 10 to 17 ms
+  per frame at 2560x1440 on a laptop RTX 4070 at full resolution, depending on
+  the fight (`out\cat-debug.exe --check` prints it). Each ray only looks at the
   boxes, enemies and gun it can meet; the neon tubes are those of the room a
   point is in; reflections only on water and wet puddles.
 

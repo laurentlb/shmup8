@@ -31,7 +31,7 @@ namespace History
 	{
 		int buttons = (int)in.buttons;
 		Input input;
-		input.keys = (unsigned char)((in.x < 0) | (in.x > 0) << 1 | (in.y > 0) << 2 | (in.y < 0) << 3 | (buttons & 3) << 4);
+		input.keys = (unsigned char)((in.x < 0) | (in.x > 0) << 1 | (in.y > 0) << 2 | (in.y < 0) << 3 | (buttons & 7) << 4);
 		float turns = in.yaw / (2 * PI);
 		input.yaw = (short)(int)floorf((turns - floorf(turns)) * 65536.f + 0.5f); // wraps
 		input.pitch = (short)(int)floorf(in.pitch * 20000.f + 0.5f);
@@ -43,7 +43,7 @@ namespace History
 		GameInput in = {};
 		in.x = (float)((input.keys >> 1 & 1) - (input.keys & 1));
 		in.y = (float)((input.keys >> 2 & 1) - (input.keys >> 3 & 1));
-		in.buttons = (float)(input.keys >> 4 & 3);
+		in.buttons = (float)(input.keys >> 4 & 7);
 		in.yaw = input.yaw * (2 * PI / 65536.f);
 		in.pitch = input.pitch / 20000.f;
 		return in;
@@ -154,7 +154,7 @@ namespace History
 	{
 		FILE* f = fopen(path.c_str(), "w");
 		if (!f) return false;
-		fprintf(f, "# shmup8 inputs: steps (1/120 s), keys (1 left, 2 right, 4 forward, 8 back, 16 fire, 32 jump), yaw (65536 a turn), pitch (1/20000 rad)\n");
+		fprintf(f, "# shmup8 inputs: steps (1/120 s), keys (1 left, 2 right, 4 forward, 8 back, 16 fire, 32 jump, 64 rocket), yaw (65536 a turn), pitch (1/20000 rad)\n");
 		for (size_t i = 0; i < recorded.size();)
 		{
 			size_t j = i;
@@ -177,7 +177,7 @@ namespace History
 			if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
 			unsigned count, keys;
 			int yaw, pitch;
-			if (sscanf(line, "%u %u %d %d", &count, &keys, &yaw, &pitch) != 4 || keys > 63)
+			if (sscanf(line, "%u %u %d %d", &count, &keys, &yaw, &pitch) != 4 || keys > 127)
 			{
 				ok = false;
 				break;

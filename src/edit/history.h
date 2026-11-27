@@ -17,7 +17,7 @@
 namespace History
 {
 	// The input of a step: keys (1 left, 2 right, 4 forward, 8 back, 16 fire,
-	// 32 jump) and the view angles, quantized (live inputs are quantized too,
+	// 32 jump, 64 rocket) and the view angles, quantized (live inputs are quantized too,
 	// so that a replay gives the same game).
 	struct Input
 	{

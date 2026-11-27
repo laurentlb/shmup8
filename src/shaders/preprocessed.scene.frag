@@ -25,16 +25,18 @@ layout(binding = 0) uniform sampler2D tex;
 
 
 #define MAX_BOLTS 24
-#define MAX_ENEMIES 10
+#define MAX_ENEMIES 12
 #define MAX_SPARKS 8
 #define MAX_ORBS 12
 #define MAX_SHOTS 10
+#define MAX_ROCKETS 4
 #define MAX_LIGHTS 32
 
 layout(std430, binding = 0) buffer State {
     
     
-    int shotEvents, hitEvents, killEvents, hurtEvents, jumpEvents, lapEvents, spitEvents;
+    int shotEvents, hitEvents, killEvents, hurtEvents, jumpEvents, lapEvents, spitEvents,
+        launchEvents, boomEvents, pickupEvents;
 
     vec3 pos; float yaw;     
     vec3 vel; float pitch;
@@ -49,7 +51,7 @@ layout(std430, binding = 0) buffer State {
     float shake, hurt, hitMark, lapFlash;
     float dead;              
     float bob;               
-    int grounded, started, kills;
+    int grounded, started, kills, tick;
     int record;              
     float prevButtons;
     uint rng;
@@ -60,11 +62,19 @@ layout(std430, binding = 0) buffer State {
     int enemyKind[MAX_ENEMIES];  
     vec4 enemyVel[MAX_ENEMIES];  
     vec4 enemyInfo[MAX_ENEMIES]; 
+    vec4 enemyGoal[MAX_ENEMIES]; 
     vec4 spark[MAX_SPARKS];      
     vec4 orb[MAX_ORBS];          
     vec4 orbVel[MAX_ORBS];
     vec4 shot[MAX_SHOTS];        
     vec4 shotVel[MAX_SHOTS];
+    vec4 rocket[MAX_ROCKETS];    
+    vec4 rocketVel[MAX_ROCKETS];
+    vec4 blast[MAX_ROCKETS];     
+    int rockets;                 
+    float rocketDelay;
+    int taken;                   
+    float pickupFlash;
     
     int lightCount;
     vec4 lightPos[MAX_LIGHTS], lightCol[MAX_LIGHTS];
@@ -94,6 +104,20 @@ layout(std430, binding = 0) buffer State {
 
 #define GOLD vec3(1, .75, .4)
 #define RED vec3(1, .05, .12)
+#define ORANGE vec3(1, .4, .1) 
+
+
+float enemyScale(int kind)
+{
+    return kind == 2 ? .45 : kind == 3 ? 2. : 1.;
+}
+const int ENEMY_HEALTH[4] = int[](3, 5, 1, 16);
+
+
+
+#define NP 6
+const vec3 PICKUPS[NP] = vec3[](vec3(20, 1.6, 4.75), vec3(68, -6.4, 5), vec3(88, 1.6, 15),
+                                vec3(26, 1.6, 10), vec3(-6, -2.4, 32), vec3(-6, .6, -1));
 
 
 
@@ -322,6 +346,8 @@ out vec4 fragColor;
 #define M_NEON 1.
 #define M_GUN 2.
 #define M_COIL 3.
+#define M_CRATE 4.
+#define M_TUBE 5.
 
 
 
@@ -454,13 +480,31 @@ float neonAt(vec3 p)
 vec2 enemyShape(vec3 p, int i)
 {
     vec3 e = enemy[i].xyz;
+    int kind = enemyKind[i];
     
-    float s = (enemy[i].w < 0. ? 1.6 + enemy[i].w * 2. : max(enemyInfo[i].x, .05)) * ENEMY_SIZE;
-    vec3 f = normalize(eye - e), r = normalize(cross(f, vec3(0, 1, 0))), u = cross(r, f);
+    float s = (enemy[i].w < 0. ? 1.6 + enemy[i].w * 2. : max(enemyInfo[i].x, .05)) * ENEMY_SIZE * enemyScale(kind);
+    vec3 f = normalize(eye - e);
+    if (kind == 2)
+        f = normalize(vec3(f.x, 0, f.z)); 
+    vec3 r = normalize(cross(f, vec3(0, 1, 0))), u = cross(r, f);
     vec3 q = p - e;
     vec3 l = vec3(dot(q, r), dot(q, u), dot(q, f)) / s;
     float t = time * 3. + float(i) * 1.7, body;
-    if (enemyKind[i] > 0) {
+    if (kind == 2) {
+        
+        body = length(l * vec3(1, 1.6, .8)) - .5;
+        for (int k = 0; k < 6; k++) {
+            float side = k < 3 ? -1. : 1., z = float(k % 3 - 1) * .45, a = time * 16. + float(k) * 2.1;
+            vec3 hip = vec3(side * .3, 0, z), foot = vec3(side * 1.1, -.8 + max(sin(a), 0.) * .3, z * 1.5 + cos(a) * .2);
+            vec3 knee = (hip + foot) * .5 + vec3(side * .1, .55, 0);
+            body = smin(body, min(capsule(l, hip, knee, .07), capsule(l, knee, foot, .05)), .08);
+        }
+    } else if (kind == 3) {
+        
+        body = length(l) - .55;
+        body = smin(body, capsule(vec3(abs(l.xy), l.z), vec3(.3, .3, -.1), vec3(.75, .75, -.5), .12), .15);
+        body = min(body, length(vec2(length(l.xy) - .58, l.z + .05)) - .07);
+    } else if (kind == 1) {
         
         body = length(l) - .5;
         float a = mod(atan(l.y, l.x) + t * .3 + .39, .785) - .39;
@@ -492,7 +536,7 @@ vec2 map(vec3 p)
     for (int i = 0; i < MAX_ENEMIES; i++) {
         if ((seenX >> i & 1u) == 0u)
             continue;
-        float d = length(p - enemy[i].xyz) - 2.4;
+        float d = length(p - enemy[i].xyz) - 2.4 * enemyScale(enemyKind[i]);
         if (d > .3)
             h.x = min(h.x, d);
         else {
@@ -501,6 +545,16 @@ vec2 map(vec3 p)
                 h = e;
         }
     }
+    
+    for (int k = 0; k < NP; k++)
+        if ((seenX >> (16 + k) & 1u) != 0u) {
+            vec3 q = p - PICKUPS[k] - vec3(0, .15 * sin(time * 2. + float(k)), 0);
+            float a = time * 1.5;
+            q.xz = mat2(cos(a), sin(a), -sin(a), cos(a)) * q.xz;
+            float d = (dot(abs(q), vec3(1)) - .35) * .577;
+            if (d < h.x)
+                h = vec2(d, M_CRATE);
+        }
     
     vec3 g = p - eye;
     vec3 l = vec3(dot(g, camR), dot(g, camU), dot(g, camF)) - gunAt;
@@ -517,6 +571,10 @@ vec2 map(vec3 p)
                 length(max(abs(l - vec3(0, -.035, -.1)) - vec3(.03, .04, .1), 0.)) - .012);
         if (d < h.x)
             h = vec2(d, abs(z) < .012 && length(l.xy) < .04 ? M_COIL : M_GUN);
+        
+        d = length(vec3(l.xy - vec2(0, -.065), l.z - clamp(l.z, -.08, .15))) - .022;
+        if (d < h.x)
+            h = vec2(d, l.z > .13 ? M_TUBE : M_GUN);
     }
     return h;
 }
@@ -579,10 +637,13 @@ void cull(vec3 ro, vec3 rd)
         if (hitBox(ro, rd, ST_LO[i] - .5, ST_HI[i] + .5))
             seenSo |= 1u << (NS + i);
     for (int i = 0; i < MAX_ENEMIES; i++)
-        if (enemy[i].w != 0. && hitSphere(ro, rd, enemy[i].xyz, 2.7))
+        if (enemy[i].w != 0. && hitSphere(ro, rd, enemy[i].xyz, 2.7 * enemyScale(enemyKind[i])))
             seenX |= 1u << i;
     if (hitSphere(ro, rd, eye + mat3(camR, camU, camF) * (gunAt + vec3(0, 0, .03)), .3))
         seenX |= 1u << 31;
+    for (int k = 0; k < NP; k++)
+        if ((taken >> k & 1) == 0 && hitSphere(ro, rd, PICKUPS[k], .7))
+            seenX |= 1u << (16 + k);
 }
 
 float occlusion(vec3 p, vec3 n)
@@ -666,6 +727,14 @@ vec3 material(vec3 p, float m)
         glow = GOLD * (light * 1.5 + kick * 3.) * (band < float(min(lap, 3)) ? 1. : .08);
         return vec3(0);
     }
+    if (m == M_CRATE) {
+        glow = ORANGE * (2.5 + 1.5 * sin(time * 6.));
+        return vec3(0);
+    }
+    if (m == M_TUBE) {
+        glow = ORANGE * (rockets > 0 ? 3. : .05);
+        return vec3(0);
+    }
     if (m == M_GUN) {
         metal = 1.;
         rough = .4;
@@ -743,6 +812,21 @@ vec3 scattered(vec3 ro, vec3 rd, float tMax)
     return c;
 }
 
+
+vec3 fireballs(vec3 ro, vec3 rd, float tMax)
+{
+    vec3 c = vec3(0);
+    for (int k = 0; k < MAX_ROCKETS; k++) {
+        float age = blast[k].w / .6, r = .5 + 4. * sqrt(age);
+        vec3 o = blast[k].xyz - ro;
+        float b = dot(o, rd), h = sqrt(max(dot(o, o) - b * b, 0.));
+        if (age > 0. && b - r < tMax)
+            c += mix(vec3(2, 1.4, .8), ORANGE, age) * 2. * (1. - age) * (1. - age) * smoothstep(r, r * .2, h)
+                 * (.7 + .3 * noise(rd.xy * 30. + time * 5.));
+    }
+    return c;
+}
+
 vec3 render(vec3 ro, vec3 rd)
 {
     const vec3 fogColor = vec3(.004, .005, .012);
@@ -772,7 +856,7 @@ vec3 render(vec3 ro, vec3 rd)
         }
         float fog = exp(-h.x * fogDensity);
         col += weight * (mix(fogColor, c, fog) + glowSum * _TV(neonGlow, .05)
-                         + scattered(ro, rd, h.x) + beams(ro, rd, h.x));
+                         + scattered(ro, rd, h.x) + beams(ro, rd, h.x) + fireballs(ro, rd, h.x));
         if (h.y < 0.)
             break;
         weight *= (f0 + (1. - f0) * pow(1. - max(dot(n, v), 0.), 5.)) * (1. - rough) * fog;
@@ -808,11 +892,11 @@ void main()
     }
 
     
-    vec2 ca = (texCoord - .5) * .002; 
-    vec3 col = vec3(texture(tex, texCoord + ca).r, texture(tex, texCoord).g, texture(tex, texCoord - ca).b);
+    vec2 tc = texCoord * iFrame.z, ca = (texCoord - .5) * .002; 
+    vec3 col = vec3(texture(tex, tc + ca).r, texture(tex, tc).g, texture(tex, tc - ca).b);
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)
-        bloom += max(textureLod(tex, texCoord, float(i)).rgb - .4, 0.);
+        bloom += max(textureLod(tex, tc, float(i)).rgb - .4, 0.);
     col += bloom * _TV(bloomAmount, .3);
     col = col * (2.51 * col + .03) / (col * (2.43 * col + .59) + .14);
     
@@ -862,5 +946,10 @@ void main()
         digits7(col, GOLD * lapFlash * 2., uv * 6. - vec2(.5, 1.5), 6., lap, 1);
     float bar = step(abs(uv.y + .9), .006) * step(abs(uv.x), .35 * light);
     col += bar * GOLD * (light < .25 ? step(.5, fract(time * 3.)) + .3 : .8);
+    
+    vec3 orange = ORANGE * (rockets > 0 ? 1.5 : .4);
+    col += orange * smoothstep(.003, 0., dot(abs(uv - vec2(.42, -.9)), vec2(1)) - .018);
+    digits7(col, orange, uv * 22. - vec2(10.9, -19.8), 22., rockets, 1);
+    col += ORANGE * pickupFlash * .15;
     fragColor = vec4(col, 1);
 }

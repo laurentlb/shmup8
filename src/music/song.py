@@ -106,6 +106,14 @@ SFX = [  # same order as the event counters in src/shaders/state.glsl
     # a spitter shoots: a wet, rising hiss
     instrument("Spit", [env(56), noise(), mulp(), lowpass(70, 40)]
                + swept(osc(1, 58, color=20), 58, 40, 60, [lowpass(60)]) + [addp()] + out(40, 30)),
+    # rocket launch: a deep whoosh
+    instrument("Launch", [env(62), noise(), mulp(), lowpass(46, 50)]
+               + swept(osc(0, 44), 50, 80, 56) + [addp()] + out(50, 20)),
+    # explosion: a long low boom with rumble
+    instrument("Boom", [env(84), noise(), mulp(), lowpass(34, 30)]
+               + swept(osc(0, 36), 70, 90, 80) + [addp()] + out(90, 60)),
+    # ammo crate: a bright little arpeggio of two tones
+    instrument("Pickup", [env(64), osc(0, 88, gain=90), osc(0, 95, gain=60), addp(), mulp()] + out(30, 40)),
 ]
 GLOBAL = instrument("Global", [
     unit("in", channel=2, stereo=1),

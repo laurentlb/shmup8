@@ -11,7 +11,7 @@
 #define STEPS_PER_SECOND 120
 #define MAX_STEPS 12 // don't try to catch up after a long pause
 #define STATE_SIZE 4096
-#define EVENT_COUNT 7
+#define EVENT_COUNT 10
 #define MOUSE_SPEED 0.0022f // radians per pixel
 
 typedef BOOL (WINAPI* PFNWGLSWAPINTERVALEXTPROC)(int interval);
@@ -37,6 +37,7 @@ static void resetState()
 // final pass, with the HUD, is at the full resolution).
 #define RENDER_HEIGHT 810
 static int sceneWidth, sceneHeight;
+static float sceneScale = 1; // the release lowers it when frames are slow (dynamic resolution)
 
 // Texture 1 is the previous scene (input), texture 2 the current one (attached to sceneFramebuffer).
 static void initEngine(int width, int height)
@@ -86,18 +87,20 @@ static void stepGame(GameInput input, int steps)
 	GLCALL(PFNGLGETBUFFERSUBDATAPROC, "glGetBufferSubData")(GL_SHADER_STORAGE_BUFFER, 0, EVENT_COUNT * 4, stateCopy);
 }
 
-// frameTime: seconds since the previous frame. The final image goes to 'target' (0: window).
+// The final image goes to 'target' (0: window). The scene is drawn in the
+// bottom-left part of its texture (sceneScale); iFrame.z tells the final pass.
 static void drawGame(int width, int height, float frameTime, int target)
 {
+	int h = (int)(sceneHeight * sceneScale), w = width * h / height;
 	GLCALL(PFNGLUSEPROGRAMPROC, "glUseProgram")(sceneProgram);
-	GLCALL(PFNGLUNIFORM4FPROC, "glUniform4f")(0, (float)sceneWidth, (float)sceneHeight, frameTime, 0);
+	GLCALL(PFNGLUNIFORM4FPROC, "glUniform4f")(0, (float)w, (float)h, frameTime, 0);
 	GLCALL(PFNGLBINDFRAMEBUFFERPROC, "glBindFramebuffer")(GL_FRAMEBUFFER, sceneFramebuffer);
-	glViewport(0, 0, sceneWidth, sceneHeight);
+	glViewport(0, 0, w, h);
 	glRects(-1, -1, 1, 1);
-	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, sceneWidth, sceneHeight);
+	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
 	GLCALL(PFNGLGENERATEMIPMAPPROC, "glGenerateMipmap")(GL_TEXTURE_2D);
 
-	GLCALL(PFNGLUNIFORM4FPROC, "glUniform4f")(0, (float)width, (float)height, frameTime, 1);
+	GLCALL(PFNGLUNIFORM4FPROC, "glUniform4f")(0, (float)width, (float)height, (float)h / sceneHeight, 1);
 	GLCALL(PFNGLBINDFRAMEBUFFERPROC, "glBindFramebuffer")(GL_FRAMEBUFFER, target);
 	glViewport(0, 0, width, height);
 	glRects(-1, -1, 1, 1);

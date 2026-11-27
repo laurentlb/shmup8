@@ -29,16 +29,18 @@ layout(location = 0) uniform vec4 iInput[2];
 
 
 #define MAX_BOLTS 24
-#define MAX_ENEMIES 10
+#define MAX_ENEMIES 12
 #define MAX_SPARKS 8
 #define MAX_ORBS 12
 #define MAX_SHOTS 10
+#define MAX_ROCKETS 4
 #define MAX_LIGHTS 32
 
 layout(std430, binding = 0) buffer State {
     
     
-    int shotEvents, hitEvents, killEvents, hurtEvents, jumpEvents, lapEvents, spitEvents;
+    int shotEvents, hitEvents, killEvents, hurtEvents, jumpEvents, lapEvents, spitEvents,
+        launchEvents, boomEvents, pickupEvents;
 
     vec3 pos; float yaw;     
     vec3 vel; float pitch;
@@ -53,7 +55,7 @@ layout(std430, binding = 0) buffer State {
     float shake, hurt, hitMark, lapFlash;
     float dead;              
     float bob;               
-    int grounded, started, kills;
+    int grounded, started, kills, tick;
     int record;              
     float prevButtons;
     uint rng;
@@ -64,11 +66,19 @@ layout(std430, binding = 0) buffer State {
     int enemyKind[MAX_ENEMIES];  
     vec4 enemyVel[MAX_ENEMIES];  
     vec4 enemyInfo[MAX_ENEMIES]; 
+    vec4 enemyGoal[MAX_ENEMIES]; 
     vec4 spark[MAX_SPARKS];      
     vec4 orb[MAX_ORBS];          
     vec4 orbVel[MAX_ORBS];
     vec4 shot[MAX_SHOTS];        
     vec4 shotVel[MAX_SHOTS];
+    vec4 rocket[MAX_ROCKETS];    
+    vec4 rocketVel[MAX_ROCKETS];
+    vec4 blast[MAX_ROCKETS];     
+    int rockets;                 
+    float rocketDelay;
+    int taken;                   
+    float pickupFlash;
     
     int lightCount;
     vec4 lightPos[MAX_LIGHTS], lightCol[MAX_LIGHTS];
@@ -98,6 +108,20 @@ layout(std430, binding = 0) buffer State {
 
 #define GOLD vec3(1, .75, .4)
 #define RED vec3(1, .05, .12)
+#define ORANGE vec3(1, .4, .1) 
+
+
+float enemyScale(int kind)
+{
+    return kind == 2 ? .45 : kind == 3 ? 2. : 1.;
+}
+const int ENEMY_HEALTH[4] = int[](3, 5, 1, 16);
+
+
+
+#define NP 6
+const vec3 PICKUPS[NP] = vec3[](vec3(20, 1.6, 4.75), vec3(68, -6.4, 5), vec3(88, 1.6, 15),
+                                vec3(26, 1.6, 10), vec3(-6, -2.4, 32), vec3(-6, .6, -1));
 
 
 
@@ -357,16 +381,20 @@ void newRun()
     light = 1.;
     lap = 1;
     kills = 0;
+    rockets = 5;
+    taken = 0;
     checkpoint = 0;
     lapTime = 0.;
     dead = 0.;
-    spawnTimer = 2.;
+    spawnTimer = 1.;
     for (int i = 0; i < MAX_ENEMIES; i++)
         enemy[i].w = 0.;
     for (int i = 0; i < MAX_ORBS; i++)
         orb[i].w = 0.;
     for (int i = 0; i < MAX_SHOTS; i++)
         shot[i].w = 0.;
+    for (int i = 0; i < MAX_ROCKETS; i++)
+        rocket[i].w = 0.;
 }
 
 void hurtPlayer(float damage)
@@ -377,11 +405,11 @@ void hurtPlayer(float damage)
     hurtEvents++;
 }
 
-void hitEnemy(int i, vec3 dir)
+void hitEnemy(int i, vec3 dir, float damage)
 {
-    enemy[i].w--;
+    enemy[i].w -= damage;
     enemyInfo[i].y = 1.;
-    enemyVel[i].xyz += dir * 3.;
+    enemyVel[i].xyz += dir * 3. / enemyScale(enemyKind[i]);
     hitEvents++;
     hitMark = 1.;
     if (enemy[i].w <= 0.) {
@@ -391,7 +419,7 @@ void hitEnemy(int i, vec3 dir)
         kills++;
         shake = max(shake, .4);
         addSpark(enemy[i].xyz, 4.);
-        for (int k = 0, n = 0; k < MAX_ORBS && n < 3; k++)
+        for (int k = 0, n = 0; k < MAX_ORBS && n < (enemyKind[i] == 3 ? 10 : enemyKind[i] == 2 ? 2 : 3); k++)
             if (orb[k].w <= 0.) {
                 orb[k] = vec4(enemy[i].xyz, 1);
                 orbVel[k].xyz = rndDir() * 6. + vec3(0, 3, 0);
@@ -400,9 +428,64 @@ void hitEnemy(int i, vec3 dir)
     }
 }
 
+
+
+void explode(vec3 c)
+{
+    boomEvents++;
+    shake = 1.;
+    addSpark(c, 6.);
+    for (int k = 0; k < MAX_ROCKETS; k++)
+        if (blast[k].w <= 0.) {
+            blast[k] = vec4(c, DT);
+            break;
+        }
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+        vec3 d = enemy[i].xyz - c;
+        float k = 1. - length(d) / _TV(blastRadius, 5.);
+        if (enemy[i].w > 0. && k > 0.) {
+            enemyVel[i].xyz += normalize(d) * 10. * k;
+            hitEnemy(i, vec3(0), ceil(_TV(blastDamage, 7.) * k));
+        }
+    }
+    vec3 d = pos - c;
+    float k = 1. - length(d) / 4.;
+    if (k > 0.) {
+        vel += normalize(d + vec3(0, .3, 0)) * _TV(rocketJump, 16.) * k;
+        grounded = 0;
+    }
+}
+
+
+vec3 aim(vec3 eye, vec3 look, vec3 muzzle)
+{
+    float t = 0.;
+    for (int k = 0; k < 40 && t < 80.; k++) {
+        float d = level(eye + look * t);
+        if (d < .05)
+            break;
+        t += d;
+    }
+    return normalize(eye + look * max(t, 2.) - muzzle);
+}
+
+void spawn(vec3 s, int kind)
+{
+    for (int i = 0; i < MAX_ENEMIES; i++)
+        if (enemy[i].w == 0.) {
+            enemy[i] = vec4(s, float(ENEMY_HEALTH[kind] + lap / 2 * (kind == 3 ? 4 : 1)));
+            enemyKind[i] = kind;
+            enemyVel[i] = vec4(0);
+            enemyInfo[i] = vec4(0, 0, 1.5, 0);
+            enemyGoal[i] = vec4(s, 0);
+            return;
+        }
+}
+
 void update()
 {
     time += DT;
+    tick++;
     if (started == 0)
         newRun();
     shake = max(shake - DT * 3., 0.);
@@ -410,15 +493,18 @@ void update()
     kick = max(kick - DT * 6., 0.);
     hitMark = max(hitMark - DT * 5., 0.);
     lapFlash = max(lapFlash - DT, 0.);
+    pickupFlash = max(pickupFlash - DT * 3., 0.);
     for (int i = 0; i < MAX_SPARKS; i++)
         spark[i].w = max(spark[i].w - DT * 5., 0.);
+    for (int i = 0; i < MAX_ROCKETS; i++)
+        blast[i].w = blast[i].w > .6 ? 0. : blast[i].w + sign(blast[i].w) * DT;
 
-    float fire = mod(iInput[0].z, 2.), jump = step(2., iInput[0].z);
+    float buttons = iInput[0].z, fire = mod(buttons, 2.), jump = mod(floor(buttons * .5), 2.);
     yaw = iInput[1].x + yawBase;
     pitch = iInput[1].y;
     vec3 fw = vec3(cos(yaw), 0, sin(yaw)), rt = vec3(-fw.z, 0, fw.x);
     vec3 look = vec3(fw.x * cos(pitch), sin(pitch), fw.z * cos(pitch));
-    vec3 eye = pos + vec3(0, EYE, 0);
+    vec3 eye = pos + vec3(0, EYE, 0), up = cross(rt, look);
 
     if (dead > 0.) {
         
@@ -428,7 +514,7 @@ void update()
             newRun();
     } else {
         lapTime += DT;
-        light -= DT * (_TV(drain, .014) + .007 * float(lap));
+        light -= DT * (_TV(drain, .01) + .006 * float(lap));
         if (light <= 0.) {
             light = 0.;
             dead = DT;
@@ -469,28 +555,45 @@ void update()
         }
 
         
+        
         cooldown -= DT;
         if (fire > 0. && cooldown <= 0.) {
-            
             int power = min(lap - 1, 3);
             cooldown = _TV(fireDelay, .11) - .01 * float(power);
             kick = 1.;
             shotEvents++;
-            float t = 0.;
-            for (int k = 0; k < 40 && t < 80.; k++) {
-                float d = level(eye + look * t);
-                if (d < .05)
-                    break;
-                t += d;
-            }
-            vec3 muzzle = eye + look * .5 + rt * .2 - cross(rt, look) * .15;
-            vec3 dir = normalize(eye + look * max(t, 2.) - muzzle);
+            vec3 muzzle = eye + look * .5 + rt * .2 - up * .15;
+            vec3 dir = aim(eye, look, muzzle);
             for (int j = 0, k = 0; j < max(power, 1) && k < MAX_BOLTS; k++)
                 if (bolt[k].w <= 0.) {
                     bolt[k] = vec4(muzzle, .8);
                     boltVel[k].xyz = normalize(dir + rt * (float(j++) - float(max(power, 1) - 1) * .5) * .035) * _TV(boltSpeed, 70.);
                 }
         }
+        
+        rocketDelay -= DT;
+        if (buttons >= 4. && rocketDelay <= 0. && rockets > 0) {
+            rocketDelay = .7;
+            rockets--;
+            launchEvents++;
+            kick = 2.;
+            vec3 muzzle = eye + look * .5 + rt * .2 - up * .21;
+            for (int k = 0; k < MAX_ROCKETS; k++)
+                if (rocket[k].w <= 0.) {
+                    rocket[k] = vec4(muzzle, 3);
+                    rocketVel[k].xyz = aim(eye, look, muzzle) * _TV(rocketSpeed, 30.);
+                    break;
+                }
+        }
+
+        
+        for (int k = 0; k < NP; k++)
+            if ((taken >> k & 1) == 0 && length(pos - PICKUPS[k]) < 1.5) {
+                taken |= 1 << k;
+                rockets = min(rockets + 3, 15);
+                pickupEvents++;
+                pickupFlash = 1.;
+            }
 
         
         float along = trackPos(pos);
@@ -504,28 +607,30 @@ void update()
                 lapTime = 0.;
                 light = min(light + _TV(lapLight, .1), 1.);
                 lapFlash = 1.;
+                taken = 0; 
             }
         }
 
         
-        int alive = 0;
-        for (int i = 0; i < MAX_ENEMIES; i++)
+        
+        int alive = 0, brutes = 0;
+        for (int i = 0; i < MAX_ENEMIES; i++) {
             alive += int(enemy[i].w > 0.);
+            brutes += int(enemy[i].w > 0. && enemyKind[i] == 3);
+        }
         spawnTimer -= DT;
-        if (alive < min(2 + 2 * lap, MAX_ENEMIES) && spawnTimer <= 0.) {
+        if (alive < min(3 + 2 * lap, MAX_ENEMIES - 2) && spawnTimer <= 0.) {
             spawnTimer = max(_TV(spawnDelay, 2.5) - .25 * float(lap), .7);
-            
-            vec3 s = trackPoint(along + (rnd() < .25 ? -10. - rnd() * 8. : 18. + rnd() * 15.))
-                   + vec3(rnd() * 4. - 2., 1.8 + rnd() * 1.5, rnd() * 4. - 2.);
-            int kind = int(rnd() < min(.1 + .1 * float(lap), .45));
-            for (int i = 0; i < MAX_ENEMIES; i++)
-                if (enemy[i].w == 0.) {
-                    enemy[i] = vec4(s, float(3 + 2 * kind + lap / 2));
-                    enemyKind[i] = kind;
-                    enemyVel[i] = vec4(0);
-                    enemyInfo[i] = vec4(0, 0, 1.5, 0);
-                    break;
-                }
+            vec3 s = trackPoint(along + (rnd() < .25 ? -10. - rnd() * 8. : 18. + rnd() * 15.));
+            float r = rnd();
+            if (lap > 2 && brutes == 0 && r < .15)
+                spawn(s + vec3(0, 3, 0), 3);
+            else if (r < .35)
+                
+                for (int k = 0; k < 3; k++)
+                    spawn(s + vec3(rnd() * 3. - 1.5, .5, rnd() * 3. - 1.5), 2);
+            else
+                spawn(s + vec3(rnd() * 4. - 2., 1.8 + rnd() * 1.5, rnd() * 4. - 2.), int(rnd() < min(.15 + .1 * float(lap), .5)));
         }
     }
 
@@ -541,8 +646,8 @@ void update()
                 continue;
             vec3 e = enemy[i].xyz - p;
             float h = clamp(dot(e, dir), 0., len);
-            if (length(e - dir * h) < .9 * enemyInfo[i].x + .1) {
-                hitEnemy(i, dir);
+            if (length(e - dir * h) < .9 * enemyScale(enemyKind[i]) * enemyInfo[i].x + .1) {
+                hitEnemy(i, dir, 1.);
                 addSpark(p + dir * h, 1.5);
                 bolt[k].w = 0.;
                 break;
@@ -561,12 +666,30 @@ void update()
     }
 
     
+    for (int k = 0; k < MAX_ROCKETS; k++) {
+        if (rocket[k].w <= 0.)
+            continue;
+        rocket[k].w -= DT;
+        rocket[k].xyz += rocketVel[k].xyz * DT;
+        bool boom = rocket[k].w <= 0. || level(rocket[k].xyz) < .25;
+        for (int i = 0; i < MAX_ENEMIES; i++)
+            boom = boom || enemy[i].w > 0. && length(enemy[i].xyz - rocket[k].xyz) < enemyScale(enemyKind[i]) + .3;
+        if (boom) {
+            rocket[k].w = 0.;
+            explode(rocket[k].xyz);
+        }
+    }
+
     
+    
+    float playerAlong = trackPos(pos), len = trackLength();
     for (int i = 0; i < MAX_ENEMIES; i++) {
         if (enemy[i].w < 0.)
             enemy[i].w = min(enemy[i].w + DT, 0.); 
         if (enemy[i].w <= 0.)
             continue;
+        int kind = enemyKind[i];
+        float size = enemyScale(kind);
         vec4 info = enemyInfo[i];
         info.x = min(info.x + DT, 1.);
         info.yzw = max(info.yzw - vec3(6, 1, 1) * DT, 0.);
@@ -574,59 +697,90 @@ void update()
         vec3 to = eye - vec3(0, .3, 0) - e;
         float dist = length(to);
         to /= dist;
-        vec3 side = normalize(cross(to, vec3(0, 1, 0))) * sin(time * 2.5 + float(i) * 2.);
-        float speed = _TV(enemySpeed, 4.5) + .5 * float(lap);
-        if (enemyKind[i] > 0) {
-            v += (to * clamp(dist - 14., -1., 1.) * speed + side * 4. - v) * DT * 1.5;
-            if (info.z <= 0. && dist < 30. && dead == 0.) {
-                
-                info.z = .4;
-                float t = 1.;
-                for (int k = 0; k < 24 && t < dist; k++)
-                    t += max(level(e + to * t), .2);
-                if (t >= dist)
-                    for (int k = 0; k < MAX_SHOTS; k++)
-                        if (shot[k].w <= 0.) {
-                            shot[k] = vec4(e + to, 3);
-                            spitEvents++;
-                            shotVel[k].xyz = to * (12. + float(lap));
-                            info.z = max(2.2 - .2 * float(lap), 1.);
-                            break;
-                        }
+        if ((tick + i * 7) % 24 == 0) {
+            float t = size + .3;
+            for (int k = 0; k < 32 && t < dist; k++)
+                t += max(level(e + to * t), .2);
+            vec3 goal = eye - vec3(0, .3, 0);
+            if (t < dist) {
+                float along = trackPos(e);
+                goal = trackPoint(along + sign(mod(playerAlong - along + len * .5, len) - len * .5) * 5.)
+                     + vec3(0, kind == 2 ? .5 : 2., 0);
             }
-        } else if (enemyVel[i].w > 0.)
-            enemyVel[i].w -= DT; 
-        else {
-            v += (to * speed + side * 4. - v) * DT * 2.;
-            if (dist < 10. && info.z <= 0. && dead == 0.) {
-                v = to * (13. + float(lap));
-                enemyVel[i].w = .6;
-                info.z = 2.5;
+            enemyGoal[i] = vec4(goal, t >= dist);
+        }
+        bool see = enemyGoal[i].w > 0.;
+        vec3 go = enemyGoal[i].xyz - e;
+        go /= max(length(go), .01);
+        vec3 side = normalize(cross(to, vec3(0, 1, 0))) * sin(time * 2.5 + float(i) * 2.) * float(see);
+        float speed = _TV(enemySpeed, 4.5) + .5 * float(lap);
+        if (kind == 2) {
+            
+            vec3 ahead = vec3(go.x, 0, go.z) / max(length(go.xz), .01);
+            v.y -= 20. * DT;
+            if (level(e - vec3(0, .1, 0)) < size) {
+                v.xz += ((ahead.xz + side.xz * .6) * (7. + float(lap)) - v.xz) * DT * 6.;
+                if (see && dist < 7. && info.z <= 0. && dead == 0.) {
+                    v = ahead * 12. + vec3(0, 6, 0);
+                    info.z = 1.5;
+                }
+            }
+        } else if (kind == 0) {
+            
+            if (enemyVel[i].w > 0.)
+                enemyVel[i].w -= DT;
+            else {
+                v += (go * speed + side * 4. - v) * DT * 2.;
+                if (see && dist < 10. && info.z <= 0. && dead == 0.) {
+                    v = to * (13. + float(lap));
+                    enemyVel[i].w = .6;
+                    info.z = 2.5;
+                }
+            }
+        } else {
+            
+            
+            float range = kind == 3 ? 10. : 14.;
+            v += ((see ? to * clamp(dist - range, -1., 1.) : go) * speed * (kind == 3 ? .5 : 1.) + side * 4. - v) * DT * 1.5;
+            if (info.z <= 0. && dist < 30. && dead == 0.) {
+                info.z = .4;
+                if (see) {
+                    vec3 r = normalize(cross(to, vec3(0, 1, 0)));
+                    for (int j = kind == 3 ? -1 : 0, k = 0; j <= (kind == 3 ? 1 : 0) && k < MAX_SHOTS; k++)
+                        if (shot[k].w <= 0.) {
+                            shot[k] = vec4(e + to * size, 3);
+                            shotVel[k].xyz = normalize(to + r * float(j++) * .12) * (12. + float(lap));
+                            spitEvents++;
+                            info.z = max(2.2 - .2 * float(lap), 1.) * (kind == 3 ? 1.5 : 1.);
+                        }
+                }
             }
         }
-        v.y += sin(time * 2. + float(i)) * DT * 2.;
+        if (kind != 2)
+            v.y += sin(time * 2. + float(i)) * DT * 2.;
         
         for (int j = 0; j < MAX_ENEMIES; j++) {
             vec3 d = e - enemy[j].xyz;
-            float l = length(d);
-            if (j != i && enemy[j].w > 0. && l < 3. && l > 0.)
-                v += d / l * (3. - l) * DT * 8.;
+            float l = length(d), r = (size + enemyScale(enemyKind[j])) * 1.5;
+            if (j != i && enemy[j].w > 0. && l < r && l > 0.)
+                v += d / l * (r - l) * DT * 8.;
         }
         
-        float dl = level(e);
-        if (dl < 1.2) {
+        float dl = level(e), keep = kind == 2 ? size : size * .9;
+        if (dl < keep + .4) {
             vec3 n = levelNormal(e);
-            v += n * (1.2 - dl) * DT * 30.;
-            if (dl < .8) {
-                e += n * (.8 - dl);
-                v -= n * min(dot(v, n), 0.) * 1.5;
+            if (kind != 2)
+                v += n * (keep + .4 - dl) * DT * 30.;
+            if (dl < keep) {
+                e += n * (keep - dl);
+                v -= n * min(dot(v, n), 0.) * (kind == 2 ? 1. : 1.5);
             }
         }
         e += v * DT * info.x;
         
         vec3 body = pos + vec3(0, .5, 0) - e;
-        if (length(body) < 1.6 && dead == 0. && info.x >= 1. && info.w <= 0.) {
-            hurtPlayer(_TV(biteDamage, .12));
+        if (length(body) < size + .7 && dead == 0. && info.x >= 1. && info.w <= 0.) {
+            hurtPlayer(_TV(biteDamage, .12) * (kind == 2 ? .5 : kind == 3 ? 1.5 : 1.));
             vel += normalize(body) * 8. + vec3(0, 3, 0);
             v = -normalize(body) * 8.;
             enemyVel[i].w = 0.;
@@ -680,6 +834,7 @@ void addLight(vec3 p, vec3 c)
 
 
 
+
 void makeLights()
 {
     vec3 eye = pos + vec3(0, EYE, 0);
@@ -688,12 +843,17 @@ void makeLights()
     lightCount = 0;
     addLight(eye + u * .4 - f * .3, GOLD * (light * _TV(lantern, 1.2) + .05));
     addLight(eye + r * .2 - u * .2 + f * .55, GOLD * kick * kick * 6.);
-    
+    for (int i = 0; i < MAX_ROCKETS; i++)
+        addLight(blast[i].xyz, ORANGE * 15. * max(.6 - blast[i].w, 0.) * step(1e-4, blast[i].w));
     for (int i = 0; i < MAX_SHOTS; i++)
         addLight(shot[i].xyz, RED * 3. * step(1e-4, shot[i].w));
     for (int i = 0; i < MAX_ENEMIES; i++)
-        addLight(enemy[i].xyz + normalize(eye - enemy[i].xyz) * .9,
+        addLight(enemy[i].xyz + normalize(eye - enemy[i].xyz) * .9 * enemyScale(enemyKind[i]),
                  enemy[i].w < 0. ? vec3(4) * -enemy[i].w : RED * 1.5 * enemyInfo[i].x * step(1e-4, enemy[i].w));
+    for (int i = 0; i < MAX_ROCKETS; i++)
+        addLight(rocket[i].xyz, ORANGE * 4. * step(1e-4, rocket[i].w));
+    for (int i = 0; i < NP; i++)
+        addLight(PICKUPS[i], ORANGE * float((taken >> i & 1) == 0 && length(PICKUPS[i] - pos) < 20.));
     for (int i = 0; i < MAX_BOLTS; i++)
         addLight(bolt[i].xyz, GOLD * 2. * step(1e-4, bolt[i].w));
     for (int i = 0; i < MAX_SPARKS; i++)

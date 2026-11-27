@@ -6,16 +6,18 @@
 
 // Not "const int": Shader Minifier would drop constants used only in the buffer declaration.
 #define MAX_BOLTS 24
-#define MAX_ENEMIES 10
+#define MAX_ENEMIES 12
 #define MAX_SPARKS 8
 #define MAX_ORBS 12
 #define MAX_SHOTS 10
+#define MAX_ROCKETS 4
 #define MAX_LIGHTS 32
 
 layout(std430, binding = 0) buffer State {
     // Event counters, they trigger the sound effects.
     // Same order as SFX in src/music/song.py.
-    int shotEvents, hitEvents, killEvents, hurtEvents, jumpEvents, lapEvents, spitEvents;
+    int shotEvents, hitEvents, killEvents, hurtEvents, jumpEvents, lapEvents, spitEvents,
+        launchEvents, boomEvents, pickupEvents;
 
     vec3 pos; float yaw;     // pos: the center of the player's sphere; yaw, pitch: the view
     vec3 vel; float pitch;
@@ -30,7 +32,7 @@ layout(std430, binding = 0) buffer State {
     float shake, hurt, hitMark, lapFlash;
     float dead;              // > 0: seconds since the light ran out
     float bob;               // distance walked (head and gun bob)
-    int grounded, started, kills;
+    int grounded, started, kills, tick;
     int record;              // the most laps completed in a run (kept across runs)
     float prevButtons;
     uint rng;
@@ -38,14 +40,22 @@ layout(std430, binding = 0) buffer State {
     vec4 bolt[MAX_BOLTS];        // xyz, w: life left (s), 0: free
     vec4 boltVel[MAX_BOLTS];
     vec4 enemy[MAX_ENEMIES];     // xyz, w: health, 0: free, < 0: bursting (from -0.3 to 0)
-    int enemyKind[MAX_ENEMIES];  // 0: wraith (charges), 1: spitter (keeps away, shoots)
+    int enemyKind[MAX_ENEMIES];  // see ENEMY_SCALE in world.glsl
     vec4 enemyVel[MAX_ENEMIES];  // xyz, w: > 0 while charging
     vec4 enemyInfo[MAX_ENEMIES]; // x: appearing (0 to 1), y: hit flash, z: before the next charge, w: before the next bite
+    vec4 enemyGoal[MAX_ENEMIES]; // where it goes: xyz, w: 1 if it sees the player
     vec4 spark[MAX_SPARKS];      // impacts: xyz, w: intensity (decreases)
     vec4 orb[MAX_ORBS];          // light released by a kill, flies to the player: xyz, w: 1, 0: free
     vec4 orbVel[MAX_ORBS];
     vec4 shot[MAX_SHOTS];        // the spitters' shots: xyz, w: life left, 0: free
     vec4 shotVel[MAX_SHOTS];
+    vec4 rocket[MAX_ROCKETS];    // xyz, w: life left, 0: free
+    vec4 rocketVel[MAX_ROCKETS];
+    vec4 blast[MAX_ROCKETS];     // explosions: xyz, w: age (0 to 0.6), 0: none
+    int rockets;                 // ammo
+    float rocketDelay;
+    int taken;                   // ammo crates taken during this lap, one bit each
+    float pickupFlash;
     // the point lights for the rendering, made by the gameplay (xyz, color)
     int lightCount;
     vec4 lightPos[MAX_LIGHTS], lightCol[MAX_LIGHTS];

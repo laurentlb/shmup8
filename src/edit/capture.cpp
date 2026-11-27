@@ -173,10 +173,13 @@ namespace Capture
 			if (offset >= 0) getBufferSubData(GL_SHADER_STORAGE_BUFFER, offset, size, out);
 			return offset >= 0;
 		};
-		float pos[3] = {}, yawBase = 0, enemy[10][4] = {};
+		float pos[3] = {}, yawBase = 0, enemy[12][4] = {};
+		int kind[12] = {}, rockets = 0;
 		read("pos", pos, 12);
 		read("yawBase", &yawBase, 4);
 		read("enemy", enemy, sizeof(enemy));
+		read("enemyKind", kind, sizeof(kind));
+		read("rockets", &rockets, 4);
 
 		// the closest point on the route (the floor is 0.5 m below the center)
 		int best = 0;
@@ -213,14 +216,16 @@ namespace Capture
 
 		// aim at the nearest enemy in front
 		float aimYaw = runYaw, aimPitch = 0, nearest = 30;
-		for (int i = 0; i < 10; i++)
+		int target = -1, close = 0;
+		for (int i = 0; i < 12; i++)
 		{
 			if (enemy[i][3] <= 0) continue;
 			float dx = enemy[i][0] - pos[0], dy = enemy[i][1] - pos[1] - 0.9f, dz = enemy[i][2] - pos[2];
 			float d = sqrtf(dx * dx + dy * dy + dz * dz);
 			float y = atan2f(dz, dx), off = fabsf(remainderf(y - runYaw, 6.2831853f));
+			close += d < 12 && off < 1.f;
 			if (d < nearest && off < 1.3f)
-				nearest = d, aimYaw = y, aimPitch = atan2f(dy, sqrtf(dx * dx + dz * dz));
+				nearest = d, aimYaw = y, aimPitch = atan2f(dy, sqrtf(dx * dx + dz * dz)), target = i;
 		}
 
 		// turn smoothly toward the target; the game adds yawBase to the input
@@ -233,7 +238,9 @@ namespace Capture
 		float rel = runYaw - (in.yaw + yawBase);
 		in.y = cosf(rel) > 0.38f ? 1.f : cosf(rel) < -0.38f ? -1.f : 0.f;
 		in.x = sinf(rel) > 0.38f ? 1.f : sinf(rel) < -0.38f ? -1.f : 0.f;
-		in.buttons = (float)(nearest < 30);
+		// rockets: at a brute, or into a group
+		bool rocket = rockets > 0 && target >= 0 && nearest > 5 && (kind[target] == 3 || close >= 3);
+		in.buttons = (float)(nearest < 30) + 4.f * rocket;
 		return in;
 	}
 

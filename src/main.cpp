@@ -84,10 +84,15 @@ void entrypoint(void)
 		if (input.pitch < -1.5f) input.pitch = -1.5f;
 		input.x = key('D') - key('A');
 		input.y = key('W') - key('S');
-		input.buttons = key(VK_LBUTTON) + 2 * key(VK_SPACE);
+		input.buttons = key(VK_LBUTTON) + 2 * key(VK_SPACE) + 4 * key(VK_RBUTTON);
 		stepGame(input, remainder / 1000);
 		remainder %= 1000;
 		drawGame(xres, yres, elapsed * 0.001f, 0);
+		// dynamic resolution: aim at 14 ms per frame
+		glFinish();
+		sceneScale *= timeGetTime() - previousTime > 14 ? 0.95f : 1.01f;
+		if (sceneScale > 1) sceneScale = 1;
+		if (sceneScale < 0.6f) sceneScale = 0.6f;
 		SwapBuffers(hDC);
 		limitFrameRate(hDC, previousTime);
 	} while (!GetAsyncKeyState(VK_ESCAPE));
@@ -153,8 +158,9 @@ int __cdecl main(int argc, char* argv[])
 		else if (editor.takeCodeChanged())
 			History::invalidate();
 
-		// gameplay. Tab captures the mouse for mouse look (and the left button
-		// fires); without it, the arrows turn and F fires.
+		// gameplay. Tab captures the mouse for mouse look (the left button
+		// fires, the right one launches rockets); without it, the arrows turn,
+		// F fires, E launches a rocket.
 		ImGuiIO& io = ImGui::GetIO();
 		const bool focus = GetForegroundWindow() == hwnd && !io.WantTextInput && !io.KeyCtrl;
 		static GameInput input;
@@ -183,7 +189,7 @@ int __cdecl main(int argc, char* argv[])
 		{
 			input.x = key('D') - key('A');
 			input.y = key('W') - key('S');
-			input.buttons = key('F') + 2 * key(VK_SPACE);
+			input.buttons = key('F') + 2 * key(VK_SPACE) + 4 * key('E');
 			float turn = (key(VK_RIGHT) - key(VK_LEFT)) * 2.f * elapsed;
 			float look = (key(VK_UP) - key(VK_DOWN)) * 1.5f * elapsed;
 			if (mouseLook)
@@ -196,7 +202,7 @@ int __cdecl main(int argc, char* argv[])
 				SetCursorPos(center.x, center.y);
 				turn += (cursor.x - center.x) * MOUSE_SPEED;
 				look -= (cursor.y - center.y) * MOUSE_SPEED;
-				input.buttons += key(VK_LBUTTON);
+				input.buttons += key(VK_LBUTTON) + 4 * key(VK_RBUTTON);
 			}
 			moved = turn != 0 || look != 0;
 			input.yaw += turn;

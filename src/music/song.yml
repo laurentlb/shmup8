@@ -1368,12 +1368,353 @@
    ]
   },
   {
+   "name": "Launch",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "envelope",
+     "id": 100,
+     "parameters": {
+      "attack": 0,
+      "decay": 62,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "noise",
+     "id": 101,
+     "parameters": {
+      "gain": 128,
+      "shape": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 102,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "filter",
+     "id": 103,
+     "parameters": {
+      "frequency": 46,
+      "resonance": 50,
+      "lowpass": 1,
+      "bandpass": 0,
+      "highpass": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "envelope",
+     "id": 105,
+     "parameters": {
+      "attack": 0,
+      "decay": 56,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "envelope",
+     "id": 106,
+     "parameters": {
+      "attack": 0,
+      "decay": 50,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "send",
+     "id": 107,
+     "parameters": {
+      "target": 104,
+      "amount": 80,
+      "port": 0,
+      "sendpop": 1,
+      "voice": 0,
+      "unit": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "oscillator",
+     "id": 104,
+     "parameters": {
+      "type": 0,
+      "transpose": 44,
+      "detune": 64,
+      "gain": 128,
+      "color": 128,
+      "shape": 64,
+      "phase": 0,
+      "lfo": 0,
+      "unison": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 108,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "addp",
+     "id": 109,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "pan",
+     "id": 110,
+     "parameters": {
+      "panning": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "outaux",
+     "id": 111,
+     "parameters": {
+      "outgain": 40,
+      "auxgain": 20,
+      "stereo": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "Boom",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "envelope",
+     "id": 112,
+     "parameters": {
+      "attack": 0,
+      "decay": 84,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "noise",
+     "id": 113,
+     "parameters": {
+      "gain": 128,
+      "shape": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 114,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "filter",
+     "id": 115,
+     "parameters": {
+      "frequency": 34,
+      "resonance": 30,
+      "lowpass": 1,
+      "bandpass": 0,
+      "highpass": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "envelope",
+     "id": 117,
+     "parameters": {
+      "attack": 0,
+      "decay": 80,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "envelope",
+     "id": 118,
+     "parameters": {
+      "attack": 0,
+      "decay": 70,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "send",
+     "id": 119,
+     "parameters": {
+      "target": 116,
+      "amount": 90,
+      "port": 0,
+      "sendpop": 1,
+      "voice": 0,
+      "unit": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "oscillator",
+     "id": 116,
+     "parameters": {
+      "type": 0,
+      "transpose": 36,
+      "detune": 64,
+      "gain": 128,
+      "color": 128,
+      "shape": 64,
+      "phase": 0,
+      "lfo": 0,
+      "unison": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 120,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "addp",
+     "id": 121,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "pan",
+     "id": 122,
+     "parameters": {
+      "panning": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "outaux",
+     "id": 123,
+     "parameters": {
+      "outgain": 72,
+      "auxgain": 60,
+      "stereo": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "Pickup",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "envelope",
+     "id": 124,
+     "parameters": {
+      "attack": 0,
+      "decay": 64,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "oscillator",
+     "id": 125,
+     "parameters": {
+      "type": 0,
+      "transpose": 88,
+      "detune": 64,
+      "gain": 90,
+      "color": 128,
+      "shape": 64,
+      "phase": 0,
+      "lfo": 0,
+      "unison": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "oscillator",
+     "id": 126,
+     "parameters": {
+      "type": 0,
+      "transpose": 95,
+      "detune": 64,
+      "gain": 60,
+      "color": 128,
+      "shape": 64,
+      "phase": 0,
+      "lfo": 0,
+      "unison": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "addp",
+     "id": 127,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 128,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "pan",
+     "id": 129,
+     "parameters": {
+      "panning": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "outaux",
+     "id": 130,
+     "parameters": {
+      "outgain": 24,
+      "auxgain": 40,
+      "stereo": 1
+     }
+    }
+   ]
+  },
+  {
    "name": "Global",
    "numvoices": 1,
    "units": [
     {
      "type": "in",
-     "id": 100,
+     "id": 131,
      "parameters": {
       "channel": 2,
       "stereo": 1
@@ -1381,7 +1722,7 @@
     },
     {
      "type": "delay",
-     "id": 101,
+     "id": 132,
      "parameters": {
       "stereo": 1,
       "pregain": 80,
@@ -1397,7 +1738,7 @@
     },
     {
      "type": "out",
-     "id": 102,
+     "id": 133,
      "parameters": {
       "gain": 60,
       "stereo": 1

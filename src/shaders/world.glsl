@@ -18,6 +18,20 @@
 // Colors: the player's light is gold, the world cold neon, the enemies red.
 #define GOLD vec3(1, .75, .4)
 #define RED vec3(1, .05, .12)
+#define ORANGE vec3(1, .4, .1) // rockets and their ammo
+
+// Enemies: 0 wraith, 1 spitter, 2 skitter, 3 brute.
+float enemyScale(int kind)
+{
+    return kind == 2 ? .45 : kind == 3 ? 2. : 1.;
+}
+const int ENEMY_HEALTH[4] = int[](3, 5, 1, 16);
+
+// Ammo crates (rockets), some off the route: on the hall's walkway, in the
+// flooded pit, in corners.
+#define NP 6
+const vec3 PICKUPS[NP] = vec3[](vec3(20, 1.6, 4.75), vec3(68, -6.4, 5), vec3(88, 1.6, 15),
+                                vec3(26, 1.6, 10), vec3(-6, -2.4, 32), vec3(-6, .6, -1));
 
 // Interiors: low and high corners. Connected interiors must overlap (if they
 // only touch, the shared face is an invisible wall).

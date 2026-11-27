@@ -13,7 +13,7 @@ dark gets stronger.
 
 ## Current state
 
-**Size:** 7377 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
+**Size:** 7326 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
 
 **Controls:** WASD: move. Mouse: look. Left button: fire. Space: jump (hold to
 jump again on landing). Escape: quit.

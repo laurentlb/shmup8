@@ -9,12 +9,13 @@
 #define MAX_ENEMIES 10
 #define MAX_SPARKS 8
 #define MAX_ORBS 12
-#define MAX_LIGHTS 24
+#define MAX_SHOTS 10
+#define MAX_LIGHTS 32
 
 layout(std430, binding = 0) buffer State {
     // Event counters, they trigger the sound effects.
     // Same order as SFX in src/music/song.py.
-    int shotEvents, hitEvents, killEvents, hurtEvents, jumpEvents, lapEvents;
+    int shotEvents, hitEvents, killEvents, hurtEvents, jumpEvents, lapEvents, spitEvents;
 
     vec3 pos; float yaw;     // pos: the center of the player's sphere; yaw, pitch: the view
     vec3 vel; float pitch;
@@ -30,16 +31,21 @@ layout(std430, binding = 0) buffer State {
     float dead;              // > 0: seconds since the light ran out
     float bob;               // distance walked (head and gun bob)
     int grounded, started, kills;
+    int record;              // the most laps completed in a run (kept across runs)
+    float prevButtons;
     uint rng;
     float spawnTimer;
     vec4 bolt[MAX_BOLTS];        // xyz, w: life left (s), 0: free
     vec4 boltVel[MAX_BOLTS];
-    vec4 enemy[MAX_ENEMIES];     // xyz, w: health, 0: free
+    vec4 enemy[MAX_ENEMIES];     // xyz, w: health, 0: free, < 0: bursting (from -0.3 to 0)
+    int enemyKind[MAX_ENEMIES];  // 0: wraith (charges), 1: spitter (keeps away, shoots)
     vec4 enemyVel[MAX_ENEMIES];  // xyz, w: > 0 while charging
     vec4 enemyInfo[MAX_ENEMIES]; // x: appearing (0 to 1), y: hit flash, z: before the next charge, w: before the next bite
     vec4 spark[MAX_SPARKS];      // impacts: xyz, w: intensity (decreases)
     vec4 orb[MAX_ORBS];          // light released by a kill, flies to the player: xyz, w: 1, 0: free
     vec4 orbVel[MAX_ORBS];
+    vec4 shot[MAX_SHOTS];        // the spitters' shots: xyz, w: life left, 0: free
+    vec4 shotVel[MAX_SHOTS];
     // the point lights for the rendering, made by the gameplay (xyz, color)
     int lightCount;
     vec4 lightPos[MAX_LIGHTS], lightCol[MAX_LIGHTS];

@@ -11,7 +11,7 @@
 #define STEPS_PER_SECOND 120
 #define MAX_STEPS 12 // don't try to catch up after a long pause
 #define STATE_SIZE 4096
-#define EVENT_COUNT 6
+#define EVENT_COUNT 7
 #define MOUSE_SPEED 0.0022f // radians per pixel
 
 typedef BOOL (WINAPI* PFNWGLSWAPINTERVALEXTPROC)(int interval);

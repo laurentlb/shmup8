@@ -48,6 +48,7 @@ void newRun()
     yawBase = -iInput[1].x;
     light = 1.;
     lap = 1;
+    kills = 0;
     checkpoint = 0;
     lapTime = 0.;
     dead = 0.;
@@ -56,6 +57,16 @@ void newRun()
         enemy[i].w = 0.;
     for (int i = 0; i < MAX_ORBS; i++)
         orb[i].w = 0.;
+    for (int i = 0; i < MAX_SHOTS; i++)
+        shot[i].w = 0.;
+}
+
+void hurtPlayer(float damage)
+{
+    light -= damage;
+    hurt = 1.;
+    shake = 1.;
+    hurtEvents++;
 }
 
 void hitEnemy(int i, vec3 dir)
@@ -67,7 +78,7 @@ void hitEnemy(int i, vec3 dir)
     hitMark = 1.;
     if (enemy[i].w <= 0.) {
         // it bursts and releases its light
-        enemy[i].w = 0.;
+        enemy[i].w = -.3;
         killEvents++;
         kills++;
         shake = max(shake, .4);
@@ -102,17 +113,19 @@ void update()
     vec3 eye = pos + vec3(0, EYE, 0);
 
     if (dead > 0.) {
+        // the results; fire for a new run (or wait)
         dead += DT;
         vel = vec3(0);
-        if (dead > 3.)
+        if (dead > 2. && fire > prevButtons || dead > 10.)
             newRun();
     } else {
         lapTime += DT;
-        light -= DT * (_TV(drain, .012) + .004 * float(lap));
+        light -= DT * (_TV(drain, .014) + .005 * float(lap));
         if (light <= 0.) {
             light = 0.;
             dead = DT;
             hurtEvents++;
+            record = max(record, lap - 1);
         }
 
         // running and jumping
@@ -191,10 +204,14 @@ void update()
         spawnTimer -= DT;
         if (alive < min(2 + 2 * lap, MAX_ENEMIES) && spawnTimer <= 0.) {
             spawnTimer = max(_TV(spawnDelay, 2.5) - .25 * float(lap), .7);
-            vec3 s = trackPoint(along + 25. + rnd() * 15.) + vec3(rnd() * 4. - 2., 1.8 + rnd() * 1.5, rnd() * 4. - 2.);
+            // mostly ahead, sometimes behind
+            vec3 s = trackPoint(along + (rnd() < .25 ? -10. - rnd() * 8. : 18. + rnd() * 15.))
+                   + vec3(rnd() * 4. - 2., 1.8 + rnd() * 1.5, rnd() * 4. - 2.);
+            int kind = int(rnd() < min(.1 + .1 * float(lap), .45));
             for (int i = 0; i < MAX_ENEMIES; i++)
-                if (enemy[i].w <= 0.) {
-                    enemy[i] = vec4(s, 2. + floor(float(lap) * .5));
+                if (enemy[i].w == 0.) {
+                    enemy[i] = vec4(s, float(3 + 2 * kind + lap / 2));
+                    enemyKind[i] = kind;
                     enemyVel[i] = vec4(0);
                     enemyInfo[i] = vec4(0, 0, 1.5, 0);
                     break;
@@ -214,7 +231,7 @@ void update()
                 continue;
             vec3 e = enemy[i].xyz - p;
             float h = clamp(dot(e, dir), 0., len);
-            if (length(e - dir * h) < .7 * enemyInfo[i].x + .1) {
+            if (length(e - dir * h) < .9 * enemyInfo[i].x + .1) {
                 hitEnemy(i, dir);
                 addSpark(p + dir * h, 1.5);
                 bolt[k].w = 0.;
@@ -233,8 +250,11 @@ void update()
         bolt[k].xyz += v * DT;
     }
 
-    // enemies: they float toward the player and charge when close
+    // enemies: wraiths weave toward the player and charge when close;
+    // spitters keep away, circle and shoot
     for (int i = 0; i < MAX_ENEMIES; i++) {
+        if (enemy[i].w < 0.)
+            enemy[i].w = min(enemy[i].w + DT, 0.); // bursting
         if (enemy[i].w <= 0.)
             continue;
         vec4 info = enemyInfo[i];
@@ -244,42 +264,59 @@ void update()
         vec3 to = eye - vec3(0, .3, 0) - e;
         float dist = length(to);
         to /= dist;
-        if (enemyVel[i].w > 0.)
-            enemyVel[i].w -= DT;
+        vec3 side = normalize(cross(to, vec3(0, 1, 0))) * sin(time * 2.5 + float(i) * 2.);
+        float speed = _TV(enemySpeed, 4.5) + .5 * float(lap);
+        if (enemyKind[i] > 0) {
+            v += (to * clamp(dist - 14., -1., 1.) * speed + side * 4. - v) * DT * 1.5;
+            if (info.z <= 0. && dist < 30. && dead == 0.) {
+                // shoot if the player is in view
+                info.z = .4;
+                float t = 1.;
+                for (int k = 0; k < 24 && t < dist; k++)
+                    t += max(level(e + to * t), .2);
+                if (t >= dist)
+                    for (int k = 0; k < MAX_SHOTS; k++)
+                        if (shot[k].w <= 0.) {
+                            shot[k] = vec4(e + to, 3);
+                            spitEvents++;
+                            shotVel[k].xyz = to * (12. + float(lap));
+                            info.z = max(2.2 - .2 * float(lap), 1.);
+                            break;
+                        }
+            }
+        } else if (enemyVel[i].w > 0.)
+            enemyVel[i].w -= DT; // charging
         else {
-            v += (to * (_TV(enemySpeed, 4.) + .5 * float(lap)) - v) * DT * 2.;
-            v.y += sin(time * 2. + float(i)) * DT * 2.;
-            if (dist < 9. && info.z <= 0. && dead == 0.) {
-                v = to * (12. + float(lap));
+            v += (to * speed + side * 4. - v) * DT * 2.;
+            if (dist < 10. && info.z <= 0. && dead == 0.) {
+                v = to * (13. + float(lap));
                 enemyVel[i].w = .6;
                 info.z = 2.5;
             }
         }
+        v.y += sin(time * 2. + float(i)) * DT * 2.;
         // spread out
         for (int j = 0; j < MAX_ENEMIES; j++) {
             vec3 d = e - enemy[j].xyz;
             float l = length(d);
-            if (j != i && enemy[j].w > 0. && l < 2.5 && l > 0.)
-                v += d / l * (2.5 - l) * DT * 8.;
+            if (j != i && enemy[j].w > 0. && l < 3. && l > 0.)
+                v += d / l * (3. - l) * DT * 8.;
         }
         // keep away from the walls
         float dl = level(e);
-        if (dl < 1.) {
+        if (dl < 1.2) {
             vec3 n = levelNormal(e);
-            v += n * (1. - dl) * DT * 30.;
-            if (dl < .6) {
-                e += n * (.6 - dl);
+            v += n * (1.2 - dl) * DT * 30.;
+            if (dl < .8) {
+                e += n * (.8 - dl);
                 v -= n * min(dot(v, n), 0.) * 1.5;
             }
         }
         e += v * DT * info.x;
         // a bite
         vec3 body = pos + vec3(0, .5, 0) - e;
-        if (length(body) < 1.3 && dead == 0. && info.x >= 1. && info.w <= 0.) {
-            light -= _TV(biteDamage, .12);
-            hurt = 1.;
-            shake = 1.;
-            hurtEvents++;
+        if (length(body) < 1.6 && dead == 0. && info.x >= 1. && info.w <= 0.) {
+            hurtPlayer(_TV(biteDamage, .12));
             vel += normalize(body) * 8. + vec3(0, 3, 0);
             v = -normalize(body) * 8.;
             enemyVel[i].w = 0.;
@@ -293,6 +330,21 @@ void update()
             enemy[i].w = 0.;
     }
 
+    // the spitters' shots
+    for (int k = 0; k < MAX_SHOTS; k++) {
+        if (shot[k].w <= 0.)
+            continue;
+        shot[k].w -= DT;
+        shot[k].xyz += shotVel[k].xyz * DT;
+        if (level(shot[k].xyz) < .1)
+            shot[k].w = 0.;
+        if (length(pos + vec3(0, .5, 0) - shot[k].xyz) < .9 && dead == 0.) {
+            hurtPlayer(_TV(shotDamage, .08));
+            vel += shotVel[k].xyz * .3;
+            shot[k].w = 0.;
+        }
+    }
+
     // released light flies to the player
     for (int k = 0; k < MAX_ORBS; k++) {
         if (orb[k].w <= 0.)
@@ -301,9 +353,9 @@ void update()
         float d = length(to);
         orbVel[k].xyz = orbVel[k].xyz * .985 + to / d * 40. * DT;
         orb[k].xyz += orbVel[k].xyz * DT;
-        if (d < .8) {
+        if (d < .8 && dead == 0.) {
             orb[k].w = 0.;
-            light = min(light + _TV(orbLight, .04), 1.);
+            light = min(light + _TV(orbLight, .025), 1.);
         }
     }
 }
@@ -316,8 +368,8 @@ void addLight(vec3 p, vec3 c)
     }
 }
 
-// The point lights: the player's lantern and muzzle flash, bolts, sparks,
-// released light, the enemies' eyes.
+// The point lights: the player's lantern and muzzle flash, the spitters'
+// shots, the enemies' eyes (white when bursting), bolts, sparks, released light.
 void makeLights()
 {
     vec3 eye = pos + vec3(0, EYE, 0);
@@ -326,19 +378,25 @@ void makeLights()
     lightCount = 0;
     addLight(eye + u * .4 - f * .3, GOLD * (light * _TV(lantern, 1.2) + .05));
     addLight(eye + r * .2 - u * .2 + f * .55, GOLD * kick * kick * 6.);
+    // danger first, in case there are too many
+    for (int i = 0; i < MAX_SHOTS; i++)
+        addLight(shot[i].xyz, RED * 3. * step(1e-4, shot[i].w));
+    for (int i = 0; i < MAX_ENEMIES; i++)
+        addLight(enemy[i].xyz + normalize(eye - enemy[i].xyz) * .9,
+                 enemy[i].w < 0. ? vec3(4) * -enemy[i].w : RED * 1.5 * enemyInfo[i].x * step(1e-4, enemy[i].w));
     for (int i = 0; i < MAX_BOLTS; i++)
-        addLight(bolt[i].xyz, GOLD * 3. * step(1e-4, bolt[i].w));
+        addLight(bolt[i].xyz, GOLD * 2. * step(1e-4, bolt[i].w));
     for (int i = 0; i < MAX_SPARKS; i++)
         addLight(spark[i].xyz, GOLD * spark[i].w * 2.);
     for (int i = 0; i < MAX_ORBS; i++)
         addLight(orb[i].xyz, GOLD * 1.5 * orb[i].w);
-    for (int i = 0; i < MAX_ENEMIES; i++)
-        addLight(enemy[i].xyz + normalize(eye - enemy[i].xyz) * .6, RED * .6 * enemyInfo[i].x * step(1e-4, enemy[i].w));
 }
 
 void main()
 {
-    for (int i = 0; i < int(iInput[0].w); i++)
+    for (int i = 0; i < int(iInput[0].w); i++) {
         update();
+        prevButtons = mod(iInput[0].z, 2.);
+    }
     makeLights();
 }

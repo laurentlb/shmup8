@@ -4,7 +4,7 @@
 layout(location=0)uniform vec4 iFrame;
 layout(binding=0)uniform sampler2D tex;
 layout(std430, binding = 0)buffer State{
-  int shotEvents,hitEvents,killEvents,hurtEvents,jumpEvents,lapEvents;
+  int shotEvents,hitEvents,killEvents,hurtEvents,jumpEvents,lapEvents,spitEvents;
   vec3 pos;
   float yaw;
   vec3 vel;
@@ -21,22 +21,27 @@ layout(std430, binding = 0)buffer State{
   float dead;
   float bob;
   int grounded,started,kills;
+  int record;
+  float prevButtons;
   uint rng;
   float spawnTimer;
   vec4 bolt[12];
   vec4 boltVel[12];
   vec4 enemy[10];
+  int enemyKind[10];
   vec4 enemyVel[10];
   vec4 enemyInfo[10];
   vec4 spark[8];
   vec4 orb[12];
   vec4 orbVel[12];
+  vec4 shot[10];
+  vec4 shotVel[10];
   int lightCount;
-  vec4 lightPos[24],lightCol[24];
+  vec4 lightPos[32],lightCol[32];
 };
 const vec3 IN_LO[13]=vec3[](vec3(0,0,-6),vec3(-3,0,-2.5),vec3(39,-4,-2.5),vec3(52,-4,-16),vec3(60,-7,-8),vec3(83,-4,-2.5),vec3(84,-4,-2.5),vec3(83,1,11),vec3(24,1,8),vec3(50,1,11),vec3(19,1,26),vec3(-8,-3,16),vec3(-8,-3,-2.5)),IN_HI[13]=vec3[](vec3(40,9,6),vec3(1,4.5,2.5),vec3(53,4.5,2.5),vec3(84,10,16),vec3(76,-3.9,8),vec3(86,.5,2.5),vec3(90,6.5,16),vec3(86,5.5,16),vec3(52,7.2,34),vec3(54,5,16),vec3(25,5,32),vec3(20,10,34),vec3(-2,4.5,17)),SO_LO[9]=vec3[](vec3(4,0,-6),vec3(4,0,3.5),vec3(59,-7.5,-2),vec3(52,.5,11),vec3(52,1,10.8),vec3(84,-4,11),vec3(14,-3,24),vec3(-8,-3,-2.5),vec3(39,-4,-2.5)),SO_HI[9]=vec3[](vec3(36,1,-3.5),vec3(36,1,6),vec3(77,-4,2),vec3(84,1,16),vec3(84,2,11.2),vec3(90,1,16),vec3(20,1,34),vec3(-2,0,4),vec3(42,0,2.5)),ST_LO[5]=vec3[](vec3(42,-4,-2.5),vec3(70,-7,2),vec3(70,-7,-8),vec3(84,-4,1),vec3(-8,-3,4)),ST_HI[5]=vec3[](vec3(50,0,2.5),vec3(76,-4,8),vec3(76,-4,-2),vec3(90,1,11),vec3(-2,0,12));
 const int ST_DIR[5]=int[](1,0,0,2,3);
-const vec3 ROUTE[22]=vec3[](vec3(3,0,0),vec3(38,0,0),vec3(42,0,0),vec3(51,-4,0),vec3(59,-4,0),vec3(77,-4,0),vec3(87,-4,0),vec3(87,1,11),vec3(87,1,13.5),vec3(53,1,13.5),vec3(45,1,14),vec3(45,1,23),vec3(33,1,23),vec3(33,1,29),vec3(22,1,29),vec3(15,1,30),vec3(10,-3,31),vec3(-4,-3,30),vec3(-5,-3,18),vec3(-5,-3,12),vec3(-5,0,4),vec3(-5,0,0));
+const vec3 ROUTE[23]=vec3[](vec3(3,0,0),vec3(38,0,0),vec3(42,0,0),vec3(51,-4,0),vec3(59,-4,0),vec3(77,-4,0),vec3(87,-4,0),vec3(87,1,11),vec3(87,1,13.5),vec3(53,1,13.5),vec3(50,1,17),vec3(45,1,17),vec3(45,1,23),vec3(33,1,23),vec3(33,1,29),vec3(22,1,29),vec3(15,1,30),vec3(10,-3,31),vec3(-4,-3,30),vec3(-5,-3,18),vec3(-5,-3,12),vec3(-5,0,4),vec3(-5,0,0));
 uint seenIn=~0u,seenSo=~0u;
 float detail;
 int tRoom;
@@ -47,6 +52,7 @@ vec3 eye,camF,camR,camU,gunAt;
 uint seenX;
 vec3 neonCol;
 const vec4 ROOM_NEON[13]=vec4[](vec4(.1,.6,1,1.25),vec4(0),vec4(.3,.45,.7,4.2),vec4(1,.3,.05,.25),vec4(0),vec4(0),vec4(.1,1,.4,5.3),vec4(0),vec4(.6,.15,1,.25),vec4(0),vec4(0),vec4(1,.1,.5,.25),vec4(.2,.4,1,3.25));
+const int DIE_LAP[13]=int[](7,9,3,5,9,9,4,9,2,9,9,4,3);
 float gNeon;
 bool withNeon=true;
 float fogDensity;
@@ -177,11 +183,11 @@ float smin(float a,float b,float k)
   float h=clamp(.5+.5*(b-a)/k,0.,1.);
   return mix(b,a,h)-k*h*(1.-h);
 }
-float capsule(vec3 p,vec3 a,vec3 b)
+float capsule(vec3 p,vec3 a,vec3 b,float r)
 {
   p-=a;
   a=b-a;
-  return length(p-a*clamp(dot(p,a)/dot(a,a),0.,1.))-.07;
+  return length(p-a*clamp(dot(p,a)/dot(a,a),0.,1.))-r;
 }
 void tube(inout float d,float t,vec3 color)
 {
@@ -217,6 +223,13 @@ float neon(vec3 p)
   tube(y,b,vec3(.6,.15,1));
   if((seenIn>>11&1u)!=0u)
     tube(y,length(p.xz-vec2(4,25))-.45,vec3(1,.3,.7));
+  int die=DIE_LAP[tRoom];
+  b=hash(vec2(floor(time*9.),tRoom));
+  neonCol*=lap<die?
+    1.:
+    lap==die?
+      step(.35,b):
+      .03+step(.96,b);
   return y;
 }
 float neonAt(vec3 p)
@@ -227,16 +240,28 @@ float neonAt(vec3 p)
 vec2 enemyShape(vec3 p,int i)
 {
   vec3 e=enemy[i].xyz;
-  float s=max(enemyInfo[i].x,.05);
+  float s=(enemy[i].w<0.?
+    1.6+enemy[i].w*2.:
+    max(enemyInfo[i].x,.05))*1.3;
   vec3 f=normalize(eye-e),r=normalize(cross(f,vec3(0,1,0)));
   p-=e;
   e=vec3(dot(p,r),dot(p,cross(r,f)),dot(p,f))/s;
-  float t=time*3.+float(i)*1.7,body=length(e*vec3(1,1.15,.8))-.5;
-  for(int k=0;k<5;k++)
+  float t=time*3.+float(i)*1.7,body;
+  if(enemyKind[i]>0)
     {
-      float a=float(k)*1.257+sin(t*.3)*.3;
-      vec3 tip=vec3(cos(a)*.7,sin(a)*.7,-1.3)+.2*vec3(sin(t+float(k)*2.),cos(t*1.3+float(k)),0);
-      body=smin(body,capsule(e,vec3(cos(a),sin(a),0)*.25,tip),.2);
+      body=length(e)-.5;
+      float a=mod(atan(e.y,e.x)+t*.3+.39,.785)-.39;
+      body=smin(body,capsule(vec3(length(e.xy)*vec2(cos(a),sin(a)),e.z),vec3(.3,0,-.1),vec3(1.1,0,-.4),.05),.15);
+    }
+  else
+    {
+      body=length(e*vec3(1,1.15,.8))-.5;
+      for(int k=0;k<5;k++)
+        {
+          float a=float(k)*1.257+sin(t*.3)*.3;
+          vec3 tip=vec3(cos(a)*.7,sin(a)*.7,-1.3)+.2*vec3(sin(t+float(k)*2.),cos(t*1.3+float(k)),0);
+          body=smin(body,capsule(e,vec3(cos(a),sin(a),0)*.25,tip,.07),.2);
+        }
     }
   body=-smin(-body,length(e-vec3(0,0,.55))-.27,.05);
   t=length(e-vec3(0,0,.3))-.2;
@@ -256,7 +281,7 @@ vec2 map(vec3 p)
     {
       if((seenX>>i&1u)==0u)
         continue;
-      float d=length(p-enemy[i].xyz)-1.8;
+      float d=length(p-enemy[i].xyz)-3.;
       if(d>.3)
         h.x=min(h.x,d);
       else
@@ -332,7 +357,7 @@ void cull(vec3 ro,vec3 rd)
     if(hitBox(ro,rd,ST_LO[i]-.5,ST_HI[i]+.5))
       seenSo|=1u<<9+i;
   for(int i=0;i<10;i++)
-    if(enemy[i].w>0.&&hitSphere(ro,rd,enemy[i].xyz,2.))
+    if(enemy[i].w!=0.&&hitSphere(ro,rd,enemy[i].xyz,3.3))
       seenX|=1u<<i;
   if(hitSphere(ro,rd,eye+mat3(camR,camU,camF)*(gunAt+vec3(0,0,.03)),.3))
     seenX|=1u<<31;
@@ -355,13 +380,13 @@ vec3 material(vec3 p,float m)
   metal=0.;
   glow=vec3(0);
   if(m>=30.)
-    return glow=vec3(1,.05,.12)*(4.+10.*enemyInfo[int(m-30.)].y),vec3(0);
+    return glow=vec3(1,.05,.12)*(6.+10.*enemyInfo[int(m-30.)].y),vec3(0);
   if(m>=10.)
     {
       int i=int(m-10.);
       vec3 q=p-enemy[i].xyz;
       float veins=abs(fbm(q.xy*6.+q.z*4.+time)-.5);
-      glow=vec3(1,.05,.12)*smoothstep(.06,0.,veins)*1.5+vec3(3)*enemyInfo[i].y;
+      glow=vec3(1,.05,.12)*smoothstep(.06,0.,veins)*3.+vec3(1.5)*enemyInfo[i].y+vec3(10)*max(-enemy[i].w,0.);
       rough=.15;
       return vec3(.01);
     }
@@ -422,10 +447,10 @@ vec3 scattered(vec3 ro,vec3 rd,float tMax)
   for(int i=0;i<lightCount;i++)
     {
       vec3 color=lightCol[i].xyz,o=lightPos[i].xyz-ro;
-      float b=dot(o,rd),h=sqrt(max(dot(o,o)-b*b,0.)+.3);
-      c+=color*(atan((tMax-b)/h)+atan(b/h))/h*(i<2?
+      float b=dot(o,rd),h2=max(dot(o,o)-b*b,0.),h=sqrt(h2+.3);
+      c+=color*((atan((tMax-b)/h)+atan(b/h))/h*fogDensity*.07*(i<2?
         .1:
-        1.);
+        1.)+step(2.,float(i))*step(0.,b)*step(b,tMax)*.001/(h2+1e-4));
     }
   return c;
 }
@@ -455,7 +480,7 @@ vec3 render(vec3 ro,vec3 rd)
             }
         }
       float fog=exp(-h.x*fogDensity);
-      col+=weight*(mix(fogColor,c,fog)+glowSum*.05+scattered(ro,rd,h.x)*fogDensity*.1);
+      col+=weight*(mix(fogColor,c,fog)+glowSum*.05+scattered(ro,rd,h.x));
       if(h.y<0.)
         break;
       weight*=(f0+(1.-f0)*pow(1.-max(dot(n,v),0.),5.))*(1.-rough)*fog;
@@ -495,10 +520,29 @@ void main()
   luma=length(texCoord-.5);
   col*=max(1.-pow(luma,1.5)*(1.2+(1.-light)*2.),0.);
   col=(mix(col,vec3(col.x+.3,0,0),hurt*smoothstep(.2,.7,luma))+lapFlash*vec3(1,.75,.4)*.3)*max(1.-dead*.5,0.)+(hash(gl_FragCoord.xy+fract(time)*1e2)-.5)*.02;
+  bloom=vec3(.5,.8,1);
+  if(dead>1.)
+    {
+      float k=min(dead-1.,1.);
+      bool best=lap-1>=record&&lap>1;
+      digits7(col,(best?
+        vec3(1,.75,.4)*(1.5+sin(time*8.)):
+        bloom)*k,uv*7.-vec2(.6,1.6),7.,lap-1,1);
+      col+=bloom*k*smoothstep(.01,0.,abs(length(uv-vec2(-.25,.23))-.06)-.008);
+      int cs=int(bestLap*1e2);
+      digits7(col,bloom*k,uv*18.-vec2(1.5,-2),18.,cs%100,2);
+      digits7(col,bloom*k,uv*18.-vec2(-1.5,-2),18.,cs/100,1);
+      col+=bloom*k*smoothstep(.06,.02,length(uv*18.-vec2(-.4,-3.2)));
+      vec2 q=uv-vec2(-.3,-.11);
+      col+=bloom*k*smoothstep(.01,0.,min(abs(length(q)-.04)-.006,max(abs(q.x)-.004,abs(q.y-.015)-.02)));
+      digits7(col,vec3(1,.05,.12)*2.*k,uv*18.-vec2(1.5,-6),18.,kills,1);
+      col+=vec3(1,.05,.12)*2.*k*smoothstep(.01,0.,length(uv-vec2(-.3,-.33))-.03);
+      fragColor=vec4(col,1);
+      return;
+    }
   ca=abs(uv);
   luma=max(step(ca.x+ca.y,.004),step(abs(max(ca.x,ca.y)-.03-hitMark*.01),.002)*step(min(ca.x,ca.y),.002));
   col=mix(col,mix(vec3(.9),vec3(1,.05,.12)*2.,hitMark),luma*.8);
-  bloom=vec3(.5,.8,1);
   int cs=int(lapTime*1e2);
   digits7(col,bloom,uv*22.-vec2(-.5,19.5),22.,cs%100,2);
   digits7(col,bloom,uv*22.-vec2(-3.5,19.5),22.,cs/100,1);
@@ -506,6 +550,8 @@ void main()
   if(bestLap>0.)
     digits7(col,bloom*.5,uv*40.-vec2(1.5,33),40.,int(bestLap*1e2),3);
   digits7(col,bloom,uv*22.-vec2(-34,19.5),22.,lap,1);
+  if(lapFlash>0.)
+    digits7(col,vec3(1,.75,.4)*lapFlash*2.,uv*6.-vec2(.5,1.5),6.,lap,1);
   luma=step(abs(uv.y+.9),.006)*step(abs(uv.x),.35*light);
   col+=luma*vec3(1,.75,.4)*(light<.25?
     step(.5,fract(time*3.))+.3:
@@ -519,7 +565,7 @@ void main()
 layout(local_size_x=1)in;
 layout(location=0)uniform vec4 iInput[2];
 layout(std430, binding = 0)buffer State{
-  int shotEvents,hitEvents,killEvents,hurtEvents,jumpEvents,lapEvents;
+  int shotEvents,hitEvents,killEvents,hurtEvents,jumpEvents,lapEvents,spitEvents;
   vec3 pos;
   float yaw;
   vec3 vel;
@@ -536,22 +582,27 @@ layout(std430, binding = 0)buffer State{
   float dead;
   float bob;
   int grounded,started,kills;
+  int record;
+  float prevButtons;
   uint rng;
   float spawnTimer;
   vec4 bolt[12];
   vec4 boltVel[12];
   vec4 enemy[10];
+  int enemyKind[10];
   vec4 enemyVel[10];
   vec4 enemyInfo[10];
   vec4 spark[8];
   vec4 orb[12];
   vec4 orbVel[12];
+  vec4 shot[10];
+  vec4 shotVel[10];
   int lightCount;
-  vec4 lightPos[24],lightCol[24];
+  vec4 lightPos[32],lightCol[32];
 };
 const vec3 IN_LO[13]=vec3[](vec3(0,0,-6),vec3(-3,0,-2.5),vec3(39,-4,-2.5),vec3(52,-4,-16),vec3(60,-7,-8),vec3(83,-4,-2.5),vec3(84,-4,-2.5),vec3(83,1,11),vec3(24,1,8),vec3(50,1,11),vec3(19,1,26),vec3(-8,-3,16),vec3(-8,-3,-2.5)),IN_HI[13]=vec3[](vec3(40,9,6),vec3(1,4.5,2.5),vec3(53,4.5,2.5),vec3(84,10,16),vec3(76,-3.9,8),vec3(86,.5,2.5),vec3(90,6.5,16),vec3(86,5.5,16),vec3(52,7.2,34),vec3(54,5,16),vec3(25,5,32),vec3(20,10,34),vec3(-2,4.5,17)),SO_LO[9]=vec3[](vec3(4,0,-6),vec3(4,0,3.5),vec3(59,-7.5,-2),vec3(52,.5,11),vec3(52,1,10.8),vec3(84,-4,11),vec3(14,-3,24),vec3(-8,-3,-2.5),vec3(39,-4,-2.5)),SO_HI[9]=vec3[](vec3(36,1,-3.5),vec3(36,1,6),vec3(77,-4,2),vec3(84,1,16),vec3(84,2,11.2),vec3(90,1,16),vec3(20,1,34),vec3(-2,0,4),vec3(42,0,2.5)),ST_LO[5]=vec3[](vec3(42,-4,-2.5),vec3(70,-7,2),vec3(70,-7,-8),vec3(84,-4,1),vec3(-8,-3,4)),ST_HI[5]=vec3[](vec3(50,0,2.5),vec3(76,-4,8),vec3(76,-4,-2),vec3(90,1,11),vec3(-2,0,12));
 const int ST_DIR[5]=int[](1,0,0,2,3);
-const vec3 ROUTE[22]=vec3[](vec3(3,0,0),vec3(38,0,0),vec3(42,0,0),vec3(51,-4,0),vec3(59,-4,0),vec3(77,-4,0),vec3(87,-4,0),vec3(87,1,11),vec3(87,1,13.5),vec3(53,1,13.5),vec3(45,1,14),vec3(45,1,23),vec3(33,1,23),vec3(33,1,29),vec3(22,1,29),vec3(15,1,30),vec3(10,-3,31),vec3(-4,-3,30),vec3(-5,-3,18),vec3(-5,-3,12),vec3(-5,0,4),vec3(-5,0,0));
+const vec3 ROUTE[23]=vec3[](vec3(3,0,0),vec3(38,0,0),vec3(42,0,0),vec3(51,-4,0),vec3(59,-4,0),vec3(77,-4,0),vec3(87,-4,0),vec3(87,1,11),vec3(87,1,13.5),vec3(53,1,13.5),vec3(50,1,17),vec3(45,1,17),vec3(45,1,23),vec3(33,1,23),vec3(33,1,29),vec3(22,1,29),vec3(15,1,30),vec3(10,-3,31),vec3(-4,-3,30),vec3(-5,-3,18),vec3(-5,-3,12),vec3(-5,0,4),vec3(-5,0,0));
 uint seenIn=~0u,seenSo=~0u;
 float detail;
 int tRoom;
@@ -640,16 +691,16 @@ vec3 levelNormal(vec3 p)
 float trackLength()
 {
   float s=0.;
-  for(int i=0;i<22;i++)
-    s+=length(ROUTE[(i+1)%22]-ROUTE[i]);
+  for(int i=0;i<23;i++)
+    s+=length(ROUTE[(i+1)%23]-ROUTE[i]);
   return s;
 }
 float trackPos(vec3 p)
 {
   float best=1e9,s=0.,at=0.;
-  for(int i=0;i<22;i++)
+  for(int i=0;i<23;i++)
     {
-      vec3 a=ROUTE[i],ab=ROUTE[(i+1)%22]-a;
+      vec3 a=ROUTE[i],ab=ROUTE[(i+1)%23]-a;
       float h=clamp(dot(p-a,ab)/dot(ab,ab),0.,1.),d=length(p-a-ab*h);
       if(d<best)
         best=d,at=s+h*length(ab);
@@ -660,9 +711,9 @@ float trackPos(vec3 p)
 vec3 trackPoint(float s)
 {
   s=mod(s,trackLength());
-  for(int i=0;i<22;i++)
+  for(int i=0;i<23;i++)
     {
-      vec3 a=ROUTE[i],b=ROUTE[(i+1)%22];
+      vec3 a=ROUTE[i],b=ROUTE[(i+1)%23];
       float l=length(b-a);
       if(s<l)
         return mix(a,b,s/l);
@@ -697,6 +748,7 @@ void newRun()
   yawBase=-iInput[1].x;
   light=1.;
   lap=1;
+  kills=0;
   checkpoint=0;
   lapTime=0.;
   dead=0.;
@@ -705,6 +757,15 @@ void newRun()
     enemy[i].w=0.;
   for(int i=0;i<12;i++)
     orb[i].w=0.;
+  for(int i=0;i<10;i++)
+    shot[i].w=0.;
+}
+void hurtPlayer(float damage)
+{
+  light-=damage;
+  hurt=1.;
+  shake=1.;
+  hurtEvents++;
 }
 void hitEnemy(int i,vec3 dir)
 {
@@ -715,7 +776,7 @@ void hitEnemy(int i,vec3 dir)
   hitMark=1.;
   if(enemy[i].w<=0.)
     {
-      enemy[i].w=0.;
+      enemy[i].w=-.3;
       killEvents++;
       kills++;
       shake=max(shake,.4);
@@ -737,6 +798,7 @@ void update()
   lapFlash=max(lapFlash-DT,0.);
   for(int i=0;i<8;i++)
     spark[i].w=max(spark[i].w-DT*5.,0.);
+  float fire=mod(iInput[0].z,2.);
   yaw=iInput[1].x+yawBase;
   pitch=iInput[1].y;
   vec3 fw=vec3(cos(yaw),0,sin(yaw)),rt=vec3(-fw.z,0,fw),look=vec3(fw.x*cos(pitch),sin(pitch),fw.z*cos(pitch)),eye=pos+vec3(0,1,0);
@@ -744,15 +806,15 @@ void update()
     {
       dead+=DT;
       vel=vec3(0);
-      if(dead>3.)
+      if(dead>2.&&fire>prevButtons||dead>10.)
         newRun();
     }
   else
     {
       lapTime+=DT;
-      light-=DT*(.012+.004*float(lap));
+      light-=DT*(.014+.005*float(lap));
       if(light<=0.)
-        light=0.,dead=DT,hurtEvents++;
+        light=0.,dead=DT,hurtEvents++,record=max(record,lap-1);
       vec3 wish=fw*iInput[0].y+rt*iInput[0].x;
       float wl=length(wish);
       if(wl>0.)
@@ -784,7 +846,7 @@ void update()
             grounded=1;
         }
       cooldown-=DT;
-      if(mod(iInput[0].z,2.)>0.&&cooldown<=0.)
+      if(fire>0.&&cooldown<=0.)
         {
           cooldown=.11;
           kick=1.;
@@ -823,11 +885,15 @@ void update()
       if(q<min(2+2*lap,10)&&spawnTimer<=0.)
         {
           spawnTimer=max(2.5-.25*float(lap),.7);
-          vec3 s=trackPoint(wl+25.+rnd()*15.)+vec3(rnd()*4.-2.,1.8+rnd()*1.5,rnd()*4.-2.);
+          vec3 s=trackPoint(wl+(rnd()<.25?
+            -10.-rnd()*8.:
+            18.+rnd()*15.))+vec3(rnd()*4.-2.,1.8+rnd()*1.5,rnd()*4.-2.);
+          int kind=int(rnd()<min(.1+.1*float(lap),.45));
           for(int i=0;i<10;i++)
-            if(enemy[i].w<=0.)
+            if(enemy[i].w==0.)
               {
-                enemy[i]=vec4(s,2.+floor(float(lap)*.5));
+                enemy[i]=vec4(s,float(3+2*kind+lap/2));
+                enemyKind[i]=kind;
                 enemyVel[i]=vec4(0);
                 enemyInfo[i]=vec4(0,0,1.5,0);
                 break;
@@ -847,7 +913,7 @@ void update()
             continue;
           vec3 e=enemy[i].xyz-p;
           float h=clamp(dot(e,dir),0.,len);
-          if(length(e-dir*h)<.7*enemyInfo[i].x+.1)
+          if(length(e-dir*h)<.9*enemyInfo[i].x+.1)
             {
               hitEnemy(i,dir);
               addSpark(p+dir*h,1.5);
@@ -867,6 +933,8 @@ void update()
     }
   for(int i=0;i<10;i++)
     {
+      if(enemy[i].w<0.)
+        enemy[i].w=min(enemy[i].w+DT,0.);
       if(enemy[i].w<=0.)
         continue;
       vec4 info=enemyInfo[i];
@@ -875,39 +943,73 @@ void update()
       vec3 e=enemy[i].xyz,v=enemyVel[i].xyz,to=eye-vec3(0,.3,0)-e;
       float dist=length(to);
       to/=dist;
-      if(enemyVel[i].w>0.)
+      vec3 side=normalize(cross(to,vec3(0,1,0)))*sin(time*2.5+float(i)*2.);
+      float speed=4.5+.5*float(lap);
+      if(enemyKind[i]>0)
+        {
+          v+=(to*clamp(dist-14.,-1.,1.)*speed+side*4.-v)*DT*1.5;
+          if(info.z<=0.&&dist<30.&&dead==0.)
+            {
+              info.z=.4;
+              float t=1.;
+              for(int k=0;k<24&&t<dist;k++)
+                t+=max(level(e+to*t),.2);
+              if(t>=dist)
+                for(int k=0;k<10;k++)
+                  if(shot[k].w<=0.)
+                    {
+                      shot[k]=vec4(e+to,3);
+                      spitEvents++;
+                      shotVel[k].xyz=to*(12.+float(lap));
+                      info.z=max(2.2-.2*float(lap),1.);
+                      break;
+                    }
+            }
+        }
+      else if(enemyVel[i].w>0.)
         enemyVel[i].w-=DT;
       else
         {
-          v+=(to*(4.+.5*float(lap))-v)*DT*2.;
-          v.y+=sin(time*2.+float(i))*DT*2.;
-          if(dist<9.&&info.z<=0.&&dead==0.)
-            v=to*(12.+float(lap)),enemyVel[i].w=.6,info.z=2.5;
+          v+=(to*speed+side*4.-v)*DT*2.;
+          if(dist<10.&&info.z<=0.&&dead==0.)
+            v=to*(13.+float(lap)),enemyVel[i].w=.6,info.z=2.5;
         }
+      v.y+=sin(time*2.+float(i))*DT*2.;
       for(int j=0;j<10;j++)
         {
           vec3 d=e-enemy[j].xyz;
           float l=length(d);
-          if(j!=i&&enemy[j].w>0.&&l<2.5&&l>0.)
-            v+=d/l*(2.5-l)*DT*8.;
+          if(j!=i&&enemy[j].w>0.&&l<3.&&l>0.)
+            v+=d/l*(3.-l)*DT*8.;
         }
-      float dl=level(e);
-      if(dl<1.)
+      speed=level(e);
+      if(speed<1.2)
         {
           vec3 n=levelNormal(e);
-          v+=n*(1.-dl)*DT*30.;
-          if(dl<.6)
-            e+=n*(.6-dl),v-=n*min(dot(v,n),0.)*1.5;
+          v+=n*(1.2-speed)*DT*30.;
+          if(speed<.8)
+            e+=n*(.8-speed),v-=n*min(dot(v,n),0.)*1.5;
         }
       e+=v*DT*info.x;
-      to=pos+vec3(0,.5,0)-e;
-      if(length(to)<1.3&&dead==0.&&info.x>=1.&&info.w<=0.)
-        light-=.12,hurt=1.,shake=1.,hurtEvents++,vel+=normalize(to)*8.+vec3(0,3,0),v=-normalize(to)*8.,enemyVel[i].w=0.,info.zw=vec2(2,1.5);
+      side=pos+vec3(0,.5,0)-e;
+      if(length(side)<1.6&&dead==0.&&info.x>=1.&&info.w<=0.)
+        hurtPlayer(.12),vel+=normalize(side)*8.+vec3(0,3,0),v=-normalize(side)*8.,enemyVel[i].w=0.,info.zw=vec2(2,1.5);
       enemy[i].xyz=e;
       enemyVel[i].xyz=v;
       enemyInfo[i]=info;
       if(dist>70.||dead>0.)
         enemy[i].w=0.;
+    }
+  for(int k=0;k<10;k++)
+    {
+      if(shot[k].w<=0.)
+        continue;
+      shot[k].w-=DT;
+      shot[k].xyz+=shotVel[k].xyz*DT;
+      if(level(shot[k].xyz)<.1)
+        shot[k].w=0.;
+      if(length(pos+vec3(0,.5,0)-shot[k].xyz)<.9&&dead==0.)
+        hurtPlayer(.08),vel+=shotVel[k].xyz*.3,shot[k].w=0.;
     }
   for(int k=0;k<12;k++)
     {
@@ -917,13 +1019,13 @@ void update()
       float d=length(to);
       orbVel[k].xyz=orbVel[k].xyz*.985+to/d*40.*DT;
       orb[k].xyz+=orbVel[k].xyz*DT;
-      if(d<.8)
-        orb[k].w=0.,light=min(light+.04,1.);
+      if(d<.8&&dead==0.)
+        orb[k].w=0.,light=min(light+.025,1.);
     }
 }
 void addLight(vec3 p,vec3 c)
 {
-  if(lightCount<24&&c.x>0.)
+  if(lightCount<32&&c.x>0.)
     lightPos[lightCount].xyz=p,lightCol[lightCount++].xyz=c;
 }
 void makeLights()
@@ -932,19 +1034,23 @@ void makeLights()
   lightCount=0;
   addLight(eye+u*.4-f*.3,vec3(1,.75,.4)*(light*1.2+.05));
   addLight(eye+r*.2-u*.2+f*.55,vec3(1,.75,.4)*kick*kick*6.);
+  for(int i=0;i<10;i++)
+    addLight(shot[i].xyz,vec3(1,.05,.12)*3.*step(1e-4,shot[i].w));
+  for(int i=0;i<10;i++)
+    addLight(enemy[i].xyz+normalize(eye-enemy[i].xyz)*.9,enemy[i].w<0.?
+      vec3(4)*-enemy[i].w:
+      vec3(1,.05,.12)*1.5*enemyInfo[i].x*step(1e-4,enemy[i].w));
   for(int i=0;i<12;i++)
-    addLight(bolt[i].xyz,vec3(1,.75,.4)*3.*step(1e-4,bolt[i].w));
+    addLight(bolt[i].xyz,vec3(1,.75,.4)*2.*step(1e-4,bolt[i].w));
   for(int i=0;i<8;i++)
     addLight(spark[i].xyz,vec3(1,.75,.4)*spark[i].w*2.);
   for(int i=0;i<12;i++)
     addLight(orb[i].xyz,vec3(1,.75,.4)*1.5*orb[i].w);
-  for(int i=0;i<10;i++)
-    addLight(enemy[i].xyz+normalize(eye-enemy[i].xyz)*.6,vec3(1,.05,.12)*.6*enemyInfo[i].x*step(1e-4,enemy[i].w));
 }
 void main()
 {
   for(int i=0;i<int(iInput[0].w);i++)
-    update();
+    update(),prevButtons=mod(iInput[0].z,2.);
   makeLights();
 }
 

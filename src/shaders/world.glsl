@@ -63,10 +63,10 @@ const vec3 ST_HI[NST] = vec3[](vec3(50, 0, 2.5), vec3(76, -4, 8), vec3(76, -4, -
 const int ST_DIR[NST] = int[](1, 0, 0, 2, 3);
 
 // The route: points on the floor (x, y, z), a closed loop.
-#define NR 22
+#define NR 23
 const vec3 ROUTE[NR] = vec3[](
     vec3(3, 0, 0), vec3(38, 0, 0), vec3(42, 0, 0), vec3(51, -4, 0), vec3(59, -4, 0), vec3(77, -4, 0),
-    vec3(87, -4, 0), vec3(87, 1, 11), vec3(87, 1, 13.5), vec3(53, 1, 13.5), vec3(45, 1, 14), vec3(45, 1, 23),
+    vec3(87, -4, 0), vec3(87, 1, 11), vec3(87, 1, 13.5), vec3(53, 1, 13.5), vec3(50, 1, 17), vec3(45, 1, 17), vec3(45, 1, 23),
     vec3(33, 1, 23), vec3(33, 1, 29), vec3(22, 1, 29), vec3(15, 1, 30), vec3(10, -3, 31), vec3(-4, -3, 30),
     vec3(-5, -3, 18), vec3(-5, -3, 12), vec3(-5, 0, 4), vec3(-5, 0, 0));
 

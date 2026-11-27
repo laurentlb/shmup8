@@ -324,7 +324,7 @@
      "type": "outaux",
      "id": 7,
      "parameters": {
-      "outgain": 56,
+      "outgain": 44,
       "auxgain": 0,
       "stereo": 1
      }
@@ -387,7 +387,7 @@
      "type": "outaux",
      "id": 13,
      "parameters": {
-      "outgain": 10,
+      "outgain": 8,
       "auxgain": 12,
       "stereo": 1
      }
@@ -457,7 +457,7 @@
      "type": "outaux",
      "id": 19,
      "parameters": {
-      "outgain": 48,
+      "outgain": 38,
       "auxgain": 0,
       "stereo": 1
      }
@@ -527,7 +527,7 @@
      "type": "outaux",
      "id": 25,
      "parameters": {
-      "outgain": 10,
+      "outgain": 8,
       "auxgain": 40,
       "stereo": 1
      }
@@ -669,7 +669,7 @@
      "type": "outaux",
      "id": 38,
      "parameters": {
-      "outgain": 30,
+      "outgain": 24,
       "auxgain": 24,
       "stereo": 1
      }
@@ -799,7 +799,7 @@
      "type": "outaux",
      "id": 50,
      "parameters": {
-      "outgain": 30,
+      "outgain": 24,
       "auxgain": 10,
       "stereo": 1
      }
@@ -959,8 +959,8 @@
      "type": "outaux",
      "id": 64,
      "parameters": {
-      "outgain": 44,
-      "auxgain": 70,
+      "outgain": 32,
+      "auxgain": 50,
       "stereo": 1
      }
     }
@@ -1054,7 +1054,7 @@
      "type": "outaux",
      "id": 72,
      "parameters": {
-      "outgain": 80,
+      "outgain": 64,
       "auxgain": 30,
       "stereo": 1
      }
@@ -1137,7 +1137,7 @@
      "type": "outaux",
      "id": 79,
      "parameters": {
-      "outgain": 40,
+      "outgain": 32,
       "auxgain": 0,
       "stereo": 1
      }
@@ -1218,8 +1218,150 @@
      "type": "outaux",
      "id": 86,
      "parameters": {
-      "outgain": 30,
-      "auxgain": 90,
+      "outgain": 19,
+      "auxgain": 56,
+      "stereo": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "Spit",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "envelope",
+     "id": 87,
+     "parameters": {
+      "attack": 0,
+      "decay": 56,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "noise",
+     "id": 88,
+     "parameters": {
+      "gain": 128,
+      "shape": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 89,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "filter",
+     "id": 90,
+     "parameters": {
+      "frequency": 70,
+      "resonance": 40,
+      "lowpass": 1,
+      "bandpass": 0,
+      "highpass": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "envelope",
+     "id": 93,
+     "parameters": {
+      "attack": 0,
+      "decay": 60,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "envelope",
+     "id": 94,
+     "parameters": {
+      "attack": 0,
+      "decay": 58,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "send",
+     "id": 95,
+     "parameters": {
+      "target": 91,
+      "amount": 40,
+      "port": 0,
+      "sendpop": 1,
+      "voice": 0,
+      "unit": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "oscillator",
+     "id": 91,
+     "parameters": {
+      "type": 1,
+      "transpose": 58,
+      "detune": 64,
+      "gain": 128,
+      "color": 20,
+      "shape": 64,
+      "phase": 0,
+      "lfo": 0,
+      "unison": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 96,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "filter",
+     "id": 92,
+     "parameters": {
+      "frequency": 60,
+      "resonance": 128,
+      "lowpass": 1,
+      "bandpass": 0,
+      "highpass": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "addp",
+     "id": 97,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "pan",
+     "id": 98,
+     "parameters": {
+      "panning": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "outaux",
+     "id": 99,
+     "parameters": {
+      "outgain": 32,
+      "auxgain": 30,
       "stereo": 1
      }
     }
@@ -1231,7 +1373,7 @@
    "units": [
     {
      "type": "in",
-     "id": 87,
+     "id": 100,
      "parameters": {
       "channel": 2,
       "stereo": 1
@@ -1239,7 +1381,7 @@
     },
     {
      "type": "delay",
-     "id": 88,
+     "id": 101,
      "parameters": {
       "stereo": 1,
       "pregain": 80,
@@ -1255,7 +1397,7 @@
     },
     {
      "type": "out",
-     "id": 89,
+     "id": 102,
      "parameters": {
       "gain": 60,
       "stereo": 1

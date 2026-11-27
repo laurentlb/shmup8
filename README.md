@@ -13,7 +13,7 @@ the dark gets stronger.
 
 ## Current state
 
-**Size:** 8313 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
+**Size:** 8940 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
 
 **Controls:** WASD: move. Mouse: look. Left button: fire. Space: jump (hold to
 jump again on landing). Escape: quit.
@@ -43,28 +43,38 @@ jump again on landing). Escape: quit.
   friction, jumps, head bob.
 * Weapon: a light gun that fires gold bolts (they light the walls as they fly),
   recoil, muzzle flash; bolts converge on what the crosshair points at.
-* Enemies: floating creatures with a red eye and trailing tentacles. They come
-  toward you, spread out, avoid the walls, and charge when close; a bite costs
-  light and knocks you back. They appear ahead on the track, more of them and
-  faster on each lap.
+* Enemies, big and readable in the dark (a red eye, glowing veins, a red
+  light), white for an instant when hit, bursting into light when killed:
+  * wraiths weave toward you (hard to snipe) and charge when close; a bite
+    costs light and knocks you back;
+  * spitters, balls with a ring of turning spikes, keep their distance, circle,
+    and fire slow red shots you can dodge (only when they see you).
+
+  They appear on the route, mostly ahead, sometimes behind; more of them,
+  faster, tougher, and more spitters on each lap.
 * Light: drains over time (faster on each lap). A kill releases three orbs of
   light that fly back to you. A lap gives some light back. At zero, the dark
-  takes you, and a new run starts.
+  takes you.
+* Laps change the place: from lap 2, the neon dies room by room (the crypt
+  first): it flickers for a lap, then the room is dark, with rare flashes; you
+  fight by your own light and the enemies' eyes. A new lap shows its number, big.
+* End of a run: the results (laps, in gold for a record; best lap; kills),
+  then fire for a new run. The record and the best lap are kept across runs.
 * Laps: the track's quarters must be reached in order. Lap clock, best lap, lap
   number, light bar, crosshair (red on hits).
 * Rendering: raymarched; neon light from the distance to the tubes; point lights
-  (bolts, impacts, orbs, the enemies' eyes, your lantern) made by the gameplay
-  shader; fog with light scattered from them, thicker when your light is low;
+  (bolts, impacts, orbs, the enemies' eyes and shots, your lantern) made by the
+  gameplay shader, with a bright core; fog with light scattered from them, thicker when your light is low;
   wet floors with reflections; bloom, tone mapping, vignette that closes in
   when the light is low, red flash when hurt.
-* Sound: a dark loop; shot, hit, kill, hurt, jump and lap sounds.
+* Sound: a dark loop; shot, hit, kill, hurt, jump, lap and spitter sounds.
 * Performance: the scene is drawn at most 900 lines high, then scaled up (the
   HUD at full resolution); 12 to 15 ms per frame at 2560x1440 on a laptop RTX
   4070. Each ray only looks at the boxes, enemies and gun it can meet; the neon
   tubes are those of the room a point is in.
 
-**Not yet:** changes per lap,
-upgrades, more enemy types, a boss, title screen, music that reacts.
+**Not yet:** upgrades, a boss, title screen, music that reacts, tuning by
+playing (the difficulty was only tried with a bot that never misses).
 
 This branch started from the pinball branch, itself from the engine of the shoot 'em up released at
 https://laurentlb.itch.io/shmup8 (branch `main`, 3 kB, made for

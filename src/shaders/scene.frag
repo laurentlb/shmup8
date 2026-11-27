@@ -90,6 +90,9 @@ const vec4 ROOM_NEON[NI] = vec4[](
     vec4(.1, .6, 1, 1.25), vec4(0), vec4(.3, .45, .7, 4.2), vec4(1, .3, .05, .25), vec4(0), vec4(0),
     vec4(.1, 1, .4, 5.3), vec4(0), vec4(.6, .15, 1, .25), vec4(0), vec4(0), vec4(1, .1, .5, .25), vec4(.2, .4, 1, 3.25));
 
+// The lap on which a room's neon starts to die.
+const int DIE_LAP[NI] = int[](7, 9, 3, 5, 9, 9, 4, 9, 2, 9, 9, 4, 3);
+
 void tube(inout float d, float t, vec3 color)
 {
     if (t < d) {
@@ -128,6 +131,11 @@ float neon(vec3 p)
     if ((seenIn >> 11 & 1u) != 0u)
         // G: the pylon's core
         tube(d, length(p.xz - vec2(4, 25)) - .45, vec3(1, .3, .7));
+    // from lap 2, the neon dies room by room: it flickers, then it's dark
+    // with rare flashes
+    int die = DIE_LAP[tRoom];
+    float flash = hash(vec2(floor(time * 9.), tRoom));
+    neonCol *= lap < die ? 1. : lap == die ? step(.35, flash) : .03 + step(.96, flash);
     return d;
 }
 
@@ -137,20 +145,30 @@ float neonAt(vec3 p)
     return neon(p);
 }
 
+#define ENEMY_SIZE 1.3
+
 vec2 enemyShape(vec3 p, int i)
 {
     vec3 e = enemy[i].xyz;
-    float s = max(enemyInfo[i].x, .05);
+    // appearing: grows; bursting: swells
+    float s = (enemy[i].w < 0. ? 1.6 + enemy[i].w * 2. : max(enemyInfo[i].x, .05)) * ENEMY_SIZE;
     vec3 f = normalize(eye - e), r = normalize(cross(f, vec3(0, 1, 0))), u = cross(r, f);
     vec3 q = p - e;
     vec3 l = vec3(dot(q, r), dot(q, u), dot(q, f)) / s;
-    float t = time * 3. + float(i) * 1.7;
-    float body = length(l * vec3(1, 1.15, .8)) - .5;
-    // tentacles trailing behind
-    for (int k = 0; k < 5; k++) {
-        float a = float(k) * 1.257 + sin(t * .3) * .3;
-        vec3 tip = vec3(cos(a) * .7, sin(a) * .7, -1.3) + .2 * vec3(sin(t + float(k) * 2.), cos(t * 1.3 + float(k)), 0);
-        body = smin(body, capsule(l, vec3(cos(a), sin(a), 0) * .25, tip, .07), .2);
+    float t = time * 3. + float(i) * 1.7, body;
+    if (enemyKind[i] > 0) {
+        // spitter: a ball with a ring of eight spikes turning around the eye
+        body = length(l) - .5;
+        float a = mod(atan(l.y, l.x) + t * .3 + .39, .785) - .39;
+        body = smin(body, capsule(vec3(length(l.xy) * vec2(cos(a), sin(a)), l.z), vec3(.3, 0, -.1), vec3(1.1, 0, -.4), .05), .15);
+    } else {
+        // wraith: tentacles trailing behind
+        body = length(l * vec3(1, 1.15, .8)) - .5;
+        for (int k = 0; k < 5; k++) {
+            float a = float(k) * 1.257 + sin(t * .3) * .3;
+            vec3 tip = vec3(cos(a) * .7, sin(a) * .7, -1.3) + .2 * vec3(sin(t + float(k) * 2.), cos(t * 1.3 + float(k)), 0);
+            body = smin(body, capsule(l, vec3(cos(a), sin(a), 0) * .25, tip, .07), .2);
+        }
     }
     // an eye in a socket
     body = -smin(-body, length(l - vec3(0, 0, .55)) - .27, .05);
@@ -170,7 +188,7 @@ vec2 map(vec3 p)
     for (int i = 0; i < MAX_ENEMIES; i++) {
         if ((seenX >> i & 1u) == 0u)
             continue;
-        float d = length(p - enemy[i].xyz) - 1.8;
+        float d = length(p - enemy[i].xyz) - 3.;
         if (d > .3)
             h.x = min(h.x, d);
         else {
@@ -253,7 +271,7 @@ void cull(vec3 ro, vec3 rd)
         if (hitBox(ro, rd, ST_LO[i] - .5, ST_HI[i] + .5))
             seenSo |= 1u << (NS + i);
     for (int i = 0; i < MAX_ENEMIES; i++)
-        if (enemy[i].w > 0. && hitSphere(ro, rd, enemy[i].xyz, 2.))
+        if (enemy[i].w != 0. && hitSphere(ro, rd, enemy[i].xyz, 3.3))
             seenX |= 1u << i;
     if (hitSphere(ro, rd, eye + mat3(camR, camU, camF) * (gunAt + vec3(0, 0, .03)), .3))
         seenX |= 1u << 31;
@@ -280,7 +298,7 @@ vec3 material(vec3 p, float m)
     metal = 0.;
     glow = vec3(0);
     if (m >= 30.) {
-        glow = RED * (4. + 10. * enemyInfo[int(m - 30.)].y);
+        glow = RED * (6. + 10. * enemyInfo[int(m - 30.)].y);
         return vec3(0);
     }
     if (m >= 10.) {
@@ -288,7 +306,7 @@ vec3 material(vec3 p, float m)
         int i = int(m - 10.);
         vec3 q = p - enemy[i].xyz;
         float veins = abs(fbm(q.xy * 6. + q.z * 4. + time) - .5);
-        glow = RED * smoothstep(.06, 0., veins) * 1.5 + vec3(3) * enemyInfo[i].y;
+        glow = RED * smoothstep(.06, 0., veins) * 3. + vec3(1.5) * enemyInfo[i].y + vec3(10) * max(-enemy[i].w, 0.);
         rough = .15;
         return vec3(.01);
     }
@@ -358,14 +376,16 @@ vec3 shade(vec3 p, vec3 lp, vec3 c)
     return c * max(dot(n, l), 0.) * spec * f0 / (d2 + .3);
 }
 
-// Light scattered by the fog toward the camera, from the point lights, along the ray up to tMax.
+// The point lights seen along the ray, up to tMax: light scattered by the
+// fog, and a bright core (bolts, shots, released light, sparks).
 vec3 scattered(vec3 ro, vec3 rd, float tMax)
 {
     vec3 c = vec3(0);
     for (int i = 0; i < lightCount; i++) {
         vec3 color = lightCol[i].rgb, o = lightPos[i].xyz - ro;
-        float b = dot(o, rd), h = sqrt(max(dot(o, o) - b * b, 0.) + .3);
-        c += color * (atan((tMax - b) / h) + atan(b / h)) / h * (i < 2 ? .1 : 1.); // less for the lantern and muzzle
+        float b = dot(o, rd), h2 = max(dot(o, o) - b * b, 0.), h = sqrt(h2 + .3);
+        c += color * ((atan((tMax - b) / h) + atan(b / h)) / h * fogDensity * _TV(scatter, .07) * (i < 2 ? .1 : 1.) // less for the lantern and muzzle
+                      + step(2., float(i)) * step(0., b) * step(b, tMax) * _TV(core, .001) / (h2 + 1e-4));
     }
     return c;
 }
@@ -397,7 +417,7 @@ vec3 render(vec3 ro, vec3 rd)
         }
         float fog = exp(-h.x * fogDensity);
         col += weight * (mix(fogColor, c, fog) + glowSum * _TV(neonGlow, .05)
-                         + scattered(ro, rd, h.x) * fogDensity * _TV(scatter, .1));
+                         + scattered(ro, rd, h.x));
         if (h.y < 0.)
             break;
         weight *= (f0 + (1. - f0) * pow(1. - max(dot(n, v), 0.), 5.)) * (1. - rough) * fog;
@@ -452,11 +472,29 @@ void main()
     col *= max(1. - dead * .5, 0.);
     col += (hash(gl_FragCoord.xy + fract(time) * 100.) - .5) * .02; // grain
 
+    vec3 cold = vec3(.5, .8, 1);
+    if (dead > 1.) {
+        // the results: laps (gold when it's a record), best lap, kills
+        float k = min(dead - 1., 1.);
+        bool best = lap - 1 >= record && lap > 1;
+        digits7(col, (best ? GOLD * (1.5 + sin(time * 8.)) : cold) * k, uv * 7. - vec2(.6, 1.6), 7., lap - 1, 1);
+        col += cold * k * smoothstep(.01, 0., abs(length(uv - vec2(-.25, .23)) - .06) - .008); // a ring: laps
+        int cs = int(bestLap * 100.);
+        digits7(col, cold * k, uv * 18. - vec2(1.5, -2.), 18., cs % 100, 2);
+        digits7(col, cold * k, uv * 18. - vec2(-1.5, -2.), 18., cs / 100, 1);
+        col += cold * k * smoothstep(.06, .02, length(uv * 18. - vec2(-.4, -3.2)));
+        // a clock: the best lap
+        vec2 q = uv - vec2(-.3, -.11);
+        col += cold * k * smoothstep(.01, 0., min(abs(length(q) - .04) - .006, max(abs(q.x) - .004, abs(q.y - .015) - .02)));
+        digits7(col, RED * 2. * k, uv * 18. - vec2(1.5, -6.), 18., kills, 1);
+        col += RED * 2. * k * smoothstep(.01, 0., length(uv - vec2(-.3, -.33)) - .03); // an eye: kills
+        fragColor = vec4(col, 1);
+        return;
+    }
     // HUD: crosshair (red on hits), lap time, best lap, lap, light
     vec2 c = abs(uv);
     float aim = max(step(c.x + c.y, .004), step(abs(max(c.x, c.y) - .03 - hitMark * .01), .002) * step(min(c.x, c.y), .002));
     col = mix(col, mix(vec3(.9), RED * 2., hitMark), aim * .8);
-    vec3 cold = vec3(.5, .8, 1);
     int cs = int(lapTime * 100.);
     digits7(col, cold, uv * 22. - vec2(-.5, 19.5), 22., cs % 100, 2);
     digits7(col, cold, uv * 22. - vec2(-3.5, 19.5), 22., cs / 100, 1);
@@ -464,6 +502,9 @@ void main()
     if (bestLap > 0.)
         digits7(col, cold * .5, uv * 40. - vec2(1.5, 33.), 40., int(bestLap * 100.), 3);
     digits7(col, cold, uv * 22. - vec2(-34., 19.5), 22., lap, 1);
+    // a new lap: its number, big
+    if (lapFlash > 0.)
+        digits7(col, GOLD * lapFlash * 2., uv * 6. - vec2(.5, 1.5), 6., lap, 1);
     float bar = step(abs(uv.y + .9), .006) * step(abs(uv.x), .35 * light);
     col += bar * GOLD * (light < .25 ? step(.5, fract(time * 3.)) + .3 : .8);
     fragColor = vec4(col, 1);

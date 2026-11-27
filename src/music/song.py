@@ -69,7 +69,7 @@ def send(target, amount, port=0):
 
 
 def out(gain, aux, pan=64):
-    return [unit("pan", panning=pan), unit("outaux", outgain=gain, auxgain=aux, stereo=1)]
+    return [unit("pan", panning=pan), unit("outaux", outgain=gain * 4 // 5, auxgain=aux, stereo=1)]
 
 
 def swept(osc_, sweep_decay, amount, amp_decay, extra=()):
@@ -96,13 +96,16 @@ SFX = [  # same order as the event counters in src/shaders/state.glsl
                + swept(osc(0, 96), 40, 90, 44) + [addp()] + out(30, 10)),
     # kill: a bell over a low burst
     instrument("Kill", [env(78), osc(0, 79, gain=100), osc(0, 97, gain=44), addp(), mulp()]
-               + swept(osc(1, 50, color=60), 60, 100, 70, [lowpass(50)]) + [addp()] + out(44, 70)),
+               + swept(osc(1, 50, color=60), 60, 100, 70, [lowpass(50)]) + [addp()] + out(40, 50)),
     # hurt: a low, dirty thud
     instrument("Hurt", swept(osc(1, 40, color=20), 64, 90, 76, [lowpass(46, 60)]) + out(80, 30)),
     # jump: a soft thump
     instrument("Jump", swept(osc(0, 46), 44, 84, 48) + out(40, 0)),
     # lap: two bright tones, a fifth apart
-    instrument("Lap", [env(90), osc(0, 84, gain=90), osc(0, 91, gain=70), addp(), mulp()] + out(30, 90)),
+    instrument("Lap", [env(90), osc(0, 84, gain=90), osc(0, 91, gain=70), addp(), mulp()] + out(24, 56)),
+    # a spitter shoots: a wet, rising hiss
+    instrument("Spit", [env(56), noise(), mulp(), lowpass(70, 40)]
+               + swept(osc(1, 58, color=20), 58, 40, 60, [lowpass(60)]) + [addp()] + out(40, 30)),
 ]
 GLOBAL = instrument("Global", [
     unit("in", channel=2, stereo=1),

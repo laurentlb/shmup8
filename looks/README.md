@@ -2,7 +2,8 @@
 
 Alternative visual directions, each on its own branch (`look/NAME`, from
 `pinball`). Only the renderer changes: the gameplay is the same, so every
-sheet shows the same moments. Frames, left to right and top to bottom:
+sheet shows the same moments. All of them in one numbered image, to share:
+[all-looks.jpg](all-looks.jpg). Frames, left to right and top to bottom:
 
 1. t=1 s: the intro, close to the orrery
 2. t=9 s: play

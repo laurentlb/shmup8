@@ -35,7 +35,7 @@ static void resetState()
 
 // The scene is drawn at most RENDER_HEIGHT lines high, then scaled up (the
 // final pass, with the HUD, is at the full resolution).
-#define RENDER_HEIGHT 900
+#define RENDER_HEIGHT 810
 static int sceneWidth, sceneHeight;
 
 // Texture 1 is the previous scene (input), texture 2 the current one (attached to sceneFramebuffer).

@@ -76,11 +76,20 @@ const vec3 ROUTE[NR] = vec3[](
 uint seenIn = ~0u, seenSo = ~0u;
 float detail; // 1 in the scene: steps on the stairs (ramps for the collisions), water
 
-// Set by level(p): the interior p is most inside of (index, corners), and how
-// much (negative).
-int tRoom;
+// The rooms' neon tubes (see scene.frag): color, and the lower tube's height
+// above the floor (black: none).
+const vec4 ROOM_NEON[NI] = vec4[](
+    vec4(.1, .6, 1, 1.25), vec4(0), vec4(.3, .45, .7, 4.2), vec4(1, .3, .05, .25), vec4(0), vec4(0),
+    vec4(.1, 1, .4, 5.3), vec4(0), vec4(.6, .15, 1, .25), vec4(0), vec4(0), vec4(1, .1, .5, .25), vec4(.2, .4, 1, 3.25));
+// The lap on which a room's neon starts to die.
+const int DIE_LAP[NI] = int[](7, 9, 3, 5, 9, 9, 4, 9, 2, 9, 9, 4, 3);
+
+// Set by level(p): the interior p is most inside of (index, corners, neon,
+// lap its neon dies), and how much (negative).
+int tRoom, tDie;
 float tInside;
 vec3 tLo, tHi;
+vec4 tNeon;
 
 // Signed distance to a box given by its corners.
 float box(vec3 p, vec3 lo, vec3 hi)
@@ -137,6 +146,8 @@ float level(vec3 p)
             tRoom = i;
             tLo = IN_LO[i];
             tHi = IN_HI[i];
+            tNeon = ROOM_NEON[i];
+            tDie = DIE_LAP[i];
         }
     }
     tInside = inside;
@@ -168,6 +179,11 @@ float level(vec3 p)
     if ((seenIn >> 11 & 1u) != 0u)
         // G: four posts around the glowing core of a pylon
         d = min(d, length(abs(p.xz - vec2(4, 25)) - 1.) - .35);
+    // pipes along the stair corridors, under the ceiling
+    if ((seenIn >> 2 & 1u) != 0u)
+        d = min(d, max(length(vec2(abs(p.z) - 2.1, p.y - 3.9)) - .16, box(p, IN_LO[2], IN_HI[2])));
+    if ((seenIn >> 12 & 1u) != 0u)
+        d = min(d, max(length(vec2(abs(p.x + 5.) - 2.6, p.y - 3.9)) - .16, box(p, IN_LO[12], IN_HI[12])));
     return d;
 }
 
@@ -186,16 +202,19 @@ float trackLength()
     return s;
 }
 
-// The distance along the route of the point nearest to p.
+// The distance along the route of the point nearest to p; sets trackDist,
+// the distance to the route (heights count less).
+float trackDist;
 float trackPos(vec3 p)
 {
-    float best = 1e9, s = 0., at = 0.;
+    float s = 0., at = 0.;
+    trackDist = 1e9;
     for (int i = 0; i < NR; i++) {
         vec3 a = ROUTE[i], ab = ROUTE[(i + 1) % NR] - a;
         float h = clamp(dot(p - a, ab) / dot(ab, ab), 0., 1.);
-        float d = length(p - a - ab * h);
-        if (d < best) {
-            best = d;
+        float d = length((p - a - ab * h) * vec3(1, .3, 1));
+        if (d < trackDist) {
+            trackDist = d;
             at = s + h * length(ab);
         }
         s += length(ab);

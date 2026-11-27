@@ -235,6 +235,32 @@ namespace Check
 		const bool drawOk = pixels * 100 <= XRES * YRES;
 		printf("minified scene: %s after %.0f s (%d pixels differ by more than 8, max %d)\n",
 			drawOk ? "ok" : "FAILED", drawSeconds, pixels, maxDiff);
+
+		// frame time at 2560x1440 (the editor's tweaks are uniforms: it can be slower)
+		{
+			const int w = 2560, h = 1440, frames = 30;
+			const unsigned big = Capture::offscreenFramebuffer(w, h);
+			double ms[2];
+			for (int k = 0; k < 2; k++)
+			{
+				host.setPrograms(host.gameProgram, k ? scene : host.sceneProgram);
+				host.init(w, h);
+				BufferSubData()(GL_SHADER_STORAGE_BUFFER, 0, (GLsizeiptr)later.state.size(), &later.state[0]);
+				host.draw(w, h, 1.f / 60, big);
+				glFinish();
+				LARGE_INTEGER freq, start, stop;
+				QueryPerformanceFrequency(&freq);
+				QueryPerformanceCounter(&start);
+				for (int i = 0; i < frames; i++)
+					host.draw(w, h, 1.f / 60, big);
+				glFinish();
+				QueryPerformanceCounter(&stop);
+				ms[k] = 1000.0 * (stop.QuadPart - start.QuadPart) / freq.QuadPart / frames;
+			}
+			printf("frame time at %dx%d: editor %.2f ms, minified %.2f ms\n", w, h, ms[0], ms[1]);
+			host.setPrograms(host.gameProgram, host.sceneProgram);
+			host.init(XRES, YRES);
+		}
 		if (!drawOk)
 		{
 			// raw RGBA, bottom-up, XRES x YRES: to look at where they differ

@@ -43,7 +43,7 @@ if (Test-Path $sizes) {
 $delta = if ($previous) { " ({0:+#;-#;0} since the last entry of tools\sizes.txt)" -f ($size - $previous) } else { "" }
 Write-Host "$exe`: $size bytes$delta"
 
-& .\out\cat-debug.exe --check | Where-Object { $_ -match '^(minified|history|inputs file|check)' } | Write-Host
+& .\out\cat-debug.exe --check | Where-Object { $_ -match '^(minified|history|inputs file|check|frame time)' } | Write-Host
 $checkFailed = $LASTEXITCODE -ne 0
 
 if ($Log) {

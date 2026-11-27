@@ -44,19 +44,24 @@ const int ST_DIR[5]=int[](1,0,0,2,3);
 const vec3 ROUTE[23]=vec3[](vec3(3,0,0),vec3(38,0,0),vec3(42,0,0),vec3(51,-4,0),vec3(59,-4,0),vec3(77,-4,0),vec3(87,-4,0),vec3(87,1,11),vec3(87,1,13.5),vec3(53,1,13.5),vec3(50,1,17),vec3(45,1,17),vec3(45,1,23),vec3(33,1,23),vec3(33,1,29),vec3(22,1,29),vec3(15,1,30),vec3(10,-3,31),vec3(-4,-3,30),vec3(-5,-3,18),vec3(-5,-3,12),vec3(-5,0,4),vec3(-5,0,0));
 uint seenIn=~0u,seenSo=~0u;
 float detail;
-int tRoom;
+const vec4 ROOM_NEON[13]=vec4[](vec4(.1,.6,1,1.25),vec4(0),vec4(.3,.45,.7,4.2),vec4(1,.3,.05,.25),vec4(0),vec4(0),vec4(.1,1,.4,5.3),vec4(0),vec4(.6,.15,1,.25),vec4(0),vec4(0),vec4(1,.1,.5,.25),vec4(.2,.4,1,3.25));
+const int DIE_LAP[13]=int[](7,9,3,5,9,9,4,9,2,9,9,4,3);
+int tRoom,tDie;
 float tInside;
 vec3 tLo,tHi;
+vec4 tNeon;
+float trackDist;
 out vec4 fragColor;
 vec3 eye,camF,camR,camU,gunAt;
 uint seenX;
 vec3 neonCol;
-const vec4 ROOM_NEON[13]=vec4[](vec4(.1,.6,1,1.25),vec4(0),vec4(.3,.45,.7,4.2),vec4(1,.3,.05,.25),vec4(0),vec4(0),vec4(.1,1,.4,5.3),vec4(0),vec4(.6,.15,1,.25),vec4(0),vec4(0),vec4(1,.1,.5,.25),vec4(.2,.4,1,3.25));
-const int DIE_LAP[13]=int[](7,9,3,5,9,9,4,9,2,9,9,4,3);
 float gNeon;
 bool withNeon=true;
 float fogDensity;
-vec3 glowSum,n,v,f0,glow;
+vec3 glowSum;
+int maxSteps;
+const vec4 BEAMS[6]=vec4[](vec4(10,0,0,9),vec4(22,0,0,9),vec4(34,0,0,9),vec4(64,0,-7,10),vec4(72,0,-7,10),vec4(-2,24,-3,10));
+vec3 n,v,f0,glow;
 float rough,metal;
 float box(vec3 p,vec3 lo,vec3 hi)
 {
@@ -108,7 +113,7 @@ float level(vec3 p)
           d=max(d,min(length(vec2(c.x,y)),length(vec2(c.y,y)))-3.);
         }
       if(d<inside)
-        inside=d,tRoom=i,tLo=IN_LO[i],tHi=IN_HI[i];
+        inside=d,tRoom=i,tLo=IN_LO[i],tHi=IN_HI[i],tNeon=ROOM_NEON[i],tDie=DIE_LAP[i];
     }
   tInside=inside;
   inside=-inside;
@@ -130,7 +135,25 @@ float level(vec3 p)
     inside=min(inside,columns(p,vec2(0,2),6.,.5+.15*step(p.y,1.4)+.2*step(3.6,p.y),vec3(27,1,11),vec3(51,8,35)));
   if((seenIn>>11&1u)!=0u)
     inside=min(inside,length(abs(p.xz-vec2(4,25))-1.)-.35);
+  if((seenIn>>2&1u)!=0u)
+    inside=min(inside,max(length(vec2(abs(p.z)-2.1,p.y-3.9))-.16,box(p,IN_LO[2],IN_HI[2])));
+  if((seenIn>>12&1u)!=0u)
+    inside=min(inside,max(length(vec2(abs(p.x+5.)-2.6,p.y-3.9))-.16,box(p,IN_LO[12],IN_HI[12])));
   return inside;
+}
+float trackPos(vec3 p)
+{
+  float s=0.,at=0.;
+  trackDist=1e9;
+  for(int i=0;i<23;i++)
+    {
+      vec3 a=ROUTE[i],ab=ROUTE[(i+1)%23]-a;
+      float h=clamp(dot(p-a,ab)/dot(ab,ab),0.,1.),d=length((p-a-ab*h)*vec3(1,.3,1));
+      if(d<trackDist)
+        trackDist=d,at=s+h*length(ab);
+      s+=length(ab);
+    }
+  return at;
 }
 float digit7(vec2 q,int n)
 {
@@ -196,7 +219,7 @@ void tube(inout float d,float t,vec3 color)
 }
 float neon(vec3 p)
 {
-  vec4 c=ROOM_NEON[tRoom];
+  vec4 c=tNeon;
   vec2 q=abs(p.xz-(tLo.xz+tHi.xz)*.5)-(tHi.xz-tLo.xz)*.5+.12;
   float y=p.y-tLo.y-c.w;
   y=c.x+c.z>0.?
@@ -223,13 +246,13 @@ float neon(vec3 p)
   tube(y,b,vec3(.6,.15,1));
   if((seenIn>>11&1u)!=0u)
     tube(y,length(p.xz-vec2(4,25))-.45,vec3(1,.3,.7));
-  int die=DIE_LAP[tRoom];
-  b=hash(vec2(floor(time*9.),tRoom));
-  neonCol*=lap<die?
-    1.:
-    lap==die?
-      step(.35,b):
-      .03+step(.96,b);
+  if(lap>=tDie)
+    {
+      float flash=hash(vec2(floor(time*9.),tRoom));
+      neonCol*=lap==tDie?
+        step(.35,flash):
+        .03+step(.96,flash);
+    }
   return y;
 }
 float neonAt(vec3 p)
@@ -281,7 +304,7 @@ vec2 map(vec3 p)
     {
       if((seenX>>i&1u)==0u)
         continue;
-      float d=length(p-enemy[i].xyz)-3.;
+      float d=length(p-enemy[i].xyz)-2.4;
       if(d>.3)
         h.x=min(h.x,d);
       else
@@ -310,15 +333,18 @@ vec2 map(vec3 p)
     }
   return h;
 }
-vec3 normal(vec3 p)
+vec3 normal(vec3 p,float m)
 {
   vec2 e=vec2(1,-1)*.001;
-  return normalize(e.xyy*map(p+e.xyy).x+e.yyx*map(p+e.yyx).x+e.yxy*map(p+e.yxy).x+e.xxx*map(p+e.xxx).x);
+  withNeon=m==1.;
+  p=normalize(e.xyy*map(p+e.xyy).x+e.yyx*map(p+e.yyx).x+e.yxy*map(p+e.yxy).x+e.xxx*map(p+e.xxx).x);
+  withNeon=true;
+  return p;
 }
 vec2 march(vec3 ro,vec3 rd)
 {
   float t=0.;
-  for(int i=0;i<200;i++)
+  for(int i=0;i<maxSteps;i++)
     {
       vec2 h=map(ro+rd*t);
       glowSum+=neonCol*exp(-gNeon*3.-t*fogDensity)*min(h.x,1.);
@@ -357,7 +383,7 @@ void cull(vec3 ro,vec3 rd)
     if(hitBox(ro,rd,ST_LO[i]-.5,ST_HI[i]+.5))
       seenSo|=1u<<9+i;
   for(int i=0;i<10;i++)
-    if(enemy[i].w!=0.&&hitSphere(ro,rd,enemy[i].xyz,3.3))
+    if(enemy[i].w!=0.&&hitSphere(ro,rd,enemy[i].xyz,2.7))
       seenX|=1u<<i;
   if(hitSphere(ro,rd,eye+mat3(camR,camU,camF)*(gunAt+vec3(0,0,.03)),.3))
     seenX|=1u<<31;
@@ -366,13 +392,36 @@ float occlusion(vec3 p,vec3 n)
 {
   float o=0.;
   withNeon=false;
-  for(int i=1;i<4;i++)
+  for(int i=1;i<3;i++)
     {
-      float d=float(i)*.2;
+      float d=float(i)*.3;
       o+=(d-map(p+n*d).x)/d;
     }
   withNeon=true;
-  return clamp(1.-o*.2,0.,1.);
+  return clamp(1.-o*.3,0.,1.);
+}
+float inBeam(vec3 p)
+{
+  float k=0.;
+  for(int i=0;i<6;i++)
+    {
+      vec4 b=BEAMS[i];
+      k=max(k,smoothstep(1.2,.6,length(p.xz-b.xy))*step(b.z-.1,p.y)*step(p.y,b.w+.1));
+    }
+  return k;
+}
+vec3 beams(vec3 ro,vec3 rd,float tMax)
+{
+  float c=0.;
+  for(int i=0;i<6;i++)
+    {
+      vec4 b=BEAMS[i];
+      vec2 o=ro.xz-b.xy,d=rd.xz;
+      float dd=dot(d,d)+1e-6,tc=-dot(o,d)/dd,h2=dot(o+d*tc,o+d*tc),hw=sqrt(max(1.44-h2,0.)/dd),ta=(b.z-ro.y)/rd.y,tb=(b.w-ro.y)/rd.y;
+      dd=max(max(tc-hw,0.),min(ta,tb));
+      c+=max(min(min(tc+hw,tMax),max(ta,tb))-dd,0.)*max(1.-h2/1.44,0.)*exp(-dd*fogDensity);
+    }
+  return vec3(.45,.6,1)*c*.04;
 }
 vec3 material(vec3 p,float m)
 {
@@ -416,15 +465,17 @@ vec3 material(vec3 p,float m)
           rough=.4;
           return vec3(.07,.065,.06)*(.5+.5*fbm(p.xz*5.))*(1.-.7*step(.3,min(g.x,g.y)));
         }
+      float at=trackPos(p);
+      glow=vec3(.4,.6,1)*.35*smoothstep(.08,.04,trackDist)*step(fract((at-time*5.)*.4),.3);
       vec2 g=abs(fract(p.xz/1.5)-.5);
-      float wet=smoothstep(.55,.7,fbm(p.xz*.3)+.1*fbm(p.xz*3.)+(r==3?
+      at=smoothstep(.55,.7,fbm(p.xz*.3)+.1*fbm(p.xz*3.)+(r==3?
         .15:
         0.));
-      rough=mix(.6,.03,wet);
-      return vec3(.055,.05,.045)*(.6+.4*hash(floor(p.xz/1.5)))*(.7+.5*fbm(p.xz*2.))*(1.-.6*step(.48,max(g.x,g.y)))*(1.-.5*wet);
+      rough=mix(.6,.03,at);
+      return vec3(.055,.05,.045)*(.6+.4*hash(floor(p.xz/1.5)))*(.7+.5*fbm(p.xz*2.))*(1.-.6*step(.48,max(g.x,g.y)))*(1.-.5*at);
     }
   if(n.y<-.7)
-    return vec3(.02);
+    return glow=vec3(.45,.6,1)*inBeam(p-vec3(0,.2,0))*step(.5,fract(p.x*3.))*3.,vec3(.02);
   m=p.x+p.z;
   if(r==6)
     {
@@ -469,17 +520,20 @@ vec3 render(vec3 ro,vec3 rd)
     {
       glowSum=vec3(0);
       cull(ro,rd);
+      maxSteps=bounce>0?
+        60:
+        200;
       vec2 h=march(ro,rd);
       vec3 p=ro+rd*h.x,c=fogColor;
       if(h.y>=0.)
         {
-          n=normal(p);
+          n=normal(p,h.y);
           v=-rd;
           vec3 albedo=material(p,h.y);
           f0=mix(vec3(.04),albedo,metal);
           albedo*=1.-metal;
           float ao=occlusion(p,n),d=neonAt(p+n*.3);
-          c=albedo*(neonCol*2./(1.+d*d*3.)+vec3(.01,.012,.02))*ao+glow;
+          c=albedo*(neonCol*2./(1.+d*d*3.)+vec3(.01,.012,.02)+vec3(.45,.6,1)*1.5*inBeam(p)*max(n.y,0.))*ao+glow;
           for(int i=0;i<lightCount;i++)
             {
               vec3 color=lightCol[i].xyz,l=lightPos[i].xyz-p;
@@ -487,11 +541,11 @@ vec3 render(vec3 ro,vec3 rd)
             }
         }
       float fog=exp(-h.x*fogDensity);
-      col+=weight*(mix(fogColor,c,fog)+glowSum*.05+scattered(ro,rd,h.x));
+      col+=weight*(mix(fogColor,c,fog)+glowSum*.05+scattered(ro,rd,h.x)+beams(ro,rd,h.x));
       if(h.y<0.)
         break;
       weight*=(f0+(1.-f0)*pow(1.-max(dot(n,v),0.),5.))*(1.-rough)*fog;
-      if(rough>.3||max(weight.x,max(weight.y,weight.z))<.02)
+      if(rough>.08||max(weight.x,max(weight.y,weight.z))<.02)
         break;
       ro=p+n*.01;
       h=gl_FragCoord.xy;
@@ -612,9 +666,13 @@ const int ST_DIR[5]=int[](1,0,0,2,3);
 const vec3 ROUTE[23]=vec3[](vec3(3,0,0),vec3(38,0,0),vec3(42,0,0),vec3(51,-4,0),vec3(59,-4,0),vec3(77,-4,0),vec3(87,-4,0),vec3(87,1,11),vec3(87,1,13.5),vec3(53,1,13.5),vec3(50,1,17),vec3(45,1,17),vec3(45,1,23),vec3(33,1,23),vec3(33,1,29),vec3(22,1,29),vec3(15,1,30),vec3(10,-3,31),vec3(-4,-3,30),vec3(-5,-3,18),vec3(-5,-3,12),vec3(-5,0,4),vec3(-5,0,0));
 uint seenIn=~0u,seenSo=~0u;
 float detail;
-int tRoom;
+const vec4 ROOM_NEON[13]=vec4[](vec4(.1,.6,1,1.25),vec4(0),vec4(.3,.45,.7,4.2),vec4(1,.3,.05,.25),vec4(0),vec4(0),vec4(.1,1,.4,5.3),vec4(0),vec4(.6,.15,1,.25),vec4(0),vec4(0),vec4(1,.1,.5,.25),vec4(.2,.4,1,3.25));
+const int DIE_LAP[13]=int[](7,9,3,5,9,9,4,9,2,9,9,4,3);
+int tRoom,tDie;
 float tInside;
 vec3 tLo,tHi;
+vec4 tNeon;
+float trackDist;
 const float DT=1./120.;
 float box(vec3 p,vec3 lo,vec3 hi)
 {
@@ -666,7 +724,7 @@ float level(vec3 p)
           d=max(d,min(length(vec2(c.x,y)),length(vec2(c.y,y)))-3.);
         }
       if(d<inside)
-        inside=d,tRoom=i,tLo=IN_LO[i],tHi=IN_HI[i];
+        inside=d,tRoom=i,tLo=IN_LO[i],tHi=IN_HI[i],tNeon=ROOM_NEON[i],tDie=DIE_LAP[i];
     }
   tInside=inside;
   inside=-inside;
@@ -688,6 +746,10 @@ float level(vec3 p)
     inside=min(inside,columns(p,vec2(0,2),6.,.5+.15*step(p.y,1.4)+.2*step(3.6,p.y),vec3(27,1,11),vec3(51,8,35)));
   if((seenIn>>11&1u)!=0u)
     inside=min(inside,length(abs(p.xz-vec2(4,25))-1.)-.35);
+  if((seenIn>>2&1u)!=0u)
+    inside=min(inside,max(length(vec2(abs(p.z)-2.1,p.y-3.9))-.16,box(p,IN_LO[2],IN_HI[2])));
+  if((seenIn>>12&1u)!=0u)
+    inside=min(inside,max(length(vec2(abs(p.x+5.)-2.6,p.y-3.9))-.16,box(p,IN_LO[12],IN_HI[12])));
   return inside;
 }
 vec3 levelNormal(vec3 p)
@@ -704,13 +766,14 @@ float trackLength()
 }
 float trackPos(vec3 p)
 {
-  float best=1e9,s=0.,at=0.;
+  float s=0.,at=0.;
+  trackDist=1e9;
   for(int i=0;i<23;i++)
     {
       vec3 a=ROUTE[i],ab=ROUTE[(i+1)%23]-a;
-      float h=clamp(dot(p-a,ab)/dot(ab,ab),0.,1.),d=length(p-a-ab*h);
-      if(d<best)
-        best=d,at=s+h*length(ab);
+      float h=clamp(dot(p-a,ab)/dot(ab,ab),0.,1.),d=length((p-a-ab*h)*vec3(1,.3,1));
+      if(d<trackDist)
+        trackDist=d,at=s+h*length(ab);
       s+=length(ab);
     }
   return at;

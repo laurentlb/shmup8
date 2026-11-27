@@ -86,12 +86,7 @@ uint seenX; // what a ray can meet besides the level: the enemies (bits 0 to 9),
 // room (color, and the lower tube's height above the floor; black: none), not
 // across the doorways; and a few others.
 vec3 neonCol;
-const vec4 ROOM_NEON[NI] = vec4[](
-    vec4(.1, .6, 1, 1.25), vec4(0), vec4(.3, .45, .7, 4.2), vec4(1, .3, .05, .25), vec4(0), vec4(0),
-    vec4(.1, 1, .4, 5.3), vec4(0), vec4(.6, .15, 1, .25), vec4(0), vec4(0), vec4(1, .1, .5, .25), vec4(.2, .4, 1, 3.25));
 
-// The lap on which a room's neon starts to die.
-const int DIE_LAP[NI] = int[](7, 9, 3, 5, 9, 9, 4, 9, 2, 9, 9, 4, 3);
 
 void tube(inout float d, float t, vec3 color)
 {
@@ -104,7 +99,7 @@ void tube(inout float d, float t, vec3 color)
 float neon(vec3 p)
 {
     // the room's tubes, 0.12 m from its walls
-    vec4 c = ROOM_NEON[tRoom];
+    vec4 c = tNeon;
     vec2 q = abs(p.xz - (tLo.xz + tHi.xz) * .5) - (tHi.xz - tLo.xz) * .5 + .12;
     float y = p.y - tLo.y - c.w;
     float d = c.r + c.b > 0. ? length(vec2(length(max(q, 0.)) + min(max(q.x, q.y), 0.), min(abs(y), abs(y - (tRoom == 3 ? 6. : 3.))))) - .05 : 1e9;
@@ -133,9 +128,10 @@ float neon(vec3 p)
         tube(d, length(p.xz - vec2(4, 25)) - .45, vec3(1, .3, .7));
     // from lap 2, the neon dies room by room: it flickers, then it's dark
     // with rare flashes
-    int die = DIE_LAP[tRoom];
-    float flash = hash(vec2(floor(time * 9.), tRoom));
-    neonCol *= lap < die ? 1. : lap == die ? step(.35, flash) : .03 + step(.96, flash);
+    if (lap >= tDie) {
+        float flash = hash(vec2(floor(time * 9.), tRoom));
+        neonCol *= lap == tDie ? step(.35, flash) : .03 + step(.96, flash);
+    }
     return d;
 }
 
@@ -188,7 +184,7 @@ vec2 map(vec3 p)
     for (int i = 0; i < MAX_ENEMIES; i++) {
         if ((seenX >> i & 1u) == 0u)
             continue;
-        float d = length(p - enemy[i].xyz) - 3.;
+        float d = length(p - enemy[i].xyz) - 2.4;
         if (d > .3)
             h.x = min(h.x, d);
         else {
@@ -217,21 +213,25 @@ vec2 map(vec3 p)
     return h;
 }
 
-vec3 normal(vec3 p)
+vec3 normal(vec3 p, float m)
 {
     vec2 e = vec2(1, -1) * 1e-3;
-    return normalize(e.xyy * map(p + e.xyy).x + e.yyx * map(p + e.yyx).x +
-                     e.yxy * map(p + e.yxy).x + e.xxx * map(p + e.xxx).x);
+    withNeon = m == M_NEON;
+    vec3 n = normalize(e.xyy * map(p + e.xyy).x + e.yyx * map(p + e.yyx).x +
+                       e.yxy * map(p + e.yxy).x + e.xxx * map(p + e.xxx).x);
+    withNeon = true;
+    return n;
 }
 
 float fogDensity;
 vec3 glowSum; // neon glow in the fog along the ray
 
 // Returns the distance along the ray and the material (-1: nothing).
+int maxSteps; // fewer for reflections
 vec2 march(vec3 ro, vec3 rd)
 {
     float t = 0.;
-    for (int i = 0; i < 200; i++) {
+    for (int i = 0; i < maxSteps; i++) {
         vec2 h = map(ro + rd * t);
         glowSum += neonCol * exp(-gNeon * 3. - t * fogDensity) * min(h.x, 1.);
         if (h.x < 2e-4 * (1. + t * 4.))
@@ -271,7 +271,7 @@ void cull(vec3 ro, vec3 rd)
         if (hitBox(ro, rd, ST_LO[i] - .5, ST_HI[i] + .5))
             seenSo |= 1u << (NS + i);
     for (int i = 0; i < MAX_ENEMIES; i++)
-        if (enemy[i].w != 0. && hitSphere(ro, rd, enemy[i].xyz, 3.3))
+        if (enemy[i].w != 0. && hitSphere(ro, rd, enemy[i].xyz, 2.7))
             seenX |= 1u << i;
     if (hitSphere(ro, rd, eye + mat3(camR, camU, camF) * (gunAt + vec3(0, 0, .03)), .3))
         seenX |= 1u << 31;
@@ -281,12 +281,48 @@ float occlusion(vec3 p, vec3 n)
 {
     float o = 0.;
     withNeon = false;
-    for (int i = 1; i < 4; i++) {
-        float d = float(i) * .2;
+    for (int i = 1; i < 3; i++) {
+        float d = float(i) * .3;
         o += (d - map(p + n * d).x) / d;
     }
     withNeon = true;
-    return clamp(1. - o * .2, 0., 1.);
+    return clamp(1. - o * .3, 0., 1.);
+}
+
+// Shafts of light falling from the ceiling: x, z, bottom, top.
+#define NB 6
+const vec4 BEAMS[NB] = vec4[](vec4(10, 0, 0, 9), vec4(22, 0, 0, 9), vec4(34, 0, 0, 9),
+                              vec4(64, 0, -7, 10), vec4(72, 0, -7, 10), vec4(-2, 24, -3, 10));
+#define BEAM_R 1.2
+#define BEAM_COL vec3(.45, .6, 1)
+
+// How much p is in a shaft (0 to 1).
+float inBeam(vec3 p)
+{
+    float k = 0.;
+    for (int i = 0; i < NB; i++) {
+        vec4 b = BEAMS[i];
+        k = max(k, smoothstep(BEAM_R, BEAM_R * .5, length(p.xz - b.xy)) * step(b.z - .1, p.y) * step(p.y, b.w + .1));
+    }
+    return k;
+}
+
+// The shafts' light in the fog along the ray, up to tMax: the length of the
+// ray inside each, softer at the edges.
+vec3 beams(vec3 ro, vec3 rd, float tMax)
+{
+    float c = 0.;
+    for (int i = 0; i < NB; i++) {
+        vec4 b = BEAMS[i];
+        vec2 o = ro.xz - b.xy, d = rd.xz;
+        float dd = dot(d, d) + 1e-6, tc = -dot(o, d) / dd;
+        float h2 = dot(o + d * tc, o + d * tc), r2 = BEAM_R * BEAM_R;
+        float hw = sqrt(max(r2 - h2, 0.) / dd);
+        float ta = (b.z - ro.y) / rd.y, tb = (b.w - ro.y) / rd.y;
+        float t0 = max(max(tc - hw, 0.), min(ta, tb)), t1 = min(min(tc + hw, tMax), max(ta, tb));
+        c += max(t1 - t0, 0.) * max(1. - h2 / r2, 0.) * exp(-t0 * fogDensity);
+    }
+    return BEAM_COL * c * _TV(beam, .04);
 }
 
 // Surface at p (material m): returns the albedo, sets rough, metal and glow.
@@ -343,6 +379,9 @@ vec3 material(vec3 p, float m)
             rough = .4;
             return vec3(.07, .065, .06) * (.5 + .5 * fbm(p.xz * 5.)) * (1. - .7 * step(.3, min(g.x, g.y)));
         }
+        // the route: dashes of light on the floor, moving the way to run
+        float at = trackPos(p);
+        glow = vec3(.4, .6, 1) * .35 * smoothstep(.08, .04, trackDist) * step(fract((at - time * 5.) * .4), .3);
         // stone tiles, worn, with puddles (more in the cistern)
         vec2 g = abs(fract(p.xz / 1.5) - .5);
         float wet = smoothstep(.55, .7, fbm(p.xz * .3) + .1 * fbm(p.xz * 3.) + (r == 3 ? .15 : 0.));
@@ -350,8 +389,11 @@ vec3 material(vec3 p, float m)
         return vec3(.055, .05, .045) * (.6 + .4 * hash(floor(p.xz / 1.5))) * (.7 + .5 * fbm(p.xz * 2.))
              * (1. - .6 * step(.48, max(g.x, g.y))) * (1. - .5 * wet);
     }
-    if (n.y < -.7)
+    if (n.y < -.7) {
+        // where a shaft starts: a grate letting the light in
+        glow = BEAM_COL * inBeam(p - vec3(0, .2, 0)) * step(.5, fract(p.x * 3.)) * 3.;
         return vec3(.02);
+    }
     float w = p.x + p.z;
     if (r == 6) {
         // the ramp room: metal panels
@@ -400,10 +442,11 @@ vec3 render(vec3 ro, vec3 rd)
     for (int bounce = 0; bounce < 2; bounce++) {
         glowSum = vec3(0);
         cull(ro, rd);
+        maxSteps = bounce > 0 ? 60 : 200;
         vec2 h = march(ro, rd);
         vec3 p = ro + rd * h.x, c = fogColor;
         if (h.y >= 0.) {
-            n = normal(p);
+            n = normal(p, h.y);
             v = -rd;
             vec3 albedo = material(p, h.y);
             f0 = mix(vec3(.04), albedo, metal);
@@ -412,7 +455,8 @@ vec3 render(vec3 ro, vec3 rd)
             // neon: by the distance to the tubes, a bit off the surface (so
             // that surfaces facing away get less)
             float d = neonAt(p + n * .3);
-            c = albedo * (neonCol * _TV(neonLight, 2.) / (1. + d * d * 3.) + vec3(.01, .012, .02)) * ao + glow;
+            c = albedo * (neonCol * _TV(neonLight, 2.) / (1. + d * d * 3.) + vec3(.01, .012, .02)
+                          + BEAM_COL * 1.5 * inBeam(p) * max(n.y, 0.)) * ao + glow;
             for (int i = 0; i < lightCount; i++) {
                 vec3 color = lightCol[i].rgb, l = lightPos[i].xyz - p;
                 c += albedo * color * max(dot(n, normalize(l)), 0.) / (dot(l, l) + .3) + shade(p, lightPos[i].xyz, color);
@@ -420,11 +464,11 @@ vec3 render(vec3 ro, vec3 rd)
         }
         float fog = exp(-h.x * fogDensity);
         col += weight * (mix(fogColor, c, fog) + glowSum * _TV(neonGlow, .05)
-                         + scattered(ro, rd, h.x));
+                         + scattered(ro, rd, h.x) + beams(ro, rd, h.x));
         if (h.y < 0.)
             break;
         weight *= (f0 + (1. - f0) * pow(1. - max(dot(n, v), 0.), 5.)) * (1. - rough) * fog;
-        if (rough > .3 || max(weight.x, max(weight.y, weight.z)) < .02)
+        if (rough > .08 || max(weight.x, max(weight.y, weight.z)) < .02)
             break;
         ro = p + n * .01;
         vec2 f = gl_FragCoord.xy;

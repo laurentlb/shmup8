@@ -13,7 +13,7 @@ the dark gets stronger.
 
 ## Current state
 
-**Size:** 9015 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
+**Size:** 9450 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
 
 **Controls:** WASD: move. Mouse: look. Left button: fire. Space: jump (hold to
 jump again on landing). Escape: quit.
@@ -36,7 +36,10 @@ jump again on landing). Escape: quit.
   * H, stairs up to the start hall.
 
   Stone blocks, stone tiles with puddles, metal gratings on the stairs, metal
-  panels in the ramp room. Each room has its own neon color, two tubes along
+  panels in the ramp room, pipes along the stair corridors. Shafts of cold
+  light fall from grates in the ceiling (the hall, onto the cistern's bridge,
+  the tower), seen in the fog. Dashes of light on the floor show the route,
+  moving the way to run. Each room has its own neon color, two tubes along
   its walls (not across the doorways). One set of distance functions for both
   the collisions (stairs are ramps there) and the rendering.
 * Movement: Quake-style: ground and air acceleration (air strafing works),
@@ -70,10 +73,11 @@ jump again on landing). Escape: quit.
   wet floors with reflections; bloom, tone mapping, vignette that closes in
   when the light is low, red flash when hurt.
 * Sound: a dark loop; shot, hit, kill, hurt, jump, lap and spitter sounds.
-* Performance: the scene is drawn at most 900 lines high, then scaled up (the
-  HUD at full resolution); 12 to 15 ms per frame at 2560x1440 on a laptop RTX
-  4070. Each ray only looks at the boxes, enemies and gun it can meet; the neon
-  tubes are those of the room a point is in.
+* Performance: the scene is drawn at most 810 lines high, then scaled up (the
+  HUD at full resolution); 10 to 13 ms per frame at 2560x1440 on a laptop RTX
+  4070 (`out\cat-debug.exe --check` prints it). Each ray only looks at the
+  boxes, enemies and gun it can meet; the neon tubes are those of the room a
+  point is in; reflections only on water and wet puddles.
 
 **Not yet:** a boss, title screen, music that reacts, tuning by
 playing (the difficulty was only tried with a bot that never misses).

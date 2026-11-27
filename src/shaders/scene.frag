@@ -158,8 +158,10 @@ float occlusion(vec3 p, vec3 n)
 // panel above the table and a cool one behind the player.
 vec3 env(vec3 rd)
 {
-    return vec3(0.05, 0.05, 0.09) * (0.4 + 0.6 * max(rd.z, 0.))
-         + vec3(1, 0.85, 0.65) * 4. * smoothstep(0.75, 0.92, rd.z) * smoothstep(0.3, 0.15, abs(rd.x))
+    return vec3(0.01, 0.01, 0.02) + vec3(0.3, 0.25, 0.2) * pow(max(rd.z, 0.), 3.)
+         + vec3(1, 0.95, 0.9) * 1.5 * smoothstep(0.3, 0.35, rd.z) * smoothstep(0.06, 0.04, abs(fract(rd.y * 3.) - 0.5)) * smoothstep(0.5, 0.4, abs(rd.x))
+         + vec3(1, 0.95, 0.9) * 3. * smoothstep(0.4, 0.5, rd.z) * smoothstep(0.03, 0.01, abs(abs(rd.x) - 0.3))
+         + vec3(1, 0.85, 0.65) * 4. * smoothstep(0.93, 0.97, rd.z) * smoothstep(0.1, 0.05, abs(rd.x))
          + vec3(0.3, 0.5, 1) * 1.5 * smoothstep(0.85, 0.95, -rd.y) * smoothstep(0.3, 0.1, abs(rd.z - 0.3));
 }
 
@@ -210,11 +212,11 @@ vec3 material(vec3 p, float m)
 {
     // worn metal: the tarnish varies, and so does the polish
     float wear = fbm(p.xy * 300. + p.z * 200.);
-    vec3 brass = vec3(0.85, 0.6, 0.3) * (0.7 + 0.4 * wear);
+    vec3 brass = vec3(1, 0.72, 0.32) * (0.95 + 0.1 * wear);
     vec3 rubber = vec3(0.02) * (0.8 + 0.4 * wear);
     metal = 0.;
     glow = vec3(0);
-    rough = 0.15 + 0.2 * wear;
+    rough = 0.05 + 0.05 * wear;
     lampDist = 1.;
     if (m == M_FLOOR) {
         if (areaDist(p.xy) > 0.) {
@@ -229,16 +231,17 @@ vec3 material(vec3 p, float m)
         float plank = floor(p.x / 0.065);
         float x = p.x + 0.004 * sin(p.y * 25. + plank * 3.) + 0.002 * fbm(p.xy * 60.);
         float grain = sin(x * 700. + fbm(vec2(x * 90., p.y * 6.)) * 8.) * 0.5 + sin(x * 2300.) * 0.25;
-        vec3 c = vec3(0.17, 0.06, 0.02) * (0.85 + 0.15 * grain) * (0.8 + 0.4 * hash(vec2(plank)))
+        vec3 c = vec3(0.004) * (0.85 + 0.15 * grain) * (0.8 + 0.4 * hash(vec2(plank)))
                * (0.85 + 0.3 * fbm(p.xy * vec2(20, 4)))
                * (1. - 0.6 * smoothstep(0.03, 0.032, abs(fract(p.x / 0.065) - 0.5) * 0.065));
         // the lacquer: worn and smudged in places
-        rough = 0.05 + 0.15 * smoothstep(0.4, 0.8, fbm(p.xy * 25.));
+        rough = 0.005 + 0.03 * smoothstep(0.5, 0.9, fbm(p.xy * 25.));
+        if (abs(fract(p.x / 0.065) - 0.5) * 0.065 > 0.0315) { metal = 1.; rough = 0.2; return vec3(1, 0.75, 0.35); }
         // a night sky painted under the orrery, with nebulae
         float gear = r - 0.195 - 0.006 * clamp(sin(a * 24.) * 4., -1., 1.);
         if (gear < 0.) {
             float cloud = fbm(p.xy * 30.);
-            c = mix(vec3(0.004, 0.008, 0.035), vec3(0.05, 0.015, 0.07), cloud * cloud * 1.5) * (1. - r * 2.);
+            c = mix(vec3(0.002, 0.002, 0.01), vec3(0.02, 0.005, 0.03), cloud * cloud * 1.5);
             glow = vec3(0.9, 0.9, 1) * stars(p.xy, 90.) * 0.6;
         }
         // brass inlays: the orbits, the toothed wheel
@@ -277,7 +280,8 @@ vec3 material(vec3 p, float m)
     if (m == M_WALL) {
         if (p.z > 0.045) { metal = 1.; return brass; } // a brass rail on top
         rough = 0.3;
-        return vec3(0.09, 0.035, 0.012) * (0.7 + 0.6 * fbm(vec2(p.x + p.y, p.z) * vec2(40, 300)));
+        rough = 0.02;
+        return vec3(0.005) * (0.7 + 0.6 * fbm(vec2(p.x + p.y, p.z) * vec2(40, 300)));
     }
     if (m == M_APRON) {
         // painted metal, worn on the edges
@@ -389,14 +393,14 @@ vec3 render(vec3 ro, vec3 rd)
         n = normal(p);
         v = -rd;
         albedo = material(p, h.y);
-        f0 = mix(vec3(h.y == M_FLOOR ? 0.07 : 0.04), albedo, metal); // lacquered playfield
+        f0 = mix(vec3(h.y == M_FLOOR ? 0.1 : 0.05), albedo, metal); // lacquered playfield
         albedo *= 1. - metal;
 
         float shade = bounce == 0 ? shadow(p + n * 0.001, key) : 1.;
         float ao = bounce == 0 ? occlusion(p, n) : 1.;
         vec3 toSun = vec3(SUN, 0.068) - p;
         float sunPower = (0.5 + flash.x * 3.) * 0.0012 / dot(toSun, toSun);
-        vec3 c = light(key, vec3(1, 0.85, 0.7) * 1.5 * shade)
+        vec3 c = light(key, vec3(0.9, 0.9, 1) * 1. * shade)
                + light(fill, vec3(0.3, 0.45, 1) * 0.5 * ao)
                + light(normalize(toSun), vec3(1, 0.5, 0.15) * sunPower)
                // ambient: the warm table below, the dark room above
@@ -448,6 +452,10 @@ void main()
     // Final image. Bloom: the mipmaps of the scene; a faint lens ghost.
     vec2 ca = (texCoord - 0.5) * 0.0015; // chromatic aberration, toward the edges
     vec3 col = vec3(texture(tex, texCoord + ca).r, texture(tex, texCoord).g, texture(tex, texCoord - ca).b);
+    vec3 streak = vec3(0);
+    for (int i = -24; i <= 24; i++)
+        streak += max(textureLod(tex, texCoord + vec2(float(i) * 0.012, 0), 2.).rgb - 1., 0.) * exp(-abs(float(i)) * 0.12);
+    col += streak * vec3(0.3, 0.5, 1) * 0.06;
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)
         bloom += max(textureLod(tex, texCoord, float(i)).rgb - 0.6, 0.);
@@ -455,7 +463,8 @@ void main()
     col = col * (2.51 * col + 0.03) / (col * (2.43 * col + 0.59) + 0.14);
     // grading: cool shadows, warm highlights, a little more saturation
     float luma = dot(col, vec3(0.3, 0.6, 0.1));
-    col = mix(vec3(luma), col, 1.15) + vec3(-0.01, 0, 0.02) * (1. - luma);
+    col = mix(vec3(luma), col, 1.05);
+    col = smoothstep(0., 1., col); // more contrast
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
     col *= max(1. - pow(length(texCoord - 0.5), 1.5) * 1.2, 0.);
     col += (hash(gl_FragCoord.xy + fract(time) * 100.) - 0.5) * 0.02; // grain

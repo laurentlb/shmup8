@@ -198,8 +198,10 @@ vec2 enemyShape(vec3 p, int i)
         body = min(body, length(max(abs(q) - vec3(.24, .008, .03), 0.)) - .004); // blades
     }
     // an eye in a socket
-    body = -smin(-body, length(l - vec3(0, 0, .55)) - .27, .05);
-    float eyeD = length(l - vec3(0, 0, .3)) - .2;
+    // (drones: a smaller lens)
+    float lens = kind == 2 || kind == 3 ? 1. : .6;
+    body = -smin(-body, length(l - vec3(0, 0, .55)) - .27 * lens, .05);
+    float eyeD = length(l - vec3(0, 0, .55 - .25 * lens)) - .2 * lens;
     return vec2(min(body, eyeD) * s * .8, eyeD < body ? 30. + float(i) : 10. + float(i));
 }
 
@@ -400,7 +402,7 @@ vec3 material(vec3 p, float m)
     metal = 0.;
     glow = vec3(0);
     if (m >= 30.) {
-        glow = RED * (6. + 10. * enemyInfo[int(m - 30.)].y / enemyScale(enemyKind[int(m - 30.)]));
+        glow = vec3(1, .04, .015) * (3. + 4. * enemyInfo[int(m - 30.)].y);
         return vec3(0);
     }
     if (m >= 10.) {
@@ -410,7 +412,8 @@ vec3 material(vec3 p, float m)
         int kind = enemyKind[i];
         float sc = enemyScale(kind);
         float flash = enemyInfo[i].y;
-        glow = vec3(.6, .5, .45) * flash * flash * flash / sc + vec3(10) * max(-enemy[i].w, 0.);
+        // hit: a hot rim; bursting: white
+        glow = vec3(1, .5, .3) * flash * flash * pow(1. - max(dot(n, v), 0.), 2.) * 2. + vec3(10) * max(-enemy[i].w, 0.);
         if (kind == 2 || kind == 3) {
             // creatures: glowing veins
             float veins = abs(fbm(q.xy * 6. + q.z * 4. + time) - .5);
@@ -540,6 +543,22 @@ vec3 fireballs(vec3 ro, vec3 rd, float tMax)
     return c;
 }
 
+// The enemies' shots: tracers, a hot head and a fading tail.
+vec3 tracers(vec3 ro, vec3 rd, float tMax)
+{
+    vec3 c = vec3(0);
+    for (int k = 0; k < MAX_SHOTS; k++) {
+        vec3 a = shot[k].xyz - ro, d = -shotVel[k].xyz * .07;
+        float rdd = dot(rd, d), s = clamp((dot(rd, a) * rdd - dot(d, a)) / max(dot(d, d) - rdd * rdd, 1e-5), 0., 1.);
+        vec3 q = a + d * s;
+        float t = dot(q, rd);
+        q -= rd * t;
+        if (shot[k].w > 0. && t > 0. && t < tMax)
+            c += FIRE * (1. - s) * .002 / (dot(q, q) + 3e-4);
+    }
+    return c;
+}
+
 // Light focused by waves above: bright moving lines.
 float caustics(vec3 p)
 {
@@ -583,7 +602,7 @@ vec3 render(vec3 ro, vec3 rd)
         float fog = exp(-h.x * fogDensity);
         c *= exp(-h.x * vec3(.07, .02, .015));
         col += weight * (mix(fogColor, c, fog) + glowSum * _TV(neonGlow, .05)
-                         + scattered(ro, rd, h.x) + beams(ro, rd, h.x) + fireballs(ro, rd, h.x));
+                         + scattered(ro, rd, h.x) + beams(ro, rd, h.x) + fireballs(ro, rd, h.x) + tracers(ro, rd, h.x));
         if (h.y < 0.)
             break;
         weight *= (f0 + (1. - f0) * pow(1. - max(dot(n, v), 0.), 5.)) * (1. - rough) * fog;

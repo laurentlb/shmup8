@@ -17,7 +17,8 @@
 
 // Colors: the player's light is gold, the world cold neon, the enemies red.
 #define GOLD vec3(1, .75, .4)
-#define RED vec3(1, .05, .12)
+#define RED vec3(1, .03, .07)
+#define FIRE vec3(1, .14, .02) // the enemies' shots
 #define ORANGE vec3(1, .4, .1) // rockets and their ammo
 
 // Enemies: 0 wraith, 1 spitter, 2 skitter, 3 brute, 4 warden (the boss).

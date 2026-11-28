@@ -412,8 +412,10 @@ vec3 material(vec3 p, float m)
         int kind = enemyKind[i];
         float sc = enemyScale(kind);
         float flash = enemyInfo[i].y;
-        // hit: a hot rim; bursting: white
-        glow = vec3(1, .5, .3) * flash * flash * pow(1. - max(dot(n, v), 0.), 2.) * 2. + vec3(10) * max(-enemy[i].w, 0.);
+        // hit: a hot rim; bursting: hot cracks, fading
+        float burst = max(-enemy[i].w, 0.) / .3;
+        glow = vec3(1, .5, .3) * flash * flash * pow(1. - max(dot(n, v), 0.), 2.) * 2.
+             + vec3(4, 1.2, .3) * burst * (.4 + 3. * smoothstep(.06, 0., abs(noise(q.xz * 12. / sc + q.y * 7.) - .5)));
         if (kind == 2 || kind == 3) {
             // creatures: glowing veins
             float veins = abs(fbm(q.xy * 6. + q.z * 4. + time) - .5);
@@ -579,7 +581,7 @@ vec3 render(vec3 ro, vec3 rd)
     for (int bounce = 0; bounce < 2; bounce++) {
         glowSum = vec3(0);
         cull(ro, rd);
-        maxSteps = bounce > 0 ? 60 : 200;
+        maxSteps = bounce > 0 ? 48 : 200;
         vec2 h = march(ro, rd);
         vec3 p = ro + rd * h.x, c = fogColor;
         if (h.y >= 0.) {
@@ -588,7 +590,7 @@ vec3 render(vec3 ro, vec3 rd)
             vec3 albedo = material(p, h.y);
             f0 = mix(vec3(.04), albedo, metal);
             albedo *= 1. - metal;
-            float ao = occlusion(p, n);
+            float ao = bounce > 0 ? 1. : occlusion(p, n); // (reflections: cheaper)
             // neon: by the distance to the tubes, a bit off the surface (so
             // that surfaces facing away get less)
             float d = neonAt(p + n * .3);
@@ -597,7 +599,7 @@ vec3 render(vec3 ro, vec3 rd)
                           + vec3(.5, 1.2, 1.3) * caustics(p) * (.3 + .7 * max(n.y, 0.)) * (.3 + .7 * light)) * ao + glow;
             for (int i = 0; i < lightCount; i++) {
                 vec3 color = lightCol[i].rgb, l = lightPos[i].xyz - p;
-                c += albedo * color * max(dot(n, normalize(l)), 0.) / (dot(l, l) + .3) + shade(p, lightPos[i].xyz, color);
+                c += albedo * color * max(dot(n, normalize(l)), 0.) / (dot(l, l) + .3) + (bounce > 0 ? vec3(0) : shade(p, lightPos[i].xyz, color));
             }
         }
         float fog = exp(-h.x * fogDensity);
@@ -607,7 +609,7 @@ vec3 render(vec3 ro, vec3 rd)
         if (h.y < 0.)
             break;
         weight *= (f0 + (1. - f0) * pow(1. - max(dot(n, v), 0.), 5.)) * (1. - rough) * fog;
-        if (rough > .08 || max(weight.x, max(weight.y, weight.z)) < .02)
+        if (rough > .08 || max(weight.x, max(weight.y, weight.z)) < .06)
             break;
         ro = p + n * .01;
         vec2 f = gl_FragCoord.xy;

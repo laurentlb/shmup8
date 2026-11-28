@@ -57,7 +57,7 @@ rocket. Space: jump (hold to jump again on landing). Escape: quit.
   (on the hall's walkway, at the bottom of the flooded pit, in corners); they
   come back on each lap.
 * Enemies, readable in the dark (a red eye, a red light, glowing veins or a
-  red light strip), flashing when hit, bursting into light when killed:
+  red light strip), a hot rim when hit, glowing cracks and a burst of light when killed:
   * hunter drones, flat pods on four ducted rotors, weave toward you (hard to
     snipe) and charge when close; a ram costs light and knocks you back;
   * gunships, armored drones with a cannon under the nose and two ducted fans,
@@ -103,7 +103,7 @@ rocket. Space: jump (hold to jump again on landing). Escape: quit.
   per frame at 2560x1440 on a laptop RTX 4070 at full resolution, depending on
   the fight (`out\cat-debug.exe --check` prints it). Each ray only looks at the
   boxes, enemies and gun it can meet; the spore strips are those of the room a
-  point is in; reflections only on water and the marble.
+  point is in; reflections only on water and the marble, cheaper than the main image.
 
 Other looks were tried (neon, fire, vector, ink, 1-bit, thermal, gilded): see
 [looks/shooter](looks/shooter/README.md).

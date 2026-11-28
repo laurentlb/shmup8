@@ -495,6 +495,7 @@ vec3 fireballs(vec3 ro, vec3 rd, float tMax)
     return c;
 }
 
+float depth0;
 vec3 render(vec3 ro, vec3 rd)
 {
     const vec3 fogColor = vec3(.004, .005, .012);
@@ -505,6 +506,7 @@ vec3 render(vec3 ro, vec3 rd)
         maxSteps = bounce > 0 ? 60 : 200;
         vec2 h = march(ro, rd);
         vec3 p = ro + rd * h.x, c = fogColor;
+        if (bounce == 0) depth0 = min(h.x, 100.);
         if (h.y >= 0.) {
             n = normal(p, h.y);
             v = -rd;
@@ -555,10 +557,15 @@ void main()
 
         vec3 rd = normalize(uv.x * camR + uv.y * camU + (_TV(focal, 1.6) - kick * .03) * camF);
         // A NaN would spread through the bloom.
-        fragColor = vec4(clamp(render(eye, rd), 0., 50.), 1);
+        fragColor.rgb = clamp(render(eye, rd), 0., 50.);
+        fragColor.a = depth0;
         return;
     }
 
+    // 1-bit: big pixels, 360 lines
+    float bs = iFrame.y / 360.;
+    vec2 cell = floor(gl_FragCoord.xy / bs);
+    texCoord = (cell + .5) * bs / iFrame.xy;
     // Final image. Bloom: the mipmaps of the scene.
     vec2 tc = texCoord * iFrame.z, ca = (texCoord - .5) * .002; // chromatic aberration, toward the edges
     vec3 col = vec3(texture(tex, tc + ca).r, texture(tex, tc).g, texture(tex, tc - ca).b);
@@ -577,7 +584,19 @@ void main()
     col = mix(col, vec3(col.r + .3, 0, 0), hurt * smoothstep(.2, .7, edge));
     col += lapFlash * GOLD * .3;
     col *= max(1. - dead * .5, 0.);
-    col += (hash(gl_FragCoord.xy + fract(time) * 100.) - .5) * .02; // grain
+    // 1-bit: ordered dithering (4x4 Bayer), outlines from the depth, red stays red
+    {
+        ivec2 i = ivec2(mod(cell, 4.));
+        int x = i.x ^ i.y;
+        float bayer = (float((x & 1) << 3 | (i.y & 1) << 2 | (x >> 1 & 1) << 1 | (i.y >> 1 & 1)) + .5) / 16.;
+        vec2 px = bs / iFrame.xy * iFrame.z;
+        float d = texture(tex, tc).a;
+        float e = abs(texture(tex, tc - vec2(px.x, 0)).a + texture(tex, tc + vec2(px.x, 0)).a - 2. * d)
+                + abs(texture(tex, tc - vec2(0, px.y)).a + texture(tex, tc + vec2(0, px.y)).a - 2. * d);
+        bool on = dot(col, vec3(.3, .6, .1)) * 1.8 > bayer && e / d < .08;
+        bool red = col.r > max(col.g, col.b) * 2. && col.r > .2;
+        col = on ? (red ? vec3(.9, .15, .1) : vec3(.92, .86, .7)) : vec3(.07, .05, .1);
+    }
 
     vec3 cold = vec3(.5, .8, 1);
     if (dead > 1.) {

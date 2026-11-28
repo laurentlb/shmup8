@@ -495,6 +495,7 @@ vec3 fireballs(vec3 ro, vec3 rd, float tMax)
     return c;
 }
 
+float depth0;
 vec3 render(vec3 ro, vec3 rd)
 {
     const vec3 fogColor = vec3(.004, .005, .012);
@@ -505,6 +506,7 @@ vec3 render(vec3 ro, vec3 rd)
         maxSteps = bounce > 0 ? 60 : 200;
         vec2 h = march(ro, rd);
         vec3 p = ro + rd * h.x, c = fogColor;
+        if (bounce == 0) depth0 = min(h.x, 100.);
         if (h.y >= 0.) {
             n = normal(p, h.y);
             v = -rd;
@@ -537,6 +539,25 @@ vec3 render(vec3 ro, vec3 rd)
     return col;
 }
 
+// Ink: the image inverted on paper; outlines where the depth changes, bright
+// lights as ink blots, hatching in the midtones, red ink for red.
+vec3 ink(vec3 col, vec2 tc)
+{
+    vec2 px = 1. / vec2(textureSize(tex, 0));
+    float d = texture(tex, tc).a;
+    float e = abs(texture(tex, tc - vec2(px.x, 0)).a + texture(tex, tc + vec2(px.x, 0)).a - 2. * d)
+            + abs(texture(tex, tc - vec2(0, px.y)).a + texture(tex, tc + vec2(0, px.y)).a - 2. * d);
+    float line = smoothstep(.03, .12, e / d) * smoothstep(60., 20., d);
+    float luma = dot(col, vec3(.3, .6, .1));
+    vec2 f = gl_FragCoord.xy;
+    float hatch = smoothstep(.04, .14, luma) * step(.6, fract((f.x + f.y) / 7.)) * .6
+                + smoothstep(.15, .3, luma) * step(.6, fract((f.x - f.y) / 7.)) * .6;
+    float amount = min(max(max(line, smoothstep(.3, .8, luma)), hatch), 1.);
+    vec3 paper = vec3(.93, .89, .8) * (.9 + .1 * fbm(f * .02)) * (.95 + .05 * noise(f * .5));
+    vec3 inkCol = col.r > max(col.g, col.b) * 1.8 && col.r > .15 ? vec3(.75, .08, .05) : vec3(.07, .06, .07);
+    return mix(paper, inkCol, amount * (.85 + .15 * noise(f * .3)));
+}
+
 void main()
 {
     vec2 texCoord = gl_FragCoord.xy / iFrame.xy;
@@ -555,7 +576,8 @@ void main()
 
         vec3 rd = normalize(uv.x * camR + uv.y * camU + (_TV(focal, 1.6) - kick * .03) * camF);
         // A NaN would spread through the bloom.
-        fragColor = vec4(clamp(render(eye, rd), 0., 50.), 1);
+        fragColor.rgb = clamp(render(eye, rd), 0., 50.);
+        fragColor.a = depth0;
         return;
     }
 
@@ -565,7 +587,7 @@ void main()
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)
         bloom += max(textureLod(tex, tc, float(i)).rgb - .4, 0.);
-    col += bloom * _TV(bloomAmount, .3);
+    col += bloom * _TV(bloomAmount, .1);
     col = col * (2.51 * col + .03) / (col * (2.43 * col + .59) + .14);
     // grading: cold shadows, a little more saturation
     float luma = dot(col, vec3(.3, .6, .1));
@@ -595,7 +617,7 @@ void main()
         col += cold * k * smoothstep(.01, 0., min(abs(length(q) - .04) - .006, max(abs(q.x) - .004, abs(q.y - .015) - .02)));
         digits7(col, RED * 2. * k, uv * 18. - vec2(1.5, -6.), 18., kills, 1);
         col += RED * 2. * k * smoothstep(.01, 0., length(uv - vec2(-.3, -.33)) - .03); // an eye: kills
-        fragColor = vec4(col, 1);
+        fragColor = vec4(ink(col, tc), 1);
         return;
     }
     // HUD: crosshair (red on hits), lap time, best lap, lap, light
@@ -619,5 +641,5 @@ void main()
     col += orange * smoothstep(.003, 0., dot(abs(uv - vec2(.42, -.9)), vec2(1)) - .018);
     digits7(col, orange, uv * 22. - vec2(10.9, -19.8), 22., rockets, 1);
     col += ORANGE * pickupFlash * .15;
-    fragColor = vec4(col, 1);
+    fragColor = vec4(ink(col, tc), 1);
 }

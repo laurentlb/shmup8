@@ -27,3 +27,4 @@
 2026-11-27 f0225d1 9015 Shooter: the gun gets better on each lap (faster, two and three bolts), bands on the barrel show it
 2026-11-27 c14ff10 9450 Shooter: shafts of light, route dashes on the floor, pipes; faster rendering
 2026-11-28 6bcd9bb 10778 Shooter: skitters and brutes, a rocket launcher with ammo crates, enemy navigation, dynamic resolution
+2026-11-28 cbdf72b+ 11124 README: drowned look, warden, heartbeat, title

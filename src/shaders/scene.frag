@@ -331,7 +331,7 @@ float occlusion(vec3 p, vec3 n)
 const vec4 BEAMS[NB] = vec4[](vec4(10, 0, 0, 9), vec4(22, 0, 0, 9), vec4(34, 0, 0, 9),
                               vec4(64, 0, -7, 10), vec4(72, 0, -7, 10), vec4(-2, 24, -3, 10));
 #define BEAM_R 1.2
-#define BEAM_COL vec3(.45, .6, 1)
+#define BEAM_COL vec3(.2, .3, .5)
 
 // How much p is in a shaft (0 to 1).
 float inBeam(vec3 p)
@@ -385,7 +385,7 @@ vec3 material(vec3 p, float m)
     }
     if (m == M_NEON) {
         neonAt(p);
-        glow = neonCol * 6.;
+        glow = (neonCol + .6 * dot(neonCol, vec3(.4))) * 6.;
         return vec3(0);
     }
     if (m == M_COIL) {
@@ -410,6 +410,18 @@ vec3 material(vec3 p, float m)
     }
     level(p);
     int r = tRoom;
+    {
+        // Vector: grid lines every 2 m (and fainter every 0.5 m) on the surface's plane
+        vec3 a = abs(n);
+        vec2 q = a.y > .7 ? p.xz : a.x > a.z ? p.zy : p.xy;
+        vec2 g = abs(fract(q * .5 + .5) - .5) * 2., f = abs(fract(q * 2. + .5) - .5) * .5;
+        float k = tNeon.r + tNeon.b > 0. ? 1. : 0.;
+        neonAt(p);
+        vec3 c = (neonCol + vec3(.15) * dot(neonCol, vec3(1))) * k + vec3(.1, .3, .5) * (1. - k);
+        glow = c * (smoothstep(.035, .01, min(g.x, g.y)) * 1.5 + smoothstep(.012, .004, min(f.x, f.y)) * .25);
+        rough = a.y > .7 ? .04 : .5;
+        return vec3(.004);
+    }
     if (n.y > .7) {
         if (p.y < -6.5) {
             // the cistern's water: dark, a mirror with ripples
@@ -497,7 +509,7 @@ vec3 fireballs(vec3 ro, vec3 rd, float tMax)
 
 vec3 render(vec3 ro, vec3 rd)
 {
-    const vec3 fogColor = vec3(.004, .005, .012);
+    const vec3 fogColor = vec3(0);
     vec3 col = vec3(0), weight = vec3(1);
     for (int bounce = 0; bounce < 2; bounce++) {
         glowSum = vec3(0);
@@ -512,6 +524,7 @@ vec3 render(vec3 ro, vec3 rd)
             f0 = mix(vec3(.04), albedo, metal);
             albedo *= 1. - metal;
             float ao = occlusion(p, n);
+            if (h.y == M_LEVEL) glow += glow * pow(1. - ao, 2.) * 3. + (tNeon.rgb + .2) * pow(1. - ao, 2.) * .5;
             // neon: by the distance to the tubes, a bit off the surface (so
             // that surfaces facing away get less)
             float d = neonAt(p + n * .3);
@@ -528,7 +541,7 @@ vec3 render(vec3 ro, vec3 rd)
         if (h.y < 0.)
             break;
         weight *= (f0 + (1. - f0) * pow(1. - max(dot(n, v), 0.), 5.)) * (1. - rough) * fog;
-        if (rough > .08 || max(weight.x, max(weight.y, weight.z)) < .02)
+        if (rough > .2 || max(weight.x, max(weight.y, weight.z)) < .02)
             break;
         ro = p + n * .01;
         vec2 f = gl_FragCoord.xy;
@@ -551,7 +564,7 @@ void main()
         camR = normalize(cross(camF, vec3(0, 1, 0)));
         camU = cross(camR, camF);
         gunAt = vec3(.22 + sin(bob * 1.4) * .01, -.21 + b * .01, .36 - kick * .06);
-        fogDensity = _TV(fog, .03) + (1. - light) * .08;
+        fogDensity = _TV(fog, .02) + (1. - light) * .08;
 
         vec3 rd = normalize(uv.x * camR + uv.y * camU + (_TV(focal, 1.6) - kick * .03) * camF);
         // A NaN would spread through the bloom.
@@ -565,7 +578,7 @@ void main()
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)
         bloom += max(textureLod(tex, tc, float(i)).rgb - .4, 0.);
-    col += bloom * _TV(bloomAmount, .3);
+    col += bloom * _TV(bloomAmount, .6);
     col = col * (2.51 * col + .03) / (col * (2.43 * col + .59) + .14);
     // grading: cold shadows, a little more saturation
     float luma = dot(col, vec3(.3, .6, .1));

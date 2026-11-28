@@ -22,6 +22,7 @@ image, to share: [all-looks.jpg](all-looks.jpg). Frames, left to right:
 | 6 | [1-bit](1bit.jpg) | `look/shooter-1bit` | Two colors on a 360-line grid of big pixels, 4x4 ordered dithering, depth outlines; only strong red is kept. |
 | 7 | [Thermal](thermal.jpg) | `look/shooter-thermal` | A thermal camera: the scene pass writes a heat value in alpha (enemies white-hot, the gun warm, walls cool, warmer corners), a blurry sensor, an "ironbow" palette, noise and scanlines. Enemies can't hide. |
 | 8 | [Gilded](gilded.jpg) | `look/shooter-gilded` | A sunlit temple: pale stone, polished black marble floors with veins (mirror reflections), gold trims instead of tubes, wide golden god rays, a warm haze. The black enemies stand out against the light. |
+| 9 | [Drowned](drowned.jpg) | `look/shooter-drowned`, now `shooter` | Chosen: the Abyss mood without the underwater cues (no wobble, no snow, weaker absorption), with Gilded's black marble floors, caustics dimming with your light. |
 
 The captures come from the editor (`out\cat-debug.exe --capture ... 1.5 5.5 9 15.5 40 62`)
 at 1280x720, with the bot.

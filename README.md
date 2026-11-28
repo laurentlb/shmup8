@@ -1,7 +1,7 @@
-# Neon shooter (work in progress)
+# Drowned shooter (work in progress)
 
 A first-person shooter for Windows, aiming at 16 kB: a loop of stone halls,
-stairs and crypts lit by neon, raymarched, in fog. Your light is your time: it
+stairs and crypts lit by glowing spores, raymarched, in fog. Your light is your time: it
 drains, and killing the creatures of the dark gives it back. Run lap after lap;
 the dark gets stronger.
 
@@ -27,7 +27,7 @@ rocket. Space: jump (hold to jump again on landing). Escape: quit.
     and a white frame at the start line;
   * B, stairs down 4 m;
   * C, the cistern: a 32 m hall, 14 m high, with a flooded pit (the water
-    reflects the neon), a bridge across it, stairs out of the water, four
+    reflects the spores), a bridge across it, stairs out of the water, four
     pillars, and a balcony along the north wall;
   * D, a ramp up to the balcony: you run back above the cistern, looking down
     on the bridge you crossed;
@@ -35,12 +35,13 @@ rocket. Space: jump (hold to jump again on landing). Escape: quit.
   * G, the tower: drop 4 m from a ledge, around a pylon with a glowing core;
   * H, stairs up to the start hall.
 
-  Stone blocks, stone tiles with puddles, metal gratings on the stairs, metal
+  Stone blocks, polished black marble floors with pale veins (dark mirrors), metal gratings on the stairs, metal
   panels in the ramp room, pipes along the stair corridors. Shafts of cold
   light fall from grates in the ceiling (the hall, onto the cistern's bridge,
-  the tower), seen in the fog. Dashes of light on the floor show the route,
-  moving the way to run. Each room has its own neon color, two tubes along
-  its walls (not across the doorways). One set of distance functions for both
+  the tower), seen in the fog. Caustics ripple over every surface, as if light
+  came through water far above; they dim as your light runs out. Dashes of light on the floor show the route,
+  moving the way to run. Each room has two strips of glowing spores along its
+  walls (not across the doorways), teal to green, slowly pulsing. One set of distance functions for both
   the collisions (stairs are ramps there) and the rendering.
 * Movement: Quake-style: ground and air acceleration (air strafing works),
   friction, jumps, head bob.
@@ -63,38 +64,49 @@ rocket. Space: jump (hold to jump again on landing). Escape: quit.
   * skitters, small spiders running on six legs, come in packs on the floor
     and leap at you; one hit kills them, but look down;
   * brutes, from lap 3: big armored balls with horns, slow, tough (rockets
-    help), firing three shots at once; they release a lot of light.
+    help), firing three shots at once; they release a lot of light;
+  * the warden, a boss, from lap 2: half-way through each lap, a giant with two
+    rings of spikes and a crown comes from ahead; it fires fans of five shots,
+    and follows you (a health bar at the top). Killing it releases a flood of
+    light and +4 rockets.
 
   They appear on the route, mostly ahead, sometimes behind; more of them,
   faster, tougher, and more spitters on each lap. Each one checks now and then
   whether it sees you: then it attacks; otherwise it follows the route toward
   you (through the doorways, not into walls).
-* Light: drains over time (faster on each lap). A kill releases three orbs of
+* Light: drains over time (faster on each lap). When it is low, a heartbeat,
+  faster and faster, squeezes the view. A kill releases three orbs of
   light that fly back to you. A lap gives some light back. At zero, the dark
   takes you.
-* Laps change the place: from lap 2, the neon dies room by room (the crypt
+* Laps change the place: from lap 2, the spores die room by room (the crypt
   first): it flickers for a lap, then the room is dark, with rare flashes; you
   fight by your own light and the enemies' eyes. A new lap shows its number, big.
+* Title: the camera glides along the route, letterboxed, with a pulsing
+  "play" sign; a key or a click starts.
 * End of a run: the results (laps, in gold for a record; best lap; kills),
   then fire for a new run. The record and the best lap are kept across runs.
 * Laps: the track's quarters must be reached in order. Lap clock, best lap, lap
   number, light bar, crosshair (red on hits).
-* Rendering: raymarched; neon light from the distance to the tubes; point lights
+* Rendering: raymarched; a teal water mood that absorbs the red with distance;
+  light from the distance to the spore strips; point lights
   (bolts, impacts, orbs, the enemies' eyes and shots, your lantern) made by the
   gameplay shader, with a bright core; fog with light scattered from them, thicker when your light is low;
-  wet floors with reflections; bloom, tone mapping, vignette that closes in
+  mirror floors; bloom, tone mapping, vignette that closes in
   when the light is low, red flash when hurt.
 * Sound: a dark loop; shot, hit, kill, hurt, jump, lap, enemy shot, rocket,
-  explosion and ammo sounds.
+  explosion and ammo sounds, a heartbeat.
 * Performance: the scene is drawn at most 810 lines high, then scaled up (the
   HUD at full resolution); in the release, the resolution goes down to 60% when
   a frame takes more than 14 ms, and back up (dynamic resolution). 10 to 17 ms
   per frame at 2560x1440 on a laptop RTX 4070 at full resolution, depending on
   the fight (`out\cat-debug.exe --check` prints it). Each ray only looks at the
-  boxes, enemies and gun it can meet; the neon tubes are those of the room a
-  point is in; reflections only on water and wet puddles.
+  boxes, enemies and gun it can meet; the spore strips are those of the room a
+  point is in; reflections only on water and the marble.
 
-**Not yet:** a boss, title screen, music that reacts, tuning by
+Other looks were tried (neon, fire, vector, ink, 1-bit, thermal, gilded): see
+[looks/shooter](looks/shooter/README.md).
+
+**Not yet:** music that reacts, tuning by
 playing (the difficulty was only tried with a bot that never misses).
 
 This branch started from the pinball branch, itself from the engine of the shoot 'em up released at

@@ -239,7 +239,7 @@ namespace Capture
 		in.y = cosf(rel) > 0.38f ? 1.f : cosf(rel) < -0.38f ? -1.f : 0.f;
 		in.x = sinf(rel) > 0.38f ? 1.f : sinf(rel) < -0.38f ? -1.f : 0.f;
 		// rockets: at a brute, or into a group
-		bool rocket = rockets > 0 && target >= 0 && nearest > 5 && (kind[target] == 3 || close >= 3);
+		bool rocket = rockets > 0 && target >= 0 && nearest > 5 && (kind[target] >= 3 || close >= 3);
 		in.buttons = (float)(nearest < 30) + 4.f * rocket;
 		return in;
 	}

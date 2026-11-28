@@ -48,7 +48,7 @@ layout(std430, binding = 0)buffer State{
   int lightCount;
   vec4 lightPos[32],lightCol[32];
 };
-const int ENEMY_HEALTH[4]=int[](3,5,1,16);
+const int ENEMY_HEALTH[5]=int[](3,5,1,16,40);
 const vec3 PICKUPS[6]=vec3[](vec3(20,1.6,4.75),vec3(68,-6.4,5),vec3(88,1.6,15),vec3(26,1.6,10),vec3(-6,-2.4,32),vec3(-6,.6,-1)),IN_LO[13]=vec3[](vec3(0,0,-6),vec3(-3,0,-2.5),vec3(39,-4,-2.5),vec3(52,-4,-16),vec3(60,-7,-8),vec3(83,-4,-2.5),vec3(84,-4,-2.5),vec3(83,1,11),vec3(24,1,8),vec3(50,1,11),vec3(19,1,26),vec3(-8,-3,16),vec3(-8,-3,-2.5)),IN_HI[13]=vec3[](vec3(40,9,6),vec3(1,4.5,2.5),vec3(53,4.5,2.5),vec3(84,10,16),vec3(76,-3.9,8),vec3(86,.5,2.5),vec3(90,6.5,16),vec3(86,5.5,16),vec3(52,7.2,34),vec3(54,5,16),vec3(25,5,32),vec3(20,10,34),vec3(-2,4.5,17)),SO_LO[9]=vec3[](vec3(4,0,-6),vec3(4,0,3.5),vec3(59,-7.5,-2),vec3(52,.5,11),vec3(52,1,10.8),vec3(84,-4,11),vec3(14,-3,24),vec3(-8,-3,-2.5),vec3(39,-4,-2.5)),SO_HI[9]=vec3[](vec3(36,1,-3.5),vec3(36,1,6),vec3(77,-4,2),vec3(84,1,16),vec3(84,2,11.2),vec3(90,1,16),vec3(20,1,34),vec3(-2,0,4),vec3(42,0,2.5)),ST_LO[5]=vec3[](vec3(42,-4,-2.5),vec3(70,-7,2),vec3(70,-7,-8),vec3(84,-4,1),vec3(-8,-3,4)),ST_HI[5]=vec3[](vec3(50,0,2.5),vec3(76,-4,8),vec3(76,-4,-2),vec3(90,1,11),vec3(-2,0,12));
 const int ST_DIR[5]=int[](1,0,0,2,3);
 const vec3 ROUTE[23]=vec3[](vec3(3,0,0),vec3(38,0,0),vec3(42,0,0),vec3(51,-4,0),vec3(59,-4,0),vec3(77,-4,0),vec3(87,-4,0),vec3(87,1,11),vec3(87,1,13.5),vec3(53,1,13.5),vec3(50,1,17),vec3(45,1,17),vec3(45,1,23),vec3(33,1,23),vec3(33,1,29),vec3(22,1,29),vec3(15,1,30),vec3(10,-3,31),vec3(-4,-3,30),vec3(-5,-3,18),vec3(-5,-3,12),vec3(-5,0,4),vec3(-5,0,0));
@@ -79,7 +79,9 @@ float enemyScale(int kind)
     .45:
     kind==3?
       2.:
-      1.;
+      kind==4?
+        2.6:
+        1.;
 }
 float box(vec3 p,vec3 lo,vec3 hi)
 {
@@ -307,11 +309,13 @@ vec2 enemyShape(vec3 p,int i)
     }
   else if(kind==3)
     body=min(smin(length(f)-.55,capsule(vec3(abs(f.xy),f.z),vec3(.3,.3,-.1),vec3(.75,.75,-.5),.12),.15),length(vec2(length(f.xy)-.58,f.z+.05))-.07);
-  else if(kind==1)
+  else if(kind==1||kind==4)
     {
       body=length(f)-.5;
       float a=mod(atan(f.y,f.x)+t*.3+.39,.785)-.39;
       body=smin(body,capsule(vec3(length(f.xy)*vec2(cos(a),sin(a)),f.z),vec3(.3,0,-.1),vec3(1.1,0,-.4),.05),.15);
+      if(kind==4)
+        a=mod(atan(f.y,f.x)-t*.2,.785)-.39,body=min(smin(body,capsule(vec3(length(f.xy)*vec2(cos(a),sin(a)),f.z),vec3(.3,0,-.3),vec3(.8,0,-1),.04),.1),length(vec2(length(f.xy)-.62,f.z+.1))-.05);
     }
   else
     {
@@ -685,7 +689,7 @@ void main()
   if(started==0)
     {
       col*=step(abs(uv.y),.78);
-      vec2 q=uv-vec2(0,-.62);
+      vec2 q=(uv-vec2(0,-.6))*.5;
       col+=bloom*(.6+.4*sin(time*3.))*smoothstep(.004,0.,max(-q.x-.02,abs(q.y)*1.7+q.x-.02));
       fragColor=vec4(col,1);
       return;
@@ -706,6 +710,9 @@ void main()
   col+=pulse*vec3(1,.75,.4)*(light<.25?
     step(.5,fract(time*3.))+.3:
     .8);
+  for(int i=0;i<12;i++)
+    if(enemyKind[i]==4&&enemy[i].w>0.)
+      col+=vec3(1,.05,.12)*1.5*step(abs(uv.y-.8),.008)*step(abs(uv.x),.5*enemy[i].w/float(ENEMY_HEALTH[4]+lap/2*8));
   bloom=vec3(1,.4,.1)*(rockets>0?
     1.5:
     .4);
@@ -765,7 +772,7 @@ layout(std430, binding = 0)buffer State{
   int lightCount;
   vec4 lightPos[32],lightCol[32];
 };
-const int ENEMY_HEALTH[4]=int[](3,5,1,16);
+const int ENEMY_HEALTH[5]=int[](3,5,1,16,40);
 const vec3 PICKUPS[6]=vec3[](vec3(20,1.6,4.75),vec3(68,-6.4,5),vec3(88,1.6,15),vec3(26,1.6,10),vec3(-6,-2.4,32),vec3(-6,.6,-1)),IN_LO[13]=vec3[](vec3(0,0,-6),vec3(-3,0,-2.5),vec3(39,-4,-2.5),vec3(52,-4,-16),vec3(60,-7,-8),vec3(83,-4,-2.5),vec3(84,-4,-2.5),vec3(83,1,11),vec3(24,1,8),vec3(50,1,11),vec3(19,1,26),vec3(-8,-3,16),vec3(-8,-3,-2.5)),IN_HI[13]=vec3[](vec3(40,9,6),vec3(1,4.5,2.5),vec3(53,4.5,2.5),vec3(84,10,16),vec3(76,-3.9,8),vec3(86,.5,2.5),vec3(90,6.5,16),vec3(86,5.5,16),vec3(52,7.2,34),vec3(54,5,16),vec3(25,5,32),vec3(20,10,34),vec3(-2,4.5,17)),SO_LO[9]=vec3[](vec3(4,0,-6),vec3(4,0,3.5),vec3(59,-7.5,-2),vec3(52,.5,11),vec3(52,1,10.8),vec3(84,-4,11),vec3(14,-3,24),vec3(-8,-3,-2.5),vec3(39,-4,-2.5)),SO_HI[9]=vec3[](vec3(36,1,-3.5),vec3(36,1,6),vec3(77,-4,2),vec3(84,1,16),vec3(84,2,11.2),vec3(90,1,16),vec3(20,1,34),vec3(-2,0,4),vec3(42,0,2.5)),ST_LO[5]=vec3[](vec3(42,-4,-2.5),vec3(70,-7,2),vec3(70,-7,-8),vec3(84,-4,1),vec3(-8,-3,4)),ST_HI[5]=vec3[](vec3(50,0,2.5),vec3(76,-4,8),vec3(76,-4,-2),vec3(90,1,11),vec3(-2,0,12));
 const int ST_DIR[5]=int[](1,0,0,2,3);
 const vec3 ROUTE[23]=vec3[](vec3(3,0,0),vec3(38,0,0),vec3(42,0,0),vec3(51,-4,0),vec3(59,-4,0),vec3(77,-4,0),vec3(87,-4,0),vec3(87,1,11),vec3(87,1,13.5),vec3(53,1,13.5),vec3(50,1,17),vec3(45,1,17),vec3(45,1,23),vec3(33,1,23),vec3(33,1,29),vec3(22,1,29),vec3(15,1,30),vec3(10,-3,31),vec3(-4,-3,30),vec3(-5,-3,18),vec3(-5,-3,12),vec3(-5,0,4),vec3(-5,0,0));
@@ -785,7 +792,9 @@ float enemyScale(int kind)
     .45:
     kind==3?
       2.:
-      1.;
+      kind==4?
+        2.6:
+        1.;
 }
 float box(vec3 p,vec3 lo,vec3 hi)
 {
@@ -968,8 +977,10 @@ void hitEnemy(int i,vec3 dir,float damage)
       kills++;
       shake=max(shake,.4);
       addSpark(enemy[i].xyz,4.);
-      for(int k=0,n=0;k<12&&n<(enemyKind[i]==3?
-        10:
+      if(enemyKind[i]==4)
+        rockets=min(rockets+4,15),pickupEvents++,lapFlash=shake=1.;
+      for(int k=0,n=0;k<12&&n<(enemyKind[i]>2?
+        12:
         enemyKind[i]==2?
           2:
           3);k++)
@@ -1017,8 +1028,8 @@ void spawn(vec3 s,int kind)
   for(int i=0;i<12;i++)
     if(enemy[i].w==0.)
       {
-        enemy[i]=vec4(s,float(ENEMY_HEALTH[kind]+lap/2*(kind==3?
-          4:
+        enemy[i]=vec4(s,float(ENEMY_HEALTH[kind]+lap/2*(kind>2?
+          4*(kind-2):
           1)));
         enemyKind[i]=kind;
         enemyVel[i]=vec4(0);
@@ -1146,6 +1157,8 @@ void update()
             lap++,lapEvents++,bestLap=bestLap>0.?
               min(bestLap,lapTime):
               lapTime,lapTime=0.,light=min(light+.1,1.),lapFlash=1.,taken=0;
+          if(q==2&&lap>1)
+            spawn(trackPoint(wl+25.)+vec3(0,3,0),4);
         }
       q=0;
       int brutes=0;
@@ -1269,28 +1282,25 @@ void update()
           }
       else
         {
+          int fan=max(kind-2,0);
           v+=((see?
-            to*clamp(dist-(kind==3?
-              10.:
-              14.),-1.,1.):
-            go)*speed*(kind==3?
-            .5:
-            1.)+side*4.-v)*DT*1.5;
+            to*clamp(dist-(kind==1?
+              14.:
+              10.),-1.,1.):
+            go)*speed*(kind==1?
+            1.:
+            .5)+side*4.-v)*DT*1.5;
           if(info.z<=0.&&dist<30.&&dead==0.)
             {
               info.z=.4;
               if(see)
                 {
                   vec3 r=normalize(cross(to,vec3(0,1,0)));
-                  for(int j=kind==3?
-                    -1:
-                    0,k=0;j<=(kind==3?
-                    1:
-                    0)&&k<10;k++)
+                  for(int j=-fan,k=0;j<=fan&&k<10;k++)
                     if(shot[k].w<=0.)
-                      shot[k]=vec4(e+to*size,3),shotVel[k].xyz=normalize(to+r*float(j++)*.12)*(12.+float(lap)),spitEvents++,info.z=max(2.2-.2*float(lap),1.)*(kind==3?
-                        1.5:
-                        1.);
+                      shot[k]=vec4(e+to*size,3),shotVel[k].xyz=normalize(to+r*float(j++)*.12)*(12.+float(lap)),spitEvents++,info.z=max(2.2-.2*float(lap),1.)*(kind==1?
+                        1.:
+                        1.5);
                 }
             }
         }
@@ -1328,7 +1338,9 @@ void update()
       enemy[i].xyz=e;
       enemyVel[i].xyz=v;
       enemyInfo[i]=info;
-      if(dist>70.||dead>0.)
+      if(dist>(kind==4?
+        120.:
+        70.)||dead>0.)
         enemy[i].w=0.;
     }
   for(int k=0;k<10;k++)

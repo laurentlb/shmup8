@@ -87,7 +87,13 @@ void hitEnemy(int i, vec3 dir, float damage)
         kills++;
         shake = max(shake, .4);
         addSpark(enemy[i].xyz, 4.);
-        for (int k = 0, n = 0; k < MAX_ORBS && n < (enemyKind[i] == 3 ? 10 : enemyKind[i] == 2 ? 2 : 3); k++)
+        if (enemyKind[i] == 4) {
+            // the warden: rockets, and a flash
+            rockets = min(rockets + 4, 15);
+            pickupEvents++;
+            lapFlash = shake = 1.;
+        }
+        for (int k = 0, n = 0; k < MAX_ORBS && n < (enemyKind[i] > 2 ? 12 : enemyKind[i] == 2 ? 2 : 3); k++)
             if (orb[k].w <= 0.) {
                 orb[k] = vec4(enemy[i].xyz, 1);
                 orbVel[k].xyz = rndDir() * 6. + vec3(0, 3, 0);
@@ -141,7 +147,7 @@ void spawn(vec3 s, int kind)
 {
     for (int i = 0; i < MAX_ENEMIES; i++)
         if (enemy[i].w == 0.) {
-            enemy[i] = vec4(s, float(ENEMY_HEALTH[kind] + lap / 2 * (kind == 3 ? 4 : 1)));
+            enemy[i] = vec4(s, float(ENEMY_HEALTH[kind] + lap / 2 * healthUp(kind)));
             enemyKind[i] = kind;
             enemyVel[i] = vec4(0);
             enemyInfo[i] = vec4(0, 0, 1.5, 0);
@@ -292,6 +298,12 @@ void update()
                 lapFlash = 1.;
                 taken = 0; // the crates are back
             }
+            // from lap 2, half-way: the warden comes, ahead (one at a time)
+            bool warden = q == 2 && lap > 1;
+            for (int i = 0; i < MAX_ENEMIES; i++)
+                warden = warden && (enemyKind[i] != 4 || enemy[i].w <= 0.);
+            if (warden)
+                spawn(trackPoint(along + 25.) + vec3(0, 3, 0), 4);
         }
 
         // more enemies appear on the route (mostly ahead, sometimes behind),
@@ -421,20 +433,21 @@ void update()
                 }
             }
         } else {
-            // spitter (1) and brute (3): keep away, circle, shoot (three
-            // shots for a brute) when they see the player
-            float range = kind == 3 ? 10. : 14.;
+            // spitter (1), brute (3) and warden (4): keep away, circle,
+            // shoot when they see the player (a fan of 3 or 5 shots)
+            float range = kind == 1 ? 14. : 10.;
+            int fan = max(kind - 2, 0);
             v += ((see ? to * clamp(dist - range, -1., 1.) : go) * speed * (kind == 3 ? .5 : 1.) + side * 4. - v) * DT * 1.5;
             if (info.z <= 0. && dist < 30. && dead == 0.) {
                 info.z = .4;
                 if (see) {
                     vec3 r = normalize(cross(to, vec3(0, 1, 0)));
-                    for (int j = kind == 3 ? -1 : 0, k = 0; j <= (kind == 3 ? 1 : 0) && k < MAX_SHOTS; k++)
+                    for (int j = -fan, k = 0; j <= fan && k < MAX_SHOTS; k++)
                         if (shot[k].w <= 0.) {
                             shot[k] = vec4(e + to * size, 3);
-                            shotVel[k].xyz = normalize(to + r * float(j++) * .12) * (12. + float(lap));
+                            shotVel[k].xyz = normalize(to + r * float(j++) * (.1 + .05 * float(fan))) * (12. + float(lap));
                             spitEvents++;
-                            info.z = max(2.2 - .2 * float(lap), 1.) * (kind == 3 ? 1.5 : 1.);
+                            info.z = max(2.2 - .2 * float(lap), 1.) * (kind == 1 ? 1. : 1.5);
                         }
                 }
             }
@@ -473,7 +486,7 @@ void update()
         enemyVel[i].xyz = v;
         enemyInfo[i] = info;
         // far away: gone (others appear ahead)
-        if (dist > 70. || dead > 0.)
+        if (dist > (kind == 4 ? 120. : 70.) || dead > 0.)
             enemy[i].w = 0.;
     }
 

@@ -20,12 +20,17 @@
 #define RED vec3(1, .05, .12)
 #define ORANGE vec3(1, .4, .1) // rockets and their ammo
 
-// Enemies: 0 wraith, 1 spitter, 2 skitter, 3 brute.
+// Enemies: 0 wraith, 1 spitter, 2 skitter, 3 brute, 4 warden (the boss).
 float enemyScale(int kind)
 {
-    return kind == 2 ? .45 : kind == 3 ? 2. : 1.;
+    return kind == 2 ? .45 : kind == 3 ? 2. : kind == 4 ? 2.6 : 1.;
 }
-const int ENEMY_HEALTH[4] = int[](3, 5, 1, 16);
+const int ENEMY_HEALTH[5] = int[](3, 5, 1, 16, 40);
+// health gained every two laps
+int healthUp(int kind)
+{
+    return kind > 2 ? 4 * (kind - 2) : 1;
+}
 
 // Ammo crates (rockets), some off the route: on the hall's walkway, in the
 // flooded pit, in corners.

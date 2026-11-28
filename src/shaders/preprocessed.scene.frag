@@ -110,9 +110,14 @@ layout(std430, binding = 0) buffer State {
 
 float enemyScale(int kind)
 {
-    return kind == 2 ? .45 : kind == 3 ? 2. : 1.;
+    return kind == 2 ? .45 : kind == 3 ? 2. : kind == 4 ? 2.6 : 1.;
 }
-const int ENEMY_HEALTH[4] = int[](3, 5, 1, 16);
+const int ENEMY_HEALTH[5] = int[](3, 5, 1, 16, 40);
+
+int healthUp(int kind)
+{
+    return kind > 2 ? 4 * (kind - 2) : 1;
+}
 
 
 
@@ -507,11 +512,17 @@ vec2 enemyShape(vec3 p, int i)
         body = length(l) - .55;
         body = smin(body, capsule(vec3(abs(l.xy), l.z), vec3(.3, .3, -.1), vec3(.75, .75, -.5), .12), .15);
         body = min(body, length(vec2(length(l.xy) - .58, l.z + .05)) - .07);
-    } else if (kind == 1) {
+    } else if (kind == 1 || kind == 4) {
+        
         
         body = length(l) - .5;
         float a = mod(atan(l.y, l.x) + t * .3 + .39, .785) - .39;
         body = smin(body, capsule(vec3(length(l.xy) * vec2(cos(a), sin(a)), l.z), vec3(.3, 0, -.1), vec3(1.1, 0, -.4), .05), .15);
+        if (kind == 4) {
+            a = mod(atan(l.y, l.x) - t * .2, .785) - .39;
+            body = smin(body, capsule(vec3(length(l.xy) * vec2(cos(a), sin(a)), l.z), vec3(.3, 0, -.3), vec3(.8, 0, -1.), .04), .1);
+            body = min(body, length(vec2(length(l.xy) - .62, l.z + .1)) - .05);
+        }
     } else {
         
         body = length(l * vec3(1, 1.15, .8)) - .5;
@@ -706,7 +717,7 @@ vec3 material(vec3 p, float m)
     metal = 0.;
     glow = vec3(0);
     if (m >= 30.) {
-        glow = RED * (6. + 10. * enemyInfo[int(m - 30.)].y);
+        glow = RED * (6. + 10. * enemyInfo[int(m - 30.)].y / enemyScale(enemyKind[int(m - 30.)]));
         return vec3(0);
     }
     if (m >= 10.) {
@@ -714,8 +725,8 @@ vec3 material(vec3 p, float m)
         int i = int(m - 10.);
         vec3 q = p - enemy[i].xyz;
         float veins = abs(fbm(q.xy * 6. + q.z * 4. + time) - .5);
-        glow = RED * smoothstep(.06, 0., veins) * 3. + vec3(1.5) * enemyInfo[i].y + vec3(10) * max(-enemy[i].w, 0.);
-        rough = .15;
+        glow = RED * smoothstep(.06, 0., veins) * 3. + vec3(1.5 / enemyScale(enemyKind[i])) * enemyInfo[i].y + vec3(10) * max(-enemy[i].w, 0.);
+        rough = enemyKind[i] == 4 ? .6 : .15;
         return vec3(.01);
     }
     if (m == M_NEON) {
@@ -950,7 +961,7 @@ void main()
     if (started == 0) {
         
         col *= step(abs(uv.y), .78);
-        vec2 q = uv - vec2(0, -.62);
+        vec2 q = (uv - vec2(0, -.6)) * .5;
         col += cold * (.6 + .4 * sin(time * 3.)) * smoothstep(.004, 0., max(-q.x - .02, abs(q.y) * 1.7 + q.x - .02));
         fragColor = vec4(col, 1);
         return;
@@ -971,6 +982,10 @@ void main()
         digits7(col, GOLD * lapFlash * 2., uv * 6. - vec2(.5, 1.5), 6., lap, 1);
     float bar = step(abs(uv.y + .9), .006) * step(abs(uv.x), .35 * light);
     col += bar * GOLD * (light < .25 ? step(.5, fract(time * 3.)) + .3 : .8);
+    
+    for (int i = 0; i < MAX_ENEMIES; i++)
+        if (enemyKind[i] == 4 && enemy[i].w > 0.)
+            col += RED * 1.5 * step(abs(uv.y - .74), .008) * step(abs(uv.x), .5 * enemy[i].w / float(ENEMY_HEALTH[4] + lap / 2 * healthUp(4)));
     
     vec3 orange = ORANGE * (rockets > 0 ? 1.5 : .4);
     col += orange * smoothstep(.003, 0., dot(abs(uv - vec2(.42, -.9)), vec2(1)) - .018);

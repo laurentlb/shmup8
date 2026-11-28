@@ -13,7 +13,7 @@ the dark gets stronger.
 
 ## Current state
 
-**Size:** 11595 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
+**Size:** 11890 bytes (Release), out of a 16384 target. History in `tools/sizes.txt`.
 
 **Controls:** WASD: move. Mouse: look. Left button: light gun. Right button:
 rocket. Space: jump (hold to jump again on landing). Escape: quit.
@@ -79,23 +79,26 @@ rocket. Space: jump (hold to jump again on landing). Escape: quit.
 * Light: drains over time (faster on each lap). When it is low, a heartbeat,
   faster and faster, squeezes the view. A kill releases three orbs of
   light that fly back to you. A lap gives some light back. At zero, the dark
-  takes you.
+  takes you: you fall and roll over as the view goes dark.
 * Laps change the place: from lap 2, the spores die room by room (the crypt
   first): it flickers for a lap, then the room is dark, with rare flashes; you
   fight by your own light and the enemies' eyes. A new lap shows its number, big.
-* Title: the camera glides along the route, letterboxed, with a pulsing
-  "play" sign; a key or a click starts.
+* Title: the camera glides along the route, letterboxed; the name
+  appears letter by letter in glowing strokes (each letter is a polyline packed
+  in 32 bits), with a pulsing "play" sign; a key or a click starts, with a flash
+  and a big "1".
 * End of a run: the results (laps, in gold for a record; best lap; kills),
   then fire for a new run. The record and the best lap are kept across runs.
-* Laps: the track's quarters must be reached in order. Lap clock, best lap, lap
+* Laps: the track's quarters must be reached in order. Lap clock and best lap (with hundredths), lap
   number, light bar, crosshair (red on hits).
 * Rendering: raymarched; a teal water mood that absorbs the red with distance;
   light from the distance to the spore strips; point lights
   (bolts, impacts, orbs, the enemies' eyes and shots, your lantern) made by the
-  gameplay shader, with a bright core; fog with light scattered from them, thicker when your light is low;
+  gameplay shader, with a bright core; fog with light scattered from them, thicker and darker when your light is low;
   mirror floors; bloom, tone mapping, vignette that closes in
   when the light is low, red flash when hurt.
-* Sound: a dark loop; shot, hit, kill (a short explosion), hurt, jump, lap, enemy shot, rocket,
+* Sound: a 51 s song in sections (arpeggio and pad alone, then the kick and
+  bass, the hats, a glassy echoed melody, and a breakdown); shot, hit, kill (a short explosion), hurt, jump, lap, enemy shot, rocket,
   explosion and ammo sounds, a heartbeat.
 * Performance: the scene is drawn at most 810 lines high, then scaled up (the
   HUD at full resolution); in the release, the resolution goes down to 60% when
@@ -108,8 +111,7 @@ rocket. Space: jump (hold to jump again on landing). Escape: quit.
 Other looks were tried (neon, fire, vector, ink, 1-bit, thermal, gilded): see
 [looks/shooter](looks/shooter/README.md).
 
-**Not yet:** music that reacts, tuning by
-playing (the difficulty was only tried with a bot that never misses).
+**Not yet:** tuning by playing (the difficulty was only tried with a bot that never misses).
 
 This branch started from the pinball branch, itself from the engine of the shoot 'em up released at
 https://laurentlb.itch.io/shmup8 (branch `main`, 3 kB, made for

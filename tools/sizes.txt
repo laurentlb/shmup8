@@ -30,3 +30,4 @@
 2026-11-28 cbdf72b+ 11124 README: drowned look, warden, heartbeat, title
 2026-11-28 7fb2a57+ 11430 Shooter: thinner fireballs from inside, softer blast light; README
 2026-11-28 d7f2640+ 11595 Shooter: deaths as glowing cracks, cheaper reflections
+2026-11-28 2c80429+ 11890 Shooter: a ring by the lap number

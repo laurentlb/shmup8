@@ -65,6 +65,7 @@ namespace Capture
 			"  --fps N            frame rate: 30, 60 or 120 (default: 60)\n"
 			"  --keys bot|auto|none|FILE  a bot that watches the ball, scripted inputs,\n"
 			"                     or inputs saved by the editor (default: bot)\n"
+			"  --bot-after S      the bot waits S seconds (shows the title)\n"
 			"  --wav FILE         also save the sound (60 fps only)\n", DEMO_LENGTH_IN_S, XRES);
 		return 2;
 	}
@@ -274,6 +275,7 @@ namespace Capture
 			return 1;
 		}
 
+		float botAfter = 0;
 		std::string outDir = "capture", sheetPath, videoPath, wavPath, keys = "bot", ffmpeg = "ffmpeg";
 		int cols = 3, fps = 60, crf = 12;
 		std::vector<float> times;
@@ -295,6 +297,7 @@ namespace Capture
 			else if (!strcmp(a, "--end") && hasValue) end = (float)atof(argv[++i]), endSet = true;
 			else if (!strcmp(a, "--crf") && hasValue) crf = atoi(argv[++i]);
 			else if (!strcmp(a, "--keys") && hasValue) keys = argv[++i];
+			else if (!strcmp(a, "--bot-after") && hasValue) botAfter = (float)atof(argv[++i]);
 			else if (!strcmp(a, "--trace") && hasValue) trace = (float)atof(argv[++i]);
 			else if (!strcmp(a, "--ffmpeg") && hasValue) ffmpeg = argv[++i];
 			else if (!strcmp(a, "--set") && hasValue)
@@ -407,7 +410,7 @@ namespace Capture
 				if (keys == "auto")
 					input = autoInput(t);
 				else if (keys == "bot")
-					input = History::decode(History::encode(botInput(host, 1.f / fps)));
+					input = t < botAfter ? GameInput() : History::decode(History::encode(botInput(host, 1.f / fps)));
 				host.step(input, stepsPerFrame);
 			}
 			host.draw(width, height, 1.f / fps, fbo);

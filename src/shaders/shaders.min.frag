@@ -767,6 +767,7 @@ void main()
   if(bestLap>0.)
     clock7(col,bloom*.5,uv*40.-vec2(6.8,34.6),40.,bestLap);
   digits7(col,bloom,uv*22.-vec2(-34,19.5),22.,lap,1);
+  col+=bloom*smoothstep(.004,0.,abs(length(uv-vec2(-1.62,.886))-.022)-.003);
   if(lapFlash>0.)
     digits7(col,vec3(1,.75,.4)*lapFlash*2.,uv*6.-vec2(.5,1.5),6.,lap,1);
   pulse=step(abs(uv.y+.9),.006)*step(abs(uv.x),.35*light);

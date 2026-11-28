@@ -382,6 +382,8 @@ void addSpark(vec3 p, float power)
 void newRun()
 {
     started = 1;
+    lapFlash = 1.; 
+    lapEvents++;
     pos = vec3(5, R_BODY + .01, 0);
     vel = vec3(0);
     yawBase = -iInput[1].x;

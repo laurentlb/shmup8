@@ -206,6 +206,13 @@ void digits7(inout vec3 o,vec3 c,vec2 q,float scale,int value,int minDigits)
     }
   o+=c*(clamp(.5-iFrame.y/scale*d*.5,0.,1.)+.2*exp(-30.*max(d,0.)));
 }
+void clock7(inout vec3 o,vec3 c,vec2 q,float scale,float t)
+{
+  int cs=int(t*1e2);
+  digits7(o,c,q,scale,cs%100,2);
+  digits7(o,c,q+vec2(3,0),scale,cs/100,1);
+  o+=c*smoothstep(.16,.1,length(q+vec2(2.12,.85)));
+}
 float hash(vec2 p)
 {
   return fract(sin(dot(p,vec2(12.9,78.2)))*4e4);
@@ -723,10 +730,7 @@ void main()
         vec3(1,.75,.4)*(1.5+sin(time*8.)):
         bloom)*k,uv*7.-vec2(.6,1.6),7.,lap-1,1);
       col+=bloom*k*smoothstep(.01,0.,abs(length(uv-vec2(-.25,.23))-.06)-.008);
-      int cs=int(bestLap*1e2);
-      digits7(col,bloom*k,uv*18.-vec2(1.5,-2),18.,cs%100,2);
-      digits7(col,bloom*k,uv*18.-vec2(-1.5,-2),18.,cs/100,1);
-      col+=bloom*k*smoothstep(.06,.02,length(uv*18.-vec2(-.4,-3.2)));
+      clock7(col,bloom*k,uv*18.-vec2(1.5,-2),18.,bestLap);
       vec2 q=uv-vec2(-.3,-.11);
       col+=bloom*k*smoothstep(.01,0.,min(abs(length(q)-.04)-.006,max(abs(q.x)-.004,abs(q.y-.015)-.02)));
       digits7(col,vec3(1,.03,.07)*2.*k,uv*18.-vec2(1.5,-6),18.,kills,1);
@@ -737,6 +741,20 @@ void main()
   if(started==0)
     {
       col*=step(abs(uv.y),.78);
+      const uint letters[7]=uint[](251746144u,37967968u,15738976u,16262150u,1016416u,33768296u,251746144u);
+      float d=9.;
+      for(int i=0;i<7;i++)
+        for(int j=0;j<6;j++)
+          {
+            uint a=letters[i]>>4*j&15u,b=letters[i]>>4*j+4&15u;
+            if(b>14u)
+              break;
+            vec2 pa=vec2(a%3u,a/3u),e=(uv-vec2(-.83+float(i)*.25,.12))/.07-pa;
+            pa=vec2(b%3u,b/3u)-pa;
+            d=min(d,length(e-pa*clamp(dot(e,pa)/dot(pa,pa),0.,1.))+max(1.+float(i)*.2-time,0.)*9.);
+          }
+      float on=.9+.1*sin(time*40.)*step(fract(time*.37),.05);
+      col+=vec3(.6,1,1)*on*(smoothstep(.12,.04,d)*1.5+.25/(1.+d*d*6.));
       vec2 q=(uv-vec2(0,-.6))*.5;
       col+=bloom*(.6+.4*sin(time*3.))*smoothstep(.004,0.,max(-q.x-.02,abs(q.y)*1.7+q.x-.02));
       fragColor=vec4(col,1);
@@ -745,12 +763,9 @@ void main()
   tc=abs(uv);
   pulse=max(step(tc.x+tc.y,.004),step(abs(max(tc.x,tc.y)-.03-hitMark*.01),.002)*step(min(tc.x,tc.y),.002));
   col=mix(col,mix(vec3(.9),vec3(1,.03,.07)*2.,hitMark),pulse*.8);
-  int cs=int(lapTime*1e2);
-  digits7(col,bloom,uv*22.-vec2(-.5,19.5),22.,cs%100,2);
-  digits7(col,bloom,uv*22.-vec2(-3.5,19.5),22.,cs/100,1);
-  col+=bloom*smoothstep(.06,.02,length(uv*22.-vec2(-2.4,18.3)));
+  clock7(col,bloom,uv*22.-vec2(-.5,19.5),22.,lapTime);
   if(bestLap>0.)
-    digits7(col,bloom*.5,uv*40.-vec2(1.5,33),40.,int(bestLap*1e2),3);
+    clock7(col,bloom*.5,uv*40.-vec2(6.8,34.6),40.,bestLap);
   digits7(col,bloom,uv*22.-vec2(-34,19.5),22.,lap,1);
   if(lapFlash>0.)
     digits7(col,vec3(1,.75,.4)*lapFlash*2.,uv*6.-vec2(.5,1.5),6.,lap,1);
@@ -983,6 +998,8 @@ void addSpark(vec3 p,float power)
 void newRun()
 {
   started=1;
+  lapFlash=1.;
+  lapEvents++;
   pos=vec3(5,.51,0);
   vel=vec3(0);
   yawBase=-iInput[1].x;

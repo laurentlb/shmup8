@@ -49,6 +49,15 @@ void digits7(inout vec3 o, vec3 c, vec2 q, float scale, int value, int minDigits
     o += c * (clamp(.5 - iFrame.y / scale * d * .5, 0., 1.) + .2 * exp(-30. * max(d, 0.)));
 }
 
+// A time in seconds, with hundredths: 12.34
+void clock7(inout vec3 o, vec3 c, vec2 q, float scale, float t)
+{
+    int cs = int(t * 100.);
+    digits7(o, c, q, scale, cs % 100, 2);
+    digits7(o, c, q + vec2(3, 0), scale, cs / 100, 1);
+    o += c * smoothstep(.16, .1, length(q + vec2(2.12, .85)));
+}
+
 float hash(vec2 p)
 {
     return fract(sin(dot(p, vec2(12.9, 78.2))) * 4e4);
@@ -668,10 +677,7 @@ void main()
         bool best = lap - 1 >= record && lap > 1;
         digits7(col, (best ? GOLD * (1.5 + sin(time * 8.)) : cold) * k, uv * 7. - vec2(.6, 1.6), 7., lap - 1, 1);
         col += cold * k * smoothstep(.01, 0., abs(length(uv - vec2(-.25, .23)) - .06) - .008); // a ring: laps
-        int cs = int(bestLap * 100.);
-        digits7(col, cold * k, uv * 18. - vec2(1.5, -2.), 18., cs % 100, 2);
-        digits7(col, cold * k, uv * 18. - vec2(-1.5, -2.), 18., cs / 100, 1);
-        col += cold * k * smoothstep(.06, .02, length(uv * 18. - vec2(-.4, -3.2)));
+        clock7(col, cold * k, uv * 18. - vec2(1.5, -2.), 18., bestLap);
         // a clock: the best lap
         vec2 q = uv - vec2(-.3, -.11);
         col += cold * k * smoothstep(.01, 0., min(abs(length(q) - .04) - .006, max(abs(q.x) - .004, abs(q.y - .015) - .02)));
@@ -683,6 +689,20 @@ void main()
     if (started == 0) {
         // the title: letterbox, and a slowly pulsing "play" sign
         col *= step(abs(uv.y), .78);
+        // the name, in glowing strokes: each letter is a polyline on a 3x3
+        // grid (4 bits per point, 15 ends it)
+        const uint letters[7] = uint[](0xF015760u, 0x2435860u, 0xF02860u, 0xF82406u, 0xF8260u, 0x2034368u, 0xF015760u);
+        float d = 9.;
+        for (int i = 0; i < 7; i++)
+            for (int j = 0; j < 6; j++) {
+                uint a = letters[i] >> 4 * j & 15u, b = letters[i] >> 4 * j + 4 & 15u;
+                if (b > 14u) break;
+                vec2 pa = vec2(a % 3u, a / 3u), pb = vec2(b % 3u, b / 3u);
+                vec2 e = (uv - vec2(-.83 + float(i) * .25, .12)) / .07 - pa, s = pb - pa;
+                d = min(d, length(e - s * clamp(dot(e, s) / dot(s, s), 0., 1.)) + max(1. + float(i) * .2 - time, 0.) * 9.); // the letters come one by one
+            }
+        float on = (.9 + .1 * sin(time * 40.) * step(fract(time * .37), .05)); // a flicker now and then
+        col += vec3(.6, 1, 1) * on * (smoothstep(.12, .04, d) * 1.5 + .25 / (1. + d * d * 6.));
         vec2 q = (uv - vec2(0, -.6)) * .5;
         col += cold * (.6 + .4 * sin(time * 3.)) * smoothstep(.004, 0., max(-q.x - .02, abs(q.y) * 1.7 + q.x - .02));
         fragColor = vec4(col, 1);
@@ -692,12 +712,9 @@ void main()
     vec2 c = abs(uv);
     float aim = max(step(c.x + c.y, .004), step(abs(max(c.x, c.y) - .03 - hitMark * .01), .002) * step(min(c.x, c.y), .002));
     col = mix(col, mix(vec3(.9), RED * 2., hitMark), aim * .8);
-    int cs = int(lapTime * 100.);
-    digits7(col, cold, uv * 22. - vec2(-.5, 19.5), 22., cs % 100, 2);
-    digits7(col, cold, uv * 22. - vec2(-3.5, 19.5), 22., cs / 100, 1);
-    col += cold * smoothstep(.06, .02, length(uv * 22. - vec2(-2.4, 18.3)));
+    clock7(col, cold, uv * 22. - vec2(-.5, 19.5), 22., lapTime);
     if (bestLap > 0.)
-        digits7(col, cold * .5, uv * 40. - vec2(1.5, 33.), 40., int(bestLap * 100.), 3);
+        clock7(col, cold * .5, uv * 40. - vec2(6.8, 34.6), 40., bestLap);
     digits7(col, cold, uv * 22. - vec2(-34., 19.5), 22., lap, 1);
     // a new lap: its number, big
     if (lapFlash > 0.)

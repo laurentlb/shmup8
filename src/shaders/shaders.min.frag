@@ -288,50 +288,62 @@ vec2 enemyShape(vec3 p,int i)
   float s=(enemy[i].w<0.?
     1.6+enemy[i].w*2.:
     max(enemyInfo[i].x,.05))*1.3*enemyScale(kind);
-  vec3 f=normalize(eye-e);
-  if(kind==2)
-    f=normalize(vec3(f.x,0,f.z));
-  vec3 r=normalize(cross(f,vec3(0,1,0))),u=cross(r,f);
-  e=p-e;
-  f=vec3(dot(e,r),dot(e,u),dot(e,f))/s;
-  float t=time*3.+float(i)*1.7,body;
+  vec3 f=normalize((eye-e)*vec3(1,kind==2?
+    0.:
+    .3,1)),r=normalize(cross(f,vec3(0,1,0)));
+  p-=e;
+  e=vec3(dot(p,r),dot(p,cross(r,f)),dot(p,f))/s;
+  float body;
   if(kind==2)
     {
-      body=length(f*vec3(1,1.6,.8))-.5;
+      body=length(e*vec3(1,1.6,.8))-.5;
       for(int k=0;k<6;k++)
         {
           float side=k<3?
             -1.:
             1.,z=float(k%3-1)*.45,a=time*16.+float(k)*2.1;
           vec3 hip=vec3(side*.3,0,z),foot=vec3(side*1.1,-.8+max(sin(a),0.)*.3,z*1.5+cos(a)*.2),knee=(hip+foot)*.5+vec3(side*.1,.55,0);
-          body=smin(body,min(capsule(f,hip,knee,.07),capsule(f,knee,foot,.05)),.08);
+          body=smin(body,min(capsule(e,hip,knee,.07),capsule(e,knee,foot,.05)),.08);
         }
     }
   else if(kind==3)
-    body=min(smin(length(f)-.55,capsule(vec3(abs(f.xy),f.z),vec3(.3,.3,-.1),vec3(.75,.75,-.5),.12),.15),length(vec2(length(f.xy)-.58,f.z+.05))-.07);
+    body=min(smin(length(e)-.55,capsule(vec3(abs(e.xy),e.z),vec3(.3,.3,-.1),vec3(.75,.75,-.5),.12),.15),length(vec2(length(e.xy)-.58,e.z+.05))-.07);
   else if(kind==1||kind==4)
     {
-      body=length(f)-.5;
-      float a=mod(atan(f.y,f.x)+t*.3+.39,.785)-.39;
-      body=smin(body,capsule(vec3(length(f.xy)*vec2(cos(a),sin(a)),f.z),vec3(.3,0,-.1),vec3(1.1,0,-.4),.05),.15);
-      if(kind==4)
-        a=mod(atan(f.y,f.x)-t*.2,.785)-.39,body=min(smin(body,capsule(vec3(length(f.xy)*vec2(cos(a),sin(a)),f.z),vec3(.3,0,-.3),vec3(.8,0,-1),.04),.1),length(vec2(length(f.xy)-.62,f.z+.1))-.05);
+      vec3 r=abs(e-vec3(0,0,-.05))-vec3(.36,.22,.48);
+      body=min(max(length(max(r,0.))+min(max(r.x,max(r.y,r.z)),0.)-.12,(abs(e.x)+e.y)*.707-.38),capsule(vec3(kind==4?
+        abs(e.x)-.22:
+        e.x,e.y+.34,e.z),vec3(0,0,-.1),vec3(0,0,.72),.07));
+      r=vec3(abs(e.x),e.y-.05,kind==4?
+        abs(e.z):
+        e.z)-vec3(.9,0,kind==4?
+        .5:
+        0.);
+      body=min(min(body,capsule(vec3(abs(e.x),e.y-.05,r.z),vec3(.3,0,0),vec3(.9,0,0),.05)),max(abs(length(r.xz)-.3)-.04,abs(r.y)-.1));
+      float a=time*25.+float(i);
+      r.xz*=mat2(cos(a),sin(a),-sin(a),cos(a));
+      body=min(body,length(max(abs(r)-vec3(.27,.01,.035),0.))-.005);
     }
   else
     {
-      body=length(f*vec3(1,1.15,.8))-.5;
-      for(int k=0;k<5;k++)
-        {
-          float a=float(k)*1.257+sin(t*.3)*.3;
-          vec3 tip=vec3(cos(a)*.7,sin(a)*.7,-1.3)+.2*vec3(sin(t+float(k)*2.),cos(t*1.3+float(k)),0);
-          body=smin(body,capsule(f,vec3(cos(a),sin(a),0)*.25,tip,.07),.2);
-        }
+      body=smin((length(e/vec3(.5,.3,.6))-1.)*.3,capsule(p,vec3(.15,0,.1),vec3(.7,.08,.5),.045),.08);
+      p-=vec3(.7,.08,.5);
+      body=min(body,max(abs(length(p.xz)-.26)-.035,abs(p.y)-.07));
+      float a=time*30.+float(i);
+      p.xz*=mat2(cos(a),sin(a),-sin(a),cos(a));
+      body=min(body,length(max(abs(p)-vec3(.24,.008,.03),0.))-.004);
     }
-  body=-smin(-body,length(f-vec3(0,0,.55))-.27,.05);
-  t=length(f-vec3(0,0,.3))-.2;
-  return vec2(min(body,t)*s*.8,t<body?
+  body=-smin(-body,length(e-vec3(0,0,.55))-.27,.05);
+  float eyeD=length(e-vec3(0,0,.3))-.2;
+  return vec2(min(body,eyeD)*s*.8,eyeD<body?
     30.+float(i):
     10.+float(i));
+}
+vec3 gunLocal(vec3 p)
+{
+  p-=eye;
+  p=vec3(dot(p,camR),dot(p,camU),dot(p,camF))-gunAt;
+  return vec3(p.x*.985+p.z*.17,p.y,p.z*.985-p.x*.17);
 }
 vec2 map(vec3 p)
 {
@@ -365,8 +377,7 @@ vec2 map(vec3 p)
         if(a<h.x)
           h=vec2(a,4);
       }
-  p-=eye;
-  p=vec3(dot(p,camR),dot(p,camU),dot(p,camF))-gunAt;
+  p=gunLocal(p);
   float d=length(p-vec3(0,0,.03))-.27;
   if(seenX<1u<<31)
     return h;
@@ -374,16 +385,17 @@ vec2 map(vec3 p)
     h.x=min(h.x,d);
   else
     {
-      float z=p.z-.04;
-      z-=clamp(floor(z/.07+.5),-1.,1.)*.07;
-      d=min(length(vec3(p.xy,p.z-clamp(p.z,-.12,.22)))-.03+step(abs(z),.012)*.004,length(max(abs(p-vec3(0,-.035,-.1))-vec3(.03,.04,.1),0.))-.012);
+      vec2 a=abs(p.xy);
+      vec3 r=abs(p-vec3(0,-.04,-.07))-vec3(.03,.036,.09);
+      d=min(min(min(min(max(length(max(r,0.))+min(max(r.x,max(r.y,r.z)),0.)-.006,(a.x+p.y)*.707-.012),max(max(max(a.x*.866+a.y*.5,a.y)-.03,abs(p.z-.09)-.11),-max(abs(mod(p.z,.036)-.018)-.007,max(a.y-.011,abs(p.z-.09)-.075)))),max(max(length(p.xy)-.037,.015-length(p.xy)),abs(p.z-.215)-.016)),length(max(abs(p-vec3(0,.035,-.04))-vec3(.007,.008,.08),0.))-.002),length(max(abs(p-vec3(0,.048,-.1))-vec3(.012,.01,.012),0.))-.002);
+      float core=max(length(p.xy)-.016,abs(p.z-.09)-.1);
       if(d<h.x)
-        h=vec2(d,abs(z)<.012&&length(p.xy)<.04?
-          3.:
-          2.);
-      d=length(vec3(p.xy-vec2(0,-.065),p.z-clamp(p.z,-.08,.15)))-.022;
+        h=vec2(d,2);
+      if(core<h.x)
+        h=vec2(core,3);
+      d=min(length(vec3(p.xy-vec2(0,-.062),p.z-clamp(p.z,-.02,.14)))-.02,max(length(p.xy-vec2(0,-.062))-.025,abs(abs(p.z-.06)-.06)-.006));
       if(d<h.x)
-        h=vec2(d,p.z>.13?
+        h=vec2(d,p.z>.13&&length(p.xy-vec2(0,-.062))<.021?
           5.:
           2.);
     }
@@ -493,32 +505,43 @@ vec3 material(vec3 p,float m)
     {
       int i=int(m-10.);
       vec3 q=p-enemy[i].xyz;
-      float veins=abs(fbm(q.xy*6.+q.z*4.+time)-.5);
-      glow=vec3(1,.05,.12)*smoothstep(.06,0.,veins)*3.+vec3(1.5/enemyScale(enemyKind[i]))*enemyInfo[i].y+vec3(10)*max(-enemy[i].w,0.);
-      rough=enemyKind[i]==4?
-        .6:
-        .15;
-      return vec3(.01);
+      int kind=enemyKind[i];
+      float sc=enemyScale(kind),flash=enemyInfo[i].y;
+      glow=vec3(.6,.5,.45)*flash*flash*flash/sc+vec3(10)*max(-enemy[i].w,0.);
+      if(kind==2||kind==3)
+        {
+          float veins=abs(fbm(q.xy*6.+q.z*4.+time)-.5);
+          glow+=vec3(1,.05,.12)*smoothstep(.06,0.,veins)*3.;
+          rough=.15;
+          return vec3(.01);
+        }
+      rough=.3+.3*noise(q.xz*20./sc);
+      glow+=vec3(1,.05,.12)*3.*smoothstep(.025,.01,abs(q.y/sc+.03))*step(length(q.xz),.55*sc);
+      return vec3(.012,.012,.014)*(.6+.8*noise(q.xz*20./sc));
     }
   if(m==1.)
     return neonAt(p),glow=neonCol*8.*smoothstep(.3,.1,length(fract(vec2(p.x+p.z,p.y)*4.)-.5)),vec3(0);
   if(m==3.)
-    {
-      vec3 g=p-eye;
-      float band=floor((dot(g,camF)-gunAt.z-.04)/.07+.5)+1.;
-      glow=vec3(1,.75,.4)*(light*1.5+kick*3.)*(band<float(min(lap,3))?
-        1.:
-        .08);
-      return vec3(0);
-    }
+    return glow=vec3(1,.75,.4)*(light*1.5+kick*3.)*(floor((gunLocal(p).z+.01)/.067)<float(min(lap,3))?
+      1.:
+      .08),vec3(0);
   if(m==4.)
     return glow=vec3(1,.4,.1)*(2.5+1.5*sin(time*6.)),vec3(0);
   if(m==5.)
     return glow=vec3(1,.4,.1)*(rockets>0?
-      3.:
+      1.5:
       .05),vec3(0);
   if(m==2.)
-    return metal=1.,rough=.4,vec3(.12);
+    {
+      vec3 l=gunLocal(p);
+      metal=1.;
+      rough=.3+.2*noise(l.zy*150.);
+      l=l.z>.198?
+        vec3(.6,.42,.2):
+        vec3(.2,.21,.23)*(.7+.5*noise(l.zx*90.));
+      glow=l*(.06*max(dot(n,normalize(camU-camR*.5-camF*.3)),0.)+vec3(.1,.3,.3)*pow(1.-max(dot(n,v),0.),3.));
+      return l;
+    }
   level(p);
   int r=tRoom;
   if(n.y>.7)
@@ -585,7 +608,7 @@ vec3 fireballs(vec3 ro,vec3 rd,float tMax)
       vec3 o=blast[k].xyz-ro;
       float b=dot(o,rd);
       if(age>0.&&b-r<tMax)
-        c+=mix(vec3(2,1.4,.8),vec3(1,.4,.1),age)*2.*(1.-age)*(1.-age)*smoothstep(r,r*.2,sqrt(max(dot(o,o)-b*b,0.)))*(.7+.3*noise(rd.xy*30.+time*5.));
+        c+=mix(vec3(2,1.4,.8),vec3(1,.4,.1),age)*1.3*(1.-age)*(1.-age)*smoothstep(r,r*.2,sqrt(max(dot(o,o)-b*b,0.)))*min(length(o)/r,1.)*(.7+.3*noise(rd.xy*30.+time*5.));
     }
   return c;
 }
@@ -645,12 +668,12 @@ void main()
   if(iFrame.w<.5)
     {
       detail=1.;
-      float b=sin(bob*2.8);
+      float b=sin(bob*1.2);
       eye=pos+vec3(0,1.+b*.04,0)+shake*shake*.05*vec3(sin(time*71.),sin(time*83.),sin(time*61.));
       camF=vec3(cos(yaw)*cos(pitch),sin(pitch),sin(yaw)*cos(pitch));
       camR=normalize(cross(camF,vec3(0,1,0)));
       camU=cross(camR,camF);
-      gunAt=vec3(.22+sin(bob*1.4)*.01,-.21+b*.01,.36-kick*.06);
+      gunAt=vec3(.19+sin(bob*.6)*.012,-.165-abs(sin(bob*.6))*.012,.4-kick*.05);
       fogDensity=.05+(1.-light)*.08;
       vec3 rd=normalize(uv.x*camR+uv.y*camU+(1.6-kick*.03)*camF);
       fragColor=vec4(clamp(render(eye,rd),0.,50.),1);
@@ -1295,6 +1318,8 @@ void update()
             go)*speed*(kind==3?
             .5:
             1.)+side*4.-v)*DT*1.5;
+          if(kind==4&&see&&(enemyVel[i].w-=DT)<=0.)
+            enemyVel[i].w=5.,spawn(e+vec3(0,size,0),0);
           if(info.z<=0.&&dist<30.&&dead==0.)
             {
               info.z=.4;
@@ -1383,7 +1408,7 @@ void makeLights()
   addLight(eye+u*.4-f*.3,vec3(1,.75,.4)*(light*1.2+.05));
   addLight(eye+r*.2-u*.2+f*.55,vec3(1,.75,.4)*kick*kick*6.);
   for(int i=0;i<4;i++)
-    addLight(blast[i].xyz,vec3(1,.4,.1)*15.*max(.6-blast[i].w,0.)*step(1e-4,blast[i].w));
+    addLight(blast[i].xyz,vec3(1,.4,.1)*9.*max(.6-blast[i].w,0.)*step(1e-4,blast[i].w));
   for(int i=0;i<10;i++)
     addLight(shot[i].xyz,vec3(1,.05,.12)*3.*step(1e-4,shot[i].w));
   for(int i=0;i<12;i++)

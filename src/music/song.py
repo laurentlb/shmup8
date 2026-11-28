@@ -86,6 +86,12 @@ MUSIC = [
     instrument("Hat", [env(48), noise(), mulp(), highpass(100)] + out(10, 12, 80)),
     instrument("Bass", [env(70, r=60), osc(1, 64, color=100), mulp(), lowpass(34, 50)] + out(48, 0)),
     instrument("Arp", [env(60, r=64), osc(2, 64, color=30), mulp(), lowpass(46, 100)] + out(10, 40, 48)),
+    # pad: two detuned saws, slow in and out, dark
+    instrument("Pad", [env(76, a=72, s=100, r=80), osc(1, 64, color=10, detune=58), osc(1, 64, color=10, detune=70),
+                       addp(), mulp(), lowpass(28, 90)] + out(22, 30)),
+    # lead: a glassy sine, echoed
+    instrument("Lead", [env(72, a=20, s=60, r=70), osc(0, 64, color=128), osc(0, 76, gain=30), addp(), mulp()]
+               + out(14, 56, 80)),
 ]
 SFX = [  # same order as the event counters in src/shaders/state.glsl
     # shot: a zap falling fast, with a breath of noise
@@ -120,7 +126,7 @@ SFX = [  # same order as the event counters in src/shaders/state.glsl
 GLOBAL = instrument("Global", [
     unit("in", channel=2, stereo=1),
     unit("delay", [13230, 17640], stereo=1, pregain=80, dry=128, feedback=70, damp=60, notetracking=0),
-    unit("out", gain=60, stereo=1),
+    unit("out", gain=46, stereo=1),
 ])
 
 H = 1  # hold
@@ -141,14 +147,28 @@ def arp(chord):
 
 ROOTS = [50, 46, 53, 48]  # D Bb F C, low and minor
 CHORDS = [(74, 77, 81, 86), (74, 77, 82, 86), (72, 77, 81, 84), (72, 76, 79, 84)]
+MELODY = [  # one phrase per chord
+    [81, H, H, H, H, H, 77, H, H, H, 79, H, 77, H, 74, H],
+    [77, H, H, H, H, H, 74, H, H, H, 72, H, 74, H, H, H],
+    [72, H, H, H, 77, H, H, H, 81, H, H, H, 79, H, 77, H],
+    [76, H, H, H, H, H, H, H, 79, H, 76, H, 72, H, H, H],
+]
+# 32 patterns (51 s): the arp and pad alone, then the kick and bass, the hats,
+# the melody, and a breakdown back to the pad
+LENGTH = 32
+CHORD = [p // 2 % 4 for p in range(LENGTH)]
 TRACKS = [
-    dict(numvoices=1, order=[0] * 8, patterns=[every(4, 60)]),
-    dict(numvoices=1, order=[-1] * 4 + [0] * 4, patterns=[every(4, 72, 2)]),
-    dict(numvoices=1, order=[0, 0, 1, 1, 2, 2, 3, 3], patterns=[bass(r) for r in ROOTS]),
-    dict(numvoices=1, order=[0, 0, 1, 1, 2, 2, 3, 3], patterns=[arp(c) for c in CHORDS]),
+    dict(numvoices=1, order=[-1] * 8 + [0] * 20 + [-1] * 4, patterns=[every(4, 60)]),
+    dict(numvoices=1, order=[-1] * 12 + [0] * 16 + [-1] * 4, patterns=[every(4, 72, 2)]),
+    dict(numvoices=1, order=[-1] * 8 + CHORD[8:], patterns=[bass(r) for r in ROOTS]),
+    dict(numvoices=1, order=CHORD, patterns=[arp(c) for c in CHORDS]),
+    dict(numvoices=1, order=[c if p % 2 == 0 else 4 for p, c in enumerate(CHORD)],
+         patterns=[[r + 12] + [H] * 15 for r in ROOTS] + [[H] * 16]),
+    dict(numvoices=1, order=[-1] * 16 + [c if p % 2 == 0 else -1 for p, c in enumerate(CHORD)][16:],
+         patterns=MELODY),
 ]
 SONG = dict(bpm=BPM, rowsperbeat=4,
-            score=dict(tracks=TRACKS, rowsperpattern=16, length=8),
+            score=dict(tracks=TRACKS, rowsperpattern=16, length=LENGTH),
             patch=MUSIC + SFX + [GLOBAL])
 
 

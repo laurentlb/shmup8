@@ -2,8 +2,8 @@
 #pragma once
 #define SU_SAMPLE_RATE 44100
 #define SU_SAMPLES_PER_ROW 4410
-#define SU_ROWS 128
-#define SU_FIRST_SFX_VOICE 4
+#define SU_ROWS 512
+#define SU_FIRST_SFX_VOICE 6
 #define SU_SFX_COUNT 11
 
 extern "C" {

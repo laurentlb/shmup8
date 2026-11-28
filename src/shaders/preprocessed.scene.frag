@@ -924,7 +924,7 @@ float caustics(vec3 p)
 
 vec3 render(vec3 ro, vec3 rd)
 {
-    const vec3 fogColor = vec3(0, .025, .03);
+    vec3 fogColor = vec3(0, .025, .03) * (.2 + .8 * light); 
     vec3 col = vec3(0), weight = vec3(1);
     for (int bounce = 0; bounce < 2; bounce++) {
         glowSum = vec3(0);
@@ -975,11 +975,13 @@ void main()
         detail = 1.;
         
         float b = sin(bob * 1.2);
-        eye = pos + vec3(0, EYE + b * .04, 0) + shake * shake * .05 * vec3(sin(time * 71.), sin(time * 83.), sin(time * 61.));
+        float fall = smoothstep(0., 1., dead); 
+        eye = pos + vec3(0, EYE * (1. - .75 * fall) + b * .04, 0) + shake * shake * .05 * vec3(sin(time * 71.), sin(time * 83.), sin(time * 61.));
         camF = vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
-        camR = normalize(cross(camF, vec3(0, 1, 0)));
+        camR = cross(camF, vec3(0, 1, 0));
+        camR = normalize(cross(camF, vec3(0, 1, 0) - camR * fall * .6)); 
         camU = cross(camR, camF);
-        gunAt = vec3(.19 + sin(bob * .6) * .012, -.165 - abs(sin(bob * .6)) * .012, .4 - kick * .05);
+        gunAt = vec3(.19 + sin(bob * .6) * .012, -.165 - abs(sin(bob * .6)) * .012 - fall * .3, .4 - kick * .05);
         fogDensity = _TV(fog, .05) + (1. - light) * .08;
 
         vec3 rd = normalize(uv.x * camR + uv.y * camU + (_TV(focal, 1.6) - kick * .03) * camF);
@@ -1016,10 +1018,12 @@ void main()
         bool best = lap - 1 >= record && lap > 1;
         digits7(col, (best ? GOLD * (1.5 + sin(time * 8.)) : cold) * k, uv * 7. - vec2(.6, 1.6), 7., lap - 1, 1);
         col += cold * k * smoothstep(.01, 0., abs(length(uv - vec2(-.25, .23)) - .06) - .008); 
-        clock7(col, cold * k, uv * 18. - vec2(1.5, -2.), 18., bestLap);
         
         vec2 q = uv - vec2(-.3, -.11);
-        col += cold * k * smoothstep(.01, 0., min(abs(length(q) - .04) - .006, max(abs(q.x) - .004, abs(q.y - .015) - .02)));
+        if (bestLap > 0.) {
+            clock7(col, cold * k, uv * 18. - vec2(1.5, -2.), 18., bestLap);
+            col += cold * k * smoothstep(.01, 0., min(abs(length(q) - .04) - .006, max(abs(q.x) - .004, abs(q.y - .015) - .02)));
+        }
         digits7(col, RED * 2. * k, uv * 18. - vec2(1.5, -6.), 18., kills, 1);
         col += RED * 2. * k * smoothstep(.01, 0., length(uv - vec2(-.3, -.33)) - .03); 
         fragColor = vec4(col, 1);

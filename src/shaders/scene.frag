@@ -130,6 +130,8 @@ float neon(vec3 p)
         tube(d, length(p.xz - vec2(4, 25)) - .45, vec3(1, .3, .7));
     // from lap 2, the neon dies room by room: it flickers, then it's dark
     // with rare flashes
+    // Abyss: bioluminescent, teal to green, slowly pulsing
+    neonCol = mix(vec3(0, .9, .7), vec3(.3, 1, .3), noise(vec2(p.x + p.z, p.y) * .2)) * (.7 + .3 * sin(time * 2. + p.x * .5));
     if (lap >= tDie) {
         float flash = hash(vec2(floor(time * 9.), tRoom));
         neonCol *= lap == tDie ? step(.35, flash) : .03 + step(.96, flash);
@@ -331,7 +333,7 @@ float occlusion(vec3 p, vec3 n)
 const vec4 BEAMS[NB] = vec4[](vec4(10, 0, 0, 9), vec4(22, 0, 0, 9), vec4(34, 0, 0, 9),
                               vec4(64, 0, -7, 10), vec4(72, 0, -7, 10), vec4(-2, 24, -3, 10));
 #define BEAM_R 1.2
-#define BEAM_COL vec3(.45, .6, 1)
+#define BEAM_COL vec3(.4, .9, 1)
 
 // How much p is in a shaft (0 to 1).
 float inBeam(vec3 p)
@@ -385,7 +387,7 @@ vec3 material(vec3 p, float m)
     }
     if (m == M_NEON) {
         neonAt(p);
-        glow = neonCol * 6.;
+        glow = neonCol * 8. * smoothstep(.3, .1, length(fract(vec2(p.x + p.z, p.y) * 4.) - .5));
         return vec3(0);
     }
     if (m == M_COIL) {
@@ -426,13 +428,12 @@ vec3 material(vec3 p, float m)
         }
         // the route: dashes of light on the floor, moving the way to run
         float at = trackPos(p);
-        glow = vec3(.4, .6, 1) * .35 * smoothstep(.08, .04, trackDist) * step(fract((at - time * 5.) * .4), .3);
-        // stone tiles, worn, with puddles (more in the cistern)
+        glow = vec3(.2, 1, .8) * .3 * smoothstep(.08, .04, trackDist) * step(fract((at - time * 5.) * .4), .3);
+        // polished black marble slabs with pale veins: a dark mirror
         vec2 g = abs(fract(p.xz / 1.5) - .5);
-        float wet = smoothstep(.55, .7, fbm(p.xz * .3) + .1 * fbm(p.xz * 3.) + (r == 3 ? .15 : 0.));
-        rough = mix(.6, .03, wet);
-        return vec3(.055, .05, .045) * (.6 + .4 * hash(floor(p.xz / 1.5))) * (.7 + .5 * fbm(p.xz * 2.))
-             * (1. - .6 * step(.48, max(g.x, g.y))) * (1. - .5 * wet);
+        float vein = smoothstep(.03, 0., abs(fbm(p.xz * .7 + fbm(p.xz * 2.) * 1.5) - .5));
+        rough = .03;
+        return mix(vec3(.008, .01, .01), vec3(.3, .33, .3), vein * .5) * (1. - .8 * step(.49, max(g.x, g.y)));
     }
     if (n.y < -.7) {
         // where a shaft starts: a grate letting the light in
@@ -451,7 +452,7 @@ vec3 material(vec3 p, float m)
     float y = p.y * 2., row = floor(y);
     vec2 b = vec2(w + .5 * mod(row, 2.), y), e = abs(fract(b) - .5);
     rough = .7;
-    return vec3(.07, .065, .06) * (.6 + .5 * hash(vec2(floor(b.x), row))) * (.6 + .6 * fbm(vec2(w, p.y) * 4.))
+    return mix(vec3(.06, .08, .07), vec3(.02, .1, .06), fbm(vec2(w, p.y) * 1.5)) * (.6 + .5 * hash(vec2(floor(b.x), row))) * (.6 + .6 * fbm(vec2(w, p.y) * 4.))
          * (1. - .7 * step(.46, max(e.x, e.y * .9 + .05)));
 }
 
@@ -495,9 +496,21 @@ vec3 fireballs(vec3 ro, vec3 rd, float tMax)
     return c;
 }
 
+// Light focused by waves above: bright moving lines.
+float caustics(vec3 p)
+{
+    vec2 q = p.xz * .7 + p.y * .2;
+    float c = 0.;
+    for (int i = 0; i < 3; i++) {
+        q += vec2(sin(q.y * 1.3 + time * .7), cos(q.x * 1.1 - time * .6)) * .5;
+        c += abs(sin(q.x + q.y));
+    }
+    return pow(1. - c / 3., 4.) * 10.;
+}
+
 vec3 render(vec3 ro, vec3 rd)
 {
-    const vec3 fogColor = vec3(.004, .005, .012);
+    const vec3 fogColor = vec3(0, .025, .03);
     vec3 col = vec3(0), weight = vec3(1);
     for (int bounce = 0; bounce < 2; bounce++) {
         glowSum = vec3(0);
@@ -516,13 +529,15 @@ vec3 render(vec3 ro, vec3 rd)
             // that surfaces facing away get less)
             float d = neonAt(p + n * .3);
             c = albedo * (neonCol * _TV(neonLight, 2.) / (1. + d * d * 3.) + vec3(.01, .012, .02)
-                          + BEAM_COL * 1.5 * inBeam(p) * max(n.y, 0.)) * ao + glow;
+                          + BEAM_COL * 1.5 * inBeam(p) * max(n.y, 0.)
+                          + vec3(.5, 1.2, 1.3) * caustics(p) * (.3 + .7 * max(n.y, 0.)) * (.3 + .7 * light)) * ao + glow;
             for (int i = 0; i < lightCount; i++) {
                 vec3 color = lightCol[i].rgb, l = lightPos[i].xyz - p;
                 c += albedo * color * max(dot(n, normalize(l)), 0.) / (dot(l, l) + .3) + shade(p, lightPos[i].xyz, color);
             }
         }
         float fog = exp(-h.x * fogDensity);
+        c *= exp(-h.x * vec3(.07, .02, .015));
         col += weight * (mix(fogColor, c, fog) + glowSum * _TV(neonGlow, .05)
                          + scattered(ro, rd, h.x) + beams(ro, rd, h.x) + fireballs(ro, rd, h.x));
         if (h.y < 0.)
@@ -551,7 +566,7 @@ void main()
         camR = normalize(cross(camF, vec3(0, 1, 0)));
         camU = cross(camR, camF);
         gunAt = vec3(.22 + sin(bob * 1.4) * .01, -.21 + b * .01, .36 - kick * .06);
-        fogDensity = _TV(fog, .03) + (1. - light) * .08;
+        fogDensity = _TV(fog, .05) + (1. - light) * .08;
 
         vec3 rd = normalize(uv.x * camR + uv.y * camU + (_TV(focal, 1.6) - kick * .03) * camF);
         // A NaN would spread through the bloom.
@@ -560,16 +575,16 @@ void main()
     }
 
     // Final image. Bloom: the mipmaps of the scene.
-    vec2 tc = texCoord * iFrame.z, ca = (texCoord - .5) * .002; // chromatic aberration, toward the edges
+    vec2 tc = texCoord * iFrame.z, ca = (texCoord - .5) * .003; // chromatic aberration, toward the edges
     vec3 col = vec3(texture(tex, tc + ca).r, texture(tex, tc).g, texture(tex, tc - ca).b);
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)
         bloom += max(textureLod(tex, tc, float(i)).rgb - .4, 0.);
-    col += bloom * _TV(bloomAmount, .3);
+    col += bloom * _TV(bloomAmount, .45);
     col = col * (2.51 * col + .03) / (col * (2.43 * col + .59) + .14);
     // grading: cold shadows, a little more saturation
     float luma = dot(col, vec3(.3, .6, .1));
-    col = mix(vec3(luma), col, 1.2) + vec3(-.005, 0, .015) * (1. - luma);
+    col = mix(vec3(luma), col, 1.15) * vec3(.85, 1., 1.) + vec3(-.01, .01, .02) * (1. - luma);
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
     // the vignette closes in when the light is low; red when hurt
     float edge = length(texCoord - .5);

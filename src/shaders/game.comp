@@ -441,7 +441,7 @@ void update()
             // shoot when they see the player (a fan of 3 or 5 shots)
             float range = kind == 1 ? 14. : 10.;
             int fan = max(kind - 2, 0);
-            v += ((see ? to * clamp(dist - range, -1., 1.) : go) * speed * (kind == 3 ? .5 : 1.) + side * 4. - v) * DT * 1.5;
+            v += ((see ? to * clamp(dist - range, -1., 1.) : go) * speed * (kind == 3 ? .5 : kind == 4 ? 1.4 : 1.) + side * 4. - v) * DT * 1.5;
             // the warden launches hunter drones
             if (kind == 4 && see && (enemyVel[i].w -= DT) <= 0.) {
                 enemyVel[i].w = 5.;
@@ -454,7 +454,8 @@ void update()
                     for (int j = -fan, k = 0; j <= fan && k < MAX_SHOTS; k++)
                         if (shot[k].w <= 0.) {
                             shot[k] = vec4(e + to * size, 3);
-                            shotVel[k].xyz = normalize(to + r * float(j++) * (.1 + .05 * float(fan))) * (12. + float(lap));
+                            shotVel[k] = vec4(normalize(to + r * float(j++) * (.1 + .05 * float(fan))) * (12. + float(lap)),
+                                              kind == 4 ? .045 : _TV(shotDamage, .08)); // w: damage
                             spitEvents++;
                             info.z = max(2.2 - .2 * float(lap), 1.) * (kind == 1 ? 1. : 1.5);
                         }
@@ -508,7 +509,7 @@ void update()
         if (level(shot[k].xyz) < .1)
             shot[k].w = 0.;
         if (length(pos + vec3(0, .5, 0) - shot[k].xyz) < .9 && dead == 0.) {
-            hurtPlayer(_TV(shotDamage, .08));
+            hurtPlayer(shotVel[k].w);
             vel += shotVel[k].xyz * .3;
             shot[k].w = 0.;
         }

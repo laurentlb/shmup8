@@ -214,7 +214,7 @@ namespace Capture
 		}
 		float runYaw = atan2f(tz - pos[2], tx - pos[0]);
 
-		// aim at the nearest enemy in front
+		// aim at the nearest enemy in front (the warden anywhere)
 		float aimYaw = runYaw, aimPitch = 0, nearest = 30;
 		int target = -1, close = 0;
 		for (int i = 0; i < 12; i++)
@@ -224,7 +224,8 @@ namespace Capture
 			float d = sqrtf(dx * dx + dy * dy + dz * dz);
 			float y = atan2f(dz, dx), off = fabsf(remainderf(y - runYaw, 6.2831853f));
 			close += d < 12 && off < 1.f;
-			if (d < nearest && off < 1.3f)
+			// the warden: also behind (the bot shoots while running away)
+			if (d < nearest && off < (kind[i] == 4 ? 4.f : 1.3f))
 				nearest = d, aimYaw = y, aimPitch = atan2f(dy, sqrtf(dx * dx + dz * dz)), target = i;
 		}
 

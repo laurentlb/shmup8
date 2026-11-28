@@ -26,7 +26,7 @@ float enemyScale(int kind)
 {
     return kind == 2 ? .45 : kind == 3 ? 2. : kind == 4 ? 2.6 : 1.;
 }
-const int ENEMY_HEALTH[5] = int[](3, 5, 1, 16, 40);
+const int ENEMY_HEALTH[5] = int[](3, 5, 1, 16, 30);
 // health gained every two laps
 int healthUp(int kind)
 {

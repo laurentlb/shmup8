@@ -61,14 +61,15 @@ rocket. Space: jump (hold to jump again on landing). Escape: quit.
   * hunter drones, flat pods on four ducted rotors, weave toward you (hard to
     snipe) and charge when close; a ram costs light and knocks you back;
   * gunships, armored drones with a cannon under the nose and two ducted fans,
-    keep their distance, circle, and fire slow red shots you can dodge;
+    keep their distance, circle, and fire slow tracers of fire you can dodge;
   * skitters, small spiders running on six legs, come in packs on the floor
     and leap at you; one hit kills them, but look down;
   * brutes, from lap 3: big armored balls with horns, slow, tough (rockets
     help), firing three shots at once; they release a lot of light;
   * the warden, a boss, from lap 2: half-way through each lap, a giant gunship
     with four fans and two cannons comes from ahead; it fires fans of five
-    shots, launches a hunter drone every few seconds, and follows you (a health bar at the top). Killing it releases a flood of
+    shots, launches a hunter drone every few seconds, and follows you (a health bar at the top). While it lives, it drinks your
+    light (the light bar pulses red). Killing it releases a flood of
     light and +4 rockets.
 
   They appear on the route, mostly ahead, sometimes behind; more of them,

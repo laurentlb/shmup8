@@ -815,7 +815,7 @@
      "id": 51,
      "parameters": {
       "attack": 0,
-      "decay": 78,
+      "decay": 66,
       "sustain": 0,
       "release": 0,
       "gain": 128,
@@ -823,48 +823,42 @@
      }
     },
     {
-     "type": "oscillator",
+     "type": "noise",
      "id": 52,
      "parameters": {
-      "type": 0,
-      "transpose": 79,
-      "detune": 64,
-      "gain": 100,
-      "color": 128,
+      "gain": 128,
       "shape": 64,
-      "phase": 0,
-      "lfo": 0,
-      "unison": 0,
-      "stereo": 0
-     }
-    },
-    {
-     "type": "oscillator",
-     "id": 53,
-     "parameters": {
-      "type": 0,
-      "transpose": 97,
-      "detune": 64,
-      "gain": 44,
-      "color": 128,
-      "shape": 64,
-      "phase": 0,
-      "lfo": 0,
-      "unison": 0,
-      "stereo": 0
-     }
-    },
-    {
-     "type": "addp",
-     "id": 54,
-     "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "mulp",
-     "id": 55,
+     "id": 53,
      "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "filter",
+     "id": 54,
+     "parameters": {
+      "frequency": 56,
+      "resonance": 40,
+      "lowpass": 1,
+      "bandpass": 0,
+      "highpass": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "envelope",
+     "id": 57,
+     "parameters": {
+      "attack": 0,
+      "decay": 64,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
       "stereo": 0
      }
     },
@@ -873,19 +867,7 @@
      "id": 58,
      "parameters": {
       "attack": 0,
-      "decay": 70,
-      "sustain": 0,
-      "release": 0,
-      "gain": 128,
-      "stereo": 0
-     }
-    },
-    {
-     "type": "envelope",
-     "id": 59,
-     "parameters": {
-      "attack": 0,
-      "decay": 60,
+      "decay": 54,
       "sustain": 0,
       "release": 0,
       "gain": 128,
@@ -894,9 +876,9 @@
     },
     {
      "type": "send",
-     "id": 60,
+     "id": 59,
      "parameters": {
-      "target": 56,
+      "target": 55,
       "amount": 100,
       "port": 0,
       "sendpop": 1,
@@ -907,13 +889,13 @@
     },
     {
      "type": "oscillator",
-     "id": 56,
+     "id": 55,
      "parameters": {
       "type": 1,
-      "transpose": 50,
+      "transpose": 46,
       "detune": 64,
       "gain": 128,
-      "color": 60,
+      "color": 50,
       "shape": 64,
       "phase": 0,
       "lfo": 0,
@@ -923,16 +905,16 @@
     },
     {
      "type": "mulp",
-     "id": 61,
+     "id": 60,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "filter",
-     "id": 57,
+     "id": 56,
      "parameters": {
-      "frequency": 50,
+      "frequency": 44,
       "resonance": 128,
       "lowpass": 1,
       "bandpass": 0,
@@ -942,14 +924,14 @@
     },
     {
      "type": "addp",
-     "id": 62,
+     "id": 61,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "pan",
-     "id": 63,
+     "id": 62,
      "parameters": {
       "panning": 64,
       "stereo": 0
@@ -957,10 +939,10 @@
     },
     {
      "type": "outaux",
-     "id": 64,
+     "id": 63,
      "parameters": {
-      "outgain": 32,
-      "auxgain": 50,
+      "outgain": 56,
+      "auxgain": 30,
       "stereo": 1
      }
     }
@@ -972,7 +954,7 @@
    "units": [
     {
      "type": "envelope",
-     "id": 67,
+     "id": 66,
      "parameters": {
       "attack": 0,
       "decay": 76,
@@ -984,7 +966,7 @@
     },
     {
      "type": "envelope",
-     "id": 68,
+     "id": 67,
      "parameters": {
       "attack": 0,
       "decay": 64,
@@ -996,9 +978,9 @@
     },
     {
      "type": "send",
-     "id": 69,
+     "id": 68,
      "parameters": {
-      "target": 65,
+      "target": 64,
       "amount": 90,
       "port": 0,
       "sendpop": 1,
@@ -1009,7 +991,7 @@
     },
     {
      "type": "oscillator",
-     "id": 65,
+     "id": 64,
      "parameters": {
       "type": 1,
       "transpose": 40,
@@ -1025,14 +1007,14 @@
     },
     {
      "type": "mulp",
-     "id": 70,
+     "id": 69,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "filter",
-     "id": 66,
+     "id": 65,
      "parameters": {
       "frequency": 46,
       "resonance": 60,
@@ -1044,7 +1026,7 @@
     },
     {
      "type": "pan",
-     "id": 71,
+     "id": 70,
      "parameters": {
       "panning": 64,
       "stereo": 0
@@ -1052,7 +1034,7 @@
     },
     {
      "type": "outaux",
-     "id": 72,
+     "id": 71,
      "parameters": {
       "outgain": 64,
       "auxgain": 30,
@@ -1067,7 +1049,7 @@
    "units": [
     {
      "type": "envelope",
-     "id": 74,
+     "id": 73,
      "parameters": {
       "attack": 0,
       "decay": 48,
@@ -1079,7 +1061,7 @@
     },
     {
      "type": "envelope",
-     "id": 75,
+     "id": 74,
      "parameters": {
       "attack": 0,
       "decay": 44,
@@ -1091,9 +1073,9 @@
     },
     {
      "type": "send",
-     "id": 76,
+     "id": 75,
      "parameters": {
-      "target": 73,
+      "target": 72,
       "amount": 84,
       "port": 0,
       "sendpop": 1,
@@ -1104,7 +1086,7 @@
     },
     {
      "type": "oscillator",
-     "id": 73,
+     "id": 72,
      "parameters": {
       "type": 0,
       "transpose": 46,
@@ -1120,14 +1102,14 @@
     },
     {
      "type": "mulp",
-     "id": 77,
+     "id": 76,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "pan",
-     "id": 78,
+     "id": 77,
      "parameters": {
       "panning": 64,
       "stereo": 0
@@ -1135,7 +1117,7 @@
     },
     {
      "type": "outaux",
-     "id": 79,
+     "id": 78,
      "parameters": {
       "outgain": 32,
       "auxgain": 0,
@@ -1150,7 +1132,7 @@
    "units": [
     {
      "type": "envelope",
-     "id": 80,
+     "id": 79,
      "parameters": {
       "attack": 0,
       "decay": 90,
@@ -1162,7 +1144,7 @@
     },
     {
      "type": "oscillator",
-     "id": 81,
+     "id": 80,
      "parameters": {
       "type": 0,
       "transpose": 84,
@@ -1178,7 +1160,7 @@
     },
     {
      "type": "oscillator",
-     "id": 82,
+     "id": 81,
      "parameters": {
       "type": 0,
       "transpose": 91,
@@ -1194,21 +1176,21 @@
     },
     {
      "type": "addp",
-     "id": 83,
+     "id": 82,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "mulp",
-     "id": 84,
+     "id": 83,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "pan",
-     "id": 85,
+     "id": 84,
      "parameters": {
       "panning": 64,
       "stereo": 0
@@ -1216,7 +1198,7 @@
     },
     {
      "type": "outaux",
-     "id": 86,
+     "id": 85,
      "parameters": {
       "outgain": 19,
       "auxgain": 56,
@@ -1231,7 +1213,7 @@
    "units": [
     {
      "type": "envelope",
-     "id": 87,
+     "id": 86,
      "parameters": {
       "attack": 0,
       "decay": 56,
@@ -1243,7 +1225,7 @@
     },
     {
      "type": "noise",
-     "id": 88,
+     "id": 87,
      "parameters": {
       "gain": 128,
       "shape": 64,
@@ -1252,14 +1234,14 @@
     },
     {
      "type": "mulp",
-     "id": 89,
+     "id": 88,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "filter",
-     "id": 90,
+     "id": 89,
      "parameters": {
       "frequency": 70,
       "resonance": 40,
@@ -1271,7 +1253,7 @@
     },
     {
      "type": "envelope",
-     "id": 93,
+     "id": 92,
      "parameters": {
       "attack": 0,
       "decay": 60,
@@ -1283,7 +1265,7 @@
     },
     {
      "type": "envelope",
-     "id": 94,
+     "id": 93,
      "parameters": {
       "attack": 0,
       "decay": 58,
@@ -1295,9 +1277,9 @@
     },
     {
      "type": "send",
-     "id": 95,
+     "id": 94,
      "parameters": {
-      "target": 91,
+      "target": 90,
       "amount": 40,
       "port": 0,
       "sendpop": 1,
@@ -1308,7 +1290,7 @@
     },
     {
      "type": "oscillator",
-     "id": 91,
+     "id": 90,
      "parameters": {
       "type": 1,
       "transpose": 58,
@@ -1324,14 +1306,14 @@
     },
     {
      "type": "mulp",
-     "id": 96,
+     "id": 95,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "filter",
-     "id": 92,
+     "id": 91,
      "parameters": {
       "frequency": 60,
       "resonance": 128,
@@ -1343,14 +1325,14 @@
     },
     {
      "type": "addp",
-     "id": 97,
+     "id": 96,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "pan",
-     "id": 98,
+     "id": 97,
      "parameters": {
       "panning": 64,
       "stereo": 0
@@ -1358,7 +1340,7 @@
     },
     {
      "type": "outaux",
-     "id": 99,
+     "id": 98,
      "parameters": {
       "outgain": 32,
       "auxgain": 30,
@@ -1373,7 +1355,7 @@
    "units": [
     {
      "type": "envelope",
-     "id": 100,
+     "id": 99,
      "parameters": {
       "attack": 0,
       "decay": 62,
@@ -1385,7 +1367,7 @@
     },
     {
      "type": "noise",
-     "id": 101,
+     "id": 100,
      "parameters": {
       "gain": 128,
       "shape": 64,
@@ -1394,14 +1376,14 @@
     },
     {
      "type": "mulp",
-     "id": 102,
+     "id": 101,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "filter",
-     "id": 103,
+     "id": 102,
      "parameters": {
       "frequency": 46,
       "resonance": 50,
@@ -1413,7 +1395,7 @@
     },
     {
      "type": "envelope",
-     "id": 105,
+     "id": 104,
      "parameters": {
       "attack": 0,
       "decay": 56,
@@ -1425,7 +1407,7 @@
     },
     {
      "type": "envelope",
-     "id": 106,
+     "id": 105,
      "parameters": {
       "attack": 0,
       "decay": 50,
@@ -1437,9 +1419,9 @@
     },
     {
      "type": "send",
-     "id": 107,
+     "id": 106,
      "parameters": {
-      "target": 104,
+      "target": 103,
       "amount": 80,
       "port": 0,
       "sendpop": 1,
@@ -1450,7 +1432,7 @@
     },
     {
      "type": "oscillator",
-     "id": 104,
+     "id": 103,
      "parameters": {
       "type": 0,
       "transpose": 44,
@@ -1466,21 +1448,21 @@
     },
     {
      "type": "mulp",
-     "id": 108,
+     "id": 107,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "addp",
-     "id": 109,
+     "id": 108,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "pan",
-     "id": 110,
+     "id": 109,
      "parameters": {
       "panning": 64,
       "stereo": 0
@@ -1488,7 +1470,7 @@
     },
     {
      "type": "outaux",
-     "id": 111,
+     "id": 110,
      "parameters": {
       "outgain": 40,
       "auxgain": 20,
@@ -1503,7 +1485,7 @@
    "units": [
     {
      "type": "envelope",
-     "id": 112,
+     "id": 111,
      "parameters": {
       "attack": 0,
       "decay": 84,
@@ -1515,7 +1497,7 @@
     },
     {
      "type": "noise",
-     "id": 113,
+     "id": 112,
      "parameters": {
       "gain": 128,
       "shape": 64,
@@ -1524,14 +1506,14 @@
     },
     {
      "type": "mulp",
-     "id": 114,
+     "id": 113,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "filter",
-     "id": 115,
+     "id": 114,
      "parameters": {
       "frequency": 34,
       "resonance": 30,
@@ -1543,7 +1525,7 @@
     },
     {
      "type": "envelope",
-     "id": 117,
+     "id": 116,
      "parameters": {
       "attack": 0,
       "decay": 80,
@@ -1555,7 +1537,7 @@
     },
     {
      "type": "envelope",
-     "id": 118,
+     "id": 117,
      "parameters": {
       "attack": 0,
       "decay": 70,
@@ -1567,9 +1549,9 @@
     },
     {
      "type": "send",
-     "id": 119,
+     "id": 118,
      "parameters": {
-      "target": 116,
+      "target": 115,
       "amount": 90,
       "port": 0,
       "sendpop": 1,
@@ -1580,7 +1562,7 @@
     },
     {
      "type": "oscillator",
-     "id": 116,
+     "id": 115,
      "parameters": {
       "type": 0,
       "transpose": 36,
@@ -1596,21 +1578,21 @@
     },
     {
      "type": "mulp",
-     "id": 120,
+     "id": 119,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "addp",
-     "id": 121,
+     "id": 120,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "pan",
-     "id": 122,
+     "id": 121,
      "parameters": {
       "panning": 64,
       "stereo": 0
@@ -1618,7 +1600,7 @@
     },
     {
      "type": "outaux",
-     "id": 123,
+     "id": 122,
      "parameters": {
       "outgain": 72,
       "auxgain": 60,
@@ -1633,7 +1615,7 @@
    "units": [
     {
      "type": "envelope",
-     "id": 124,
+     "id": 123,
      "parameters": {
       "attack": 0,
       "decay": 64,
@@ -1645,7 +1627,7 @@
     },
     {
      "type": "oscillator",
-     "id": 125,
+     "id": 124,
      "parameters": {
       "type": 0,
       "transpose": 88,
@@ -1661,7 +1643,7 @@
     },
     {
      "type": "oscillator",
-     "id": 126,
+     "id": 125,
      "parameters": {
       "type": 0,
       "transpose": 95,
@@ -1677,21 +1659,21 @@
     },
     {
      "type": "addp",
-     "id": 127,
+     "id": 126,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "mulp",
-     "id": 128,
+     "id": 127,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "pan",
-     "id": 129,
+     "id": 128,
      "parameters": {
       "panning": 64,
       "stereo": 0
@@ -1699,7 +1681,7 @@
     },
     {
      "type": "outaux",
-     "id": 130,
+     "id": 129,
      "parameters": {
       "outgain": 24,
       "auxgain": 40,
@@ -1714,7 +1696,7 @@
    "units": [
     {
      "type": "envelope",
-     "id": 133,
+     "id": 132,
      "parameters": {
       "attack": 0,
       "decay": 60,
@@ -1726,7 +1708,7 @@
     },
     {
      "type": "envelope",
-     "id": 134,
+     "id": 133,
      "parameters": {
       "attack": 0,
       "decay": 52,
@@ -1738,9 +1720,9 @@
     },
     {
      "type": "send",
-     "id": 135,
+     "id": 134,
      "parameters": {
-      "target": 131,
+      "target": 130,
       "amount": 70,
       "port": 0,
       "sendpop": 1,
@@ -1751,7 +1733,7 @@
     },
     {
      "type": "oscillator",
-     "id": 131,
+     "id": 130,
      "parameters": {
       "type": 0,
       "transpose": 34,
@@ -1767,14 +1749,14 @@
     },
     {
      "type": "mulp",
-     "id": 136,
+     "id": 135,
      "parameters": {
       "stereo": 0
      }
     },
     {
      "type": "filter",
-     "id": 132,
+     "id": 131,
      "parameters": {
       "frequency": 30,
       "resonance": 80,
@@ -1786,7 +1768,7 @@
     },
     {
      "type": "pan",
-     "id": 137,
+     "id": 136,
      "parameters": {
       "panning": 64,
       "stereo": 0
@@ -1794,7 +1776,7 @@
     },
     {
      "type": "outaux",
-     "id": 138,
+     "id": 137,
      "parameters": {
       "outgain": 88,
       "auxgain": 0,
@@ -1809,7 +1791,7 @@
    "units": [
     {
      "type": "in",
-     "id": 139,
+     "id": 138,
      "parameters": {
       "channel": 2,
       "stereo": 1
@@ -1817,7 +1799,7 @@
     },
     {
      "type": "delay",
-     "id": 140,
+     "id": 139,
      "parameters": {
       "stereo": 1,
       "pregain": 80,
@@ -1833,7 +1815,7 @@
     },
     {
      "type": "out",
-     "id": 141,
+     "id": 140,
      "parameters": {
       "gain": 60,
       "stereo": 1

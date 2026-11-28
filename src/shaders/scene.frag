@@ -202,6 +202,14 @@ vec2 enemyShape(vec3 p, int i)
 
 float gNeon; // the distance to the neon tubes, set by map()
 
+// p in the gun's frame (x right, y up, z along the barrel), turned a little
+// toward the crosshair so that its side shows
+vec3 gunLocal(vec3 p)
+{
+    vec3 g = p - eye, l = vec3(dot(g, camR), dot(g, camU), dot(g, camF)) - gunAt;
+    return vec3(l.x * .985 + l.z * .17, l.y, l.z * .985 - l.x * .17);
+}
+
 bool withNeon = true;
 vec2 map(vec3 p)
 {
@@ -232,25 +240,35 @@ vec2 map(vec3 p)
                 h = vec2(d, M_CRATE);
         }
     // the gun, in front of the camera
-    vec3 g = p - eye;
-    vec3 l = vec3(dot(g, camR), dot(g, camU), dot(g, camF)) - gunAt;
+    vec3 l = gunLocal(p);
     float d = length(l - vec3(0, 0, .03)) - .27;
     if (seenX < 1u << 31) // not on this ray
         return h;
     if (d > .1)
         h.x = min(h.x, d);
     else {
-        // a barrel with three glowing bands, on a box
-        float z = l.z - .04;
-        z -= clamp(floor(z / .07 + .5), -1., 1.) * .07;
-        d = min(length(vec3(l.xy, l.z - clamp(l.z, -.12, .22))) - .03 + step(abs(z), .012) * .004,
-                length(max(abs(l - vec3(0, -.035, -.1)) - vec3(.03, .04, .1), 0.)) - .012);
+        // a light rifle: a beveled receiver, a hexagonal shroud with vents
+        // showing a glowing core, a muzzle ring, a rail with a sight
+        vec2 a = abs(l.xy);
+        vec3 r = abs(l - vec3(0, -.04, -.07)) - vec3(.03, .036, .09);
+        d = max(length(max(r, 0.)) + min(max(r.x, max(r.y, r.z)), 0.) - .006, (a.x + l.y) * .707 - .012); // receiver
+        float hex = max(a.x * .866 + a.y * .5, a.y) - .03;
+        float shroud = max(hex, abs(l.z - .09) - .11);
+        shroud = max(shroud, -max(abs(mod(l.z, .036) - .018) - .007, max(a.y - .011, abs(l.z - .09) - .075))); // vents
+        d = min(d, shroud);
+        d = min(d, max(max(length(l.xy) - .037, .015 - length(l.xy)), abs(l.z - .215) - .016)); // muzzle
+        d = min(d, length(max(abs(l - vec3(0, .035, -.04)) - vec3(.007, .008, .08), 0.)) - .002); // rail
+        d = min(d, length(max(abs(l - vec3(0, .048, -.1)) - vec3(.012, .01, .012), 0.)) - .002); // sight
+        float core = max(length(l.xy) - .016, abs(l.z - .09) - .1);
         if (d < h.x)
-            h = vec2(d, abs(z) < .012 && length(l.xy) < .04 ? M_COIL : M_GUN);
+            h = vec2(d, M_GUN);
+        if (core < h.x)
+            h = vec2(core, M_COIL);
         // the rocket launcher under the barrel, its tip glows when loaded
-        d = length(vec3(l.xy - vec2(0, -.065), l.z - clamp(l.z, -.08, .15))) - .022;
+        d = length(vec3(l.xy - vec2(0, -.062), l.z - clamp(l.z, -.02, .14))) - .02;
+        d = min(d, max(length(l.xy - vec2(0, -.062)) - .025, abs(abs(l.z - .06) - .06) - .006)); // two clamps
         if (d < h.x)
-            h = vec2(d, l.z > .13 ? M_TUBE : M_GUN);
+            h = vec2(d, l.z > .13 && length(l.xy - vec2(0, -.062)) < .021 ? M_TUBE : M_GUN);
     }
     return h;
 }
@@ -397,9 +415,8 @@ vec3 material(vec3 p, float m)
         return vec3(0);
     }
     if (m == M_COIL) {
-        // one band lit per power level of the gun
-        vec3 g = p - eye;
-        float band = floor((dot(g, camF) - gunAt.z - .04) / .07 + .5) + 1.;
+        // the core, in three parts: one lit per power level of the gun
+        float band = floor((gunLocal(p).z + .01) / .067);
         glow = GOLD * (light * 1.5 + kick * 3.) * (band < float(min(lap, 3)) ? 1. : .08);
         return vec3(0);
     }
@@ -408,13 +425,19 @@ vec3 material(vec3 p, float m)
         return vec3(0);
     }
     if (m == M_TUBE) {
-        glow = ORANGE * (rockets > 0 ? 3. : .05);
+        glow = ORANGE * (rockets > 0 ? 1.5 : .05);
         return vec3(0);
     }
     if (m == M_GUN) {
+        // dark gunmetal, worn; a brass muzzle
+        vec3 l = gunLocal(p);
         metal = 1.;
-        rough = .4;
-        return vec3(.12);
+        rough = .3 + .2 * noise(l.zy * 150.);
+        vec3 c = l.z > .198 ? vec3(.6, .42, .2) : vec3(.2, .21, .23) * (.7 + .5 * noise(l.zx * 90.));
+        // a soft light from above and a cold rim, so that the gun reads in the dark
+        glow = c * (.06 * max(dot(n, normalize(camU - camR * .5 - camF * .3)), 0.)
+                    + vec3(.1, .3, .3) * pow(1. - max(dot(n, v), 0.), 3.));
+        return c;
     }
     level(p);
     int r = tRoom;
@@ -566,12 +589,12 @@ void main()
     if (iFrame.w < .5) {
         detail = 1.;
         // camera: head bob while running, shake
-        float b = sin(bob * 2.8);
+        float b = sin(bob * 1.2);
         eye = pos + vec3(0, EYE + b * .04, 0) + shake * shake * .05 * vec3(sin(time * 71.), sin(time * 83.), sin(time * 61.));
         camF = vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
         camR = normalize(cross(camF, vec3(0, 1, 0)));
         camU = cross(camR, camF);
-        gunAt = vec3(.22 + sin(bob * 1.4) * .01, -.21 + b * .01, .36 - kick * .06);
+        gunAt = vec3(.19 + sin(bob * .6) * .012, -.165 - abs(sin(bob * .6)) * .012, .4 - kick * .05);
         fogDensity = _TV(fog, .05) + (1. - light) * .08;
 
         vec3 rd = normalize(uv.x * camR + uv.y * camU + (_TV(focal, 1.6) - kick * .03) * camF);

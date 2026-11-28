@@ -94,9 +94,9 @@ SFX = [  # same order as the event counters in src/shaders/state.glsl
     # enemy hit: a short metallic tick
     instrument("Hit", [env(40), noise(), mulp(), highpass(100)]
                + swept(osc(0, 96), 40, 90, 44) + [addp()] + out(30, 10)),
-    # kill: a bell over a low burst
-    instrument("Kill", [env(78), osc(0, 79, gain=100), osc(0, 97, gain=44), addp(), mulp()]
-               + swept(osc(1, 50, color=60), 60, 100, 70, [lowpass(50)]) + [addp()] + out(40, 50)),
+    # kill: a short explosion, a crack of noise over a falling thump
+    instrument("Kill", [env(66), noise(), mulp(), lowpass(56, 40)]
+               + swept(osc(1, 46, color=50), 54, 100, 64, [lowpass(44)]) + [addp()] + out(70, 30)),
     # hurt: a low, dirty thud
     instrument("Hurt", swept(osc(1, 40, color=20), 64, 90, 76, [lowpass(46, 60)]) + out(80, 30)),
     # jump: a soft thump

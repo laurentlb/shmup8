@@ -251,7 +251,7 @@ void update()
             cooldown = _TV(fireDelay, .11) - .01 * float(power);
             kick = 1.;
             shotEvents++;
-            vec3 muzzle = eye + look * .5 + rt * .2 - up * .15;
+            vec3 muzzle = eye + look * .62 + rt * .16 - up * .16;
             vec3 dir = aim(eye, look, muzzle);
             for (int j = 0, k = 0; j < max(power, 1) && k < MAX_BOLTS; k++)
                 if (bolt[k].w <= 0.) {
@@ -266,7 +266,7 @@ void update()
             rockets--;
             launchEvents++;
             kick = 2.;
-            vec3 muzzle = eye + look * .5 + rt * .2 - up * .21;
+            vec3 muzzle = eye + look * .55 + rt * .17 - up * .22;
             for (int k = 0; k < MAX_ROCKETS; k++)
                 if (rocket[k].w <= 0.) {
                     rocket[k] = vec4(muzzle, 3);

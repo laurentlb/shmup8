@@ -488,14 +488,16 @@ vec3 material(vec3 p,float m)
   metal=0.;
   glow=vec3(0);
   if(m>=30.)
-    return glow=vec3(1,.05,.12)*(6.+10.*enemyInfo[int(m-30.)].y),vec3(0);
+    return glow=vec3(1,.05,.12)*(6.+10.*enemyInfo[int(m-30.)].y/enemyScale(enemyKind[int(m-30.)])),vec3(0);
   if(m>=10.)
     {
       int i=int(m-10.);
       vec3 q=p-enemy[i].xyz;
       float veins=abs(fbm(q.xy*6.+q.z*4.+time)-.5);
-      glow=vec3(1,.05,.12)*smoothstep(.06,0.,veins)*3.+vec3(1.5)*enemyInfo[i].y+vec3(10)*max(-enemy[i].w,0.);
-      rough=.15;
+      glow=vec3(1,.05,.12)*smoothstep(.06,0.,veins)*3.+vec3(1.5/enemyScale(enemyKind[i]))*enemyInfo[i].y+vec3(10)*max(-enemy[i].w,0.);
+      rough=enemyKind[i]==4?
+        .6:
+        .15;
       return vec3(.01);
     }
   if(m==1.)
@@ -712,7 +714,7 @@ void main()
     .8);
   for(int i=0;i<12;i++)
     if(enemyKind[i]==4&&enemy[i].w>0.)
-      col+=vec3(1,.05,.12)*1.5*step(abs(uv.y-.8),.008)*step(abs(uv.x),.5*enemy[i].w/float(ENEMY_HEALTH[4]+lap/2*8));
+      col+=vec3(1,.05,.12)*1.5*step(abs(uv.y-.74),.008)*step(abs(uv.x),.5*enemy[i].w/float(ENEMY_HEALTH[4]+lap/2*8));
   bloom=vec3(1,.4,.1)*(rockets>0?
     1.5:
     .4);
@@ -1157,7 +1159,10 @@ void update()
             lap++,lapEvents++,bestLap=bestLap>0.?
               min(bestLap,lapTime):
               lapTime,lapTime=0.,light=min(light+.1,1.),lapFlash=1.,taken=0;
-          if(q==2&&lap>1)
+          bool warden=q==2&&lap>1;
+          for(int i=0;i<12;i++)
+            warden=warden&&(enemyKind[i]!=4||enemy[i].w<=0.);
+          if(warden)
             spawn(trackPoint(wl+25.)+vec3(0,3,0),4);
         }
       q=0;
@@ -1287,9 +1292,9 @@ void update()
             to*clamp(dist-(kind==1?
               14.:
               10.),-1.,1.):
-            go)*speed*(kind==1?
-            1.:
-            .5)+side*4.-v)*DT*1.5;
+            go)*speed*(kind==3?
+            .5:
+            1.)+side*4.-v)*DT*1.5;
           if(info.z<=0.&&dist<30.&&dead==0.)
             {
               info.z=.4;
@@ -1298,7 +1303,7 @@ void update()
                   vec3 r=normalize(cross(to,vec3(0,1,0)));
                   for(int j=-fan,k=0;j<=fan&&k<10;k++)
                     if(shot[k].w<=0.)
-                      shot[k]=vec4(e+to*size,3),shotVel[k].xyz=normalize(to+r*float(j++)*.12)*(12.+float(lap)),spitEvents++,info.z=max(2.2-.2*float(lap),1.)*(kind==1?
+                      shot[k]=vec4(e+to*size,3),shotVel[k].xyz=normalize(to+r*float(j++)*(.1+.05*float(fan)))*(12.+float(lap)),spitEvents++,info.z=max(2.2-.2*float(lap),1.)*(kind==1?
                         1.:
                         1.5);
                 }

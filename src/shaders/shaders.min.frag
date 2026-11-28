@@ -333,9 +333,12 @@ vec2 enemyShape(vec3 p,int i)
       p.xz*=mat2(cos(a),sin(a),-sin(a),cos(a));
       body=min(body,length(max(abs(p)-vec3(.24,.008,.03),0.))-.004);
     }
-  body=-smin(-body,length(e-vec3(0,0,.55))-.27,.05);
-  float eyeD=length(e-vec3(0,0,.3))-.2;
-  return vec2(min(body,eyeD)*s*.8,eyeD<body?
+  float lens=kind==2||kind==3?
+    1.:
+    .6;
+  body=-smin(-body,length(e-vec3(0,0,.55))-.27*lens,.05);
+  lens=length(e-vec3(0,0,.55-.25*lens))-.2*lens;
+  return vec2(min(body,lens)*s*.8,lens<body?
     30.+float(i):
     10.+float(i));
 }
@@ -500,23 +503,23 @@ vec3 material(vec3 p,float m)
   metal=0.;
   glow=vec3(0);
   if(m>=30.)
-    return glow=vec3(1,.05,.12)*(6.+10.*enemyInfo[int(m-30.)].y/enemyScale(enemyKind[int(m-30.)])),vec3(0);
+    return glow=vec3(1,.04,.015)*(3.+4.*enemyInfo[int(m-30.)].y),vec3(0);
   if(m>=10.)
     {
       int i=int(m-10.);
       vec3 q=p-enemy[i].xyz;
       int kind=enemyKind[i];
       float sc=enemyScale(kind),flash=enemyInfo[i].y;
-      glow=vec3(.6,.5,.45)*flash*flash*flash/sc+vec3(10)*max(-enemy[i].w,0.);
+      glow=vec3(1,.5,.3)*flash*flash*pow(1.-max(dot(n,v),0.),2.)*2.+vec3(10)*max(-enemy[i].w,0.);
       if(kind==2||kind==3)
         {
           float veins=abs(fbm(q.xy*6.+q.z*4.+time)-.5);
-          glow+=vec3(1,.05,.12)*smoothstep(.06,0.,veins)*3.;
+          glow+=vec3(1,.03,.07)*smoothstep(.06,0.,veins)*3.;
           rough=.15;
           return vec3(.01);
         }
       rough=.3+.3*noise(q.xz*20./sc);
-      glow+=vec3(1,.05,.12)*3.*smoothstep(.025,.01,abs(q.y/sc+.03))*step(length(q.xz),.55*sc);
+      glow+=vec3(1,.03,.07)*3.*smoothstep(.025,.01,abs(q.y/sc+.03))*step(length(q.xz),.55*sc);
       return vec3(.012,.012,.014)*(.6+.8*noise(q.xz*20./sc));
     }
   if(m==1.)
@@ -592,10 +595,10 @@ vec3 scattered(vec3 ro,vec3 rd,float tMax)
   for(int i=0;i<lightCount;i++)
     {
       vec3 color=lightCol[i].xyz,o=lightPos[i].xyz-ro;
-      float b=dot(o,rd),h2=max(dot(o,o)-b*b,0.),h=sqrt(h2+.3);
-      c+=color*((atan((tMax-b)/h)+atan(b/h))/h*.002*exp(-b*fogDensity)*(i<2?
-        .1:
-        1.)+step(2.,float(i))*step(0.,b)*step(b,tMax)*.001/(h2+1e-4));
+      float b=dot(o,rd),h2=max(dot(o,o)-b*b,0.),h=sqrt(h2+.3),k=lightPos[i].w;
+      c+=color*((atan((tMax-b)/h)+atan(b/h))/h*.002*exp(-b*fogDensity)*(k<0.?
+        1.:
+        .1+.9*k)+max(k,0.)*step(0.,b)*step(b,tMax)*.001/(h2+1e-4));
     }
   return c;
 }
@@ -604,11 +607,27 @@ vec3 fireballs(vec3 ro,vec3 rd,float tMax)
   vec3 c=vec3(0);
   for(int k=0;k<4;k++)
     {
-      float age=blast[k].w/.6,r=.5+4.*sqrt(age);
+      float age=blast[k].w/.6,r=.5+3.*sqrt(age);
       vec3 o=blast[k].xyz-ro;
       float b=dot(o,rd);
       if(age>0.&&b-r<tMax)
         c+=mix(vec3(2,1.4,.8),vec3(1,.4,.1),age)*1.3*(1.-age)*(1.-age)*smoothstep(r,r*.2,sqrt(max(dot(o,o)-b*b,0.)))*min(length(o)/r,1.)*(.7+.3*noise(rd.xy*30.+time*5.));
+    }
+  return c;
+}
+vec3 tracers(vec3 ro,vec3 rd,float tMax)
+{
+  vec3 c=vec3(0);
+  for(int k=0;k<10;k++)
+    {
+      vec3 a=shot[k].xyz-ro,d=-shotVel[k].xyz*.07;
+      float rdd=dot(rd,d);
+      rdd=clamp((dot(rd,a)*rdd-dot(d,a))/max(dot(d,d)-rdd*rdd,1e-5),0.,1.);
+      a+=d*rdd;
+      float t=dot(a,rd);
+      a-=rd*t;
+      if(shot[k].w>0.&&t>0.&&t<tMax)
+        c+=vec3(1,.14,.02)*(1.-rdd)*.002/(dot(a,a)+3e-4);
     }
   return c;
 }
@@ -650,7 +669,7 @@ vec3 render(vec3 ro,vec3 rd)
         }
       float fog=exp(-h.x*fogDensity);
       c*=exp(-h.x*vec3(.07,.02,.015));
-      col+=weight*(mix(fogColor,c,fog)+glowSum*.05+scattered(ro,rd,h.x)+beams(ro,rd,h.x)+fireballs(ro,rd,h.x));
+      col+=weight*(mix(fogColor,c,fog)+glowSum*.05+scattered(ro,rd,h.x)+beams(ro,rd,h.x)+fireballs(ro,rd,h.x)+tracers(ro,rd,h.x));
       if(h.y<0.)
         break;
       weight*=(f0+(1.-f0)*pow(1.-max(dot(n,v),0.),5.))*(1.-rough)*fog;
@@ -706,8 +725,8 @@ void main()
       col+=bloom*k*smoothstep(.06,.02,length(uv*18.-vec2(-.4,-3.2)));
       vec2 q=uv-vec2(-.3,-.11);
       col+=bloom*k*smoothstep(.01,0.,min(abs(length(q)-.04)-.006,max(abs(q.x)-.004,abs(q.y-.015)-.02)));
-      digits7(col,vec3(1,.05,.12)*2.*k,uv*18.-vec2(1.5,-6),18.,kills,1);
-      col+=vec3(1,.05,.12)*2.*k*smoothstep(.01,0.,length(uv-vec2(-.3,-.33))-.03);
+      digits7(col,vec3(1,.03,.07)*2.*k,uv*18.-vec2(1.5,-6),18.,kills,1);
+      col+=vec3(1,.03,.07)*2.*k*smoothstep(.01,0.,length(uv-vec2(-.3,-.33))-.03);
       fragColor=vec4(col,1);
       return;
     }
@@ -721,7 +740,7 @@ void main()
     }
   tc=abs(uv);
   pulse=max(step(tc.x+tc.y,.004),step(abs(max(tc.x,tc.y)-.03-hitMark*.01),.002)*step(min(tc.x,tc.y),.002));
-  col=mix(col,mix(vec3(.9),vec3(1,.05,.12)*2.,hitMark),pulse*.8);
+  col=mix(col,mix(vec3(.9),vec3(1,.03,.07)*2.,hitMark),pulse*.8);
   int cs=int(lapTime*1e2);
   digits7(col,bloom,uv*22.-vec2(-.5,19.5),22.,cs%100,2);
   digits7(col,bloom,uv*22.-vec2(-3.5,19.5),22.,cs/100,1);
@@ -737,7 +756,7 @@ void main()
     .8);
   for(int i=0;i<12;i++)
     if(enemyKind[i]==4&&enemy[i].w>0.)
-      col+=vec3(1,.05,.12)*1.5*step(abs(uv.y-.74),.008)*step(abs(uv.x),.5*enemy[i].w/float(ENEMY_HEALTH[4]+lap/2*8));
+      col+=pulse*vec3(1,.03,.07)*max(sin(time*6.),0.)*2.,col+=vec3(1,.03,.07)*1.5*step(abs(uv.y-.74),.008)*step(abs(uv.x),.5*enemy[i].w/float(ENEMY_HEALTH[4]+lap/2*8));
   bloom=vec3(1,.4,.1)*(rockets>0?
     1.5:
     .4);
@@ -1107,27 +1126,32 @@ void update()
   else
     {
       lapTime+=DT;
-      light-=DT*(.01+.006*float(lap));
+      float drain=.01+.006*float(lap);
+      for(int i=0;i<12;i++)
+        drain+=enemyKind[i]==4&&enemy[i].w>0.?
+          .01:
+          0.;
+      light-=DT*drain;
       if(light<=0.)
         light=0.,dead=DT,hurtEvents++,record=max(record,lap-1);
       if(light<.3&&time-beatAt>.3+light*2.)
         beatAt=time,beatEvents++;
       vec3 wish=fw*iInput[0].y+rt*iInput[0].x;
-      float wl=length(wish);
-      if(wl>0.)
-        wish/=wl;
+      drain=length(wish);
+      if(drain>0.)
+        wish/=drain;
       if(grounded>0)
         {
           float s=length(vel.xz);
           if(s>0.)
             vel.xz*=max(s-max(s,3.)*6.*DT,0.)/s;
-          accelerate(wish,10.*sign(wl),1e2);
+          accelerate(wish,10.*sign(drain),1e2);
           bob+=s*DT;
           if(mod(floor(buttons*.5),2.)>0.)
             vel.y=7.,jumpEvents++;
         }
       else
-         accelerate(wish,sign(wl),10.);
+         accelerate(wish,sign(drain),10.);
       vel.y-=20.*DT;
       pos+=vel*DT;
       grounded=0;
@@ -1173,8 +1197,8 @@ void update()
       for(int k=0;k<6;k++)
         if((taken>>k&1)==0&&length(pos-PICKUPS[k])<1.5)
           taken|=1<<k,rockets=min(rockets+3,15),pickupEvents++,pickupFlash=1.;
-      wl=trackPos(pos);
-      int q=int(wl/trackLength()*4.);
+      drain=trackPos(pos);
+      int q=int(drain/trackLength()*4.);
       if(q==(checkpoint+1)%4)
         {
           checkpoint=q;
@@ -1186,7 +1210,7 @@ void update()
           for(int i=0;i<12;i++)
             warden=warden&&(enemyKind[i]!=4||enemy[i].w<=0.);
           if(warden)
-            spawn(trackPoint(wl+25.)+vec3(0,3,0),4);
+            spawn(trackPoint(drain+25.)+vec3(0,3,0),4);
         }
       q=0;
       int brutes=0;
@@ -1196,7 +1220,7 @@ void update()
       if(q<min(3+2*lap,10)&&spawnTimer<=0.)
         {
           spawnTimer=max(2.5-.25*float(lap),.7);
-          vec3 s=trackPoint(wl+(rnd()<.25?
+          vec3 s=trackPoint(drain+(rnd()<.25?
             -10.-rnd()*8.:
             18.+rnd()*15.));
           float r=rnd();
@@ -1396,35 +1420,35 @@ void update()
         orb[k].w=0.,light=min(light+.015,1.);
     }
 }
-void addLight(vec3 p,vec3 c)
+void addLight(vec3 p,vec3 c,float core)
 {
   if(lightCount<32&&c.x>0.)
-    lightPos[lightCount].xyz=p,lightCol[lightCount++].xyz=c;
+    lightPos[lightCount]=vec4(p,core),lightCol[lightCount++].xyz=c;
 }
 void makeLights()
 {
   vec3 eye=pos+vec3(0,1,0),f=vec3(cos(yaw)*cos(pitch),sin(pitch),sin(yaw)*cos(pitch)),r=normalize(cross(f,vec3(0,1,0))),u=cross(r,f);
   lightCount=0;
-  addLight(eye+u*.4-f*.3,vec3(1,.75,.4)*(light*1.2+.05));
-  addLight(eye+r*.2-u*.2+f*.55,vec3(1,.75,.4)*kick*kick*6.);
+  addLight(eye+u*.4-f*.3,vec3(1,.75,.4)*(light*1.2+.05),0.);
+  addLight(eye+r*.2-u*.2+f*.55,vec3(1,.75,.4)*kick*kick*6.,0.);
   for(int i=0;i<4;i++)
-    addLight(blast[i].xyz,vec3(1,.4,.1)*9.*max(.6-blast[i].w,0.)*step(1e-4,blast[i].w));
+    addLight(blast[i].xyz,vec3(1,.4,.1)*9.*max(.6-blast[i].w,0.)*step(1e-4,blast[i].w),-1.);
   for(int i=0;i<10;i++)
-    addLight(shot[i].xyz,vec3(1,.05,.12)*3.*step(1e-4,shot[i].w));
+    addLight(shot[i].xyz,vec3(1,.14,.02)*2.*step(1e-4,shot[i].w),1.);
   for(int i=0;i<12;i++)
     addLight(enemy[i].xyz+normalize(eye-enemy[i].xyz)*.9*enemyScale(enemyKind[i]),enemy[i].w<0.?
       vec3(4)*-enemy[i].w:
-      vec3(1,.05,.12)*1.5*enemyInfo[i].x*step(1e-4,enemy[i].w));
+      vec3(1,.03,.07)*1.5*enemyInfo[i].x*step(1e-4,enemy[i].w),1.);
   for(int i=0;i<4;i++)
-    addLight(rocket[i].xyz,vec3(1,.4,.1)*4.*step(1e-4,rocket[i].w));
+    addLight(rocket[i].xyz,vec3(1,.4,.1)*4.*step(1e-4,rocket[i].w),1.);
   for(int i=0;i<6;i++)
-    addLight(PICKUPS[i],vec3(1,.4,.1)*float((taken>>i&1)==0&&length(PICKUPS[i]-pos)<20.));
+    addLight(PICKUPS[i],vec3(1,.4,.1)*float((taken>>i&1)==0&&length(PICKUPS[i]-pos)<20.),1.);
   for(int i=0;i<24;i++)
-    addLight(bolt[i].xyz,vec3(1,.75,.4)*2.*step(1e-4,bolt[i].w));
+    addLight(bolt[i].xyz,vec3(1,.75,.4)*2.*step(1e-4,bolt[i].w),1.);
   for(int i=0;i<8;i++)
-    addLight(spark[i].xyz,vec3(1,.75,.4)*spark[i].w*2.);
+    addLight(spark[i].xyz,vec3(1,.75,.4)*spark[i].w*2.,1.);
   for(int i=0;i<12;i++)
-    addLight(orb[i].xyz,vec3(1,.75,.4)*1.5*orb[i].w);
+    addLight(orb[i].xyz,vec3(1,.75,.4)*1.5*orb[i].w,1.);
 }
 void main()
 {

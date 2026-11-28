@@ -521,8 +521,9 @@ vec3 scattered(vec3 ro, vec3 rd, float tMax)
     for (int i = 0; i < lightCount; i++) {
         vec3 color = lightCol[i].rgb, o = lightPos[i].xyz - ro;
         float b = dot(o, rd), h2 = max(dot(o, o) - b * b, 0.), h = sqrt(h2 + .3);
-        c += color * ((atan((tMax - b) / h) + atan(b / h)) / h * _TV(scatter, .002) * exp(-b * fogDensity) * (i < 2 ? .1 : 1.) // less for the lantern and muzzle
-                      + step(2., float(i)) * step(0., b) * step(b, tMax) * _TV(core, .001) / (h2 + 1e-4));
+        float k = lightPos[i].w; // see addLight
+        c += color * ((atan((tMax - b) / h) + atan(b / h)) / h * _TV(scatter, .002) * exp(-b * fogDensity) * (k < 0. ? 1. : .1 + .9 * k)
+                      + max(k, 0.) * step(0., b) * step(b, tMax) * _TV(core, .001) / (h2 + 1e-4));
     }
     return c;
 }
@@ -532,7 +533,7 @@ vec3 fireballs(vec3 ro, vec3 rd, float tMax)
 {
     vec3 c = vec3(0);
     for (int k = 0; k < MAX_ROCKETS; k++) {
-        float age = blast[k].w / .6, r = .5 + 4. * sqrt(age);
+        float age = blast[k].w / .6, r = .5 + 3. * sqrt(age);
         vec3 o = blast[k].xyz - ro;
         float b = dot(o, rd), h = sqrt(max(dot(o, o) - b * b, 0.));
         if (age > 0. && b - r < tMax)
@@ -701,9 +702,10 @@ void main()
         digits7(col, GOLD * lapFlash * 2., uv * 6. - vec2(.5, 1.5), 6., lap, 1);
     float bar = step(abs(uv.y + .9), .006) * step(abs(uv.x), .35 * light);
     col += bar * GOLD * (light < .25 ? step(.5, fract(time * 3.)) + .3 : .8);
-    // the warden's health, at the top
+    // the warden's health, at the top; it drinks your light: the bar pulses red
     for (int i = 0; i < MAX_ENEMIES; i++)
         if (enemyKind[i] == 4 && enemy[i].w > 0.)
+            col += bar * RED * max(sin(time * 6.), 0.) * 2.,
             col += RED * 1.5 * step(abs(uv.y - .74), .008) * step(abs(uv.x), .5 * enemy[i].w / float(ENEMY_HEALTH[4] + lap / 2 * healthUp(4)));
     // rockets: a diamond and the count, orange when taking a crate
     vec3 orange = ORANGE * (rockets > 0 ? 1.5 : .4);

@@ -495,6 +495,8 @@ vec3 fireballs(vec3 ro, vec3 rd, float tMax)
     return c;
 }
 
+// Thermal: the heat seen by the first ray (0 cold to 1 hot), written in alpha.
+float heat0;
 vec3 render(vec3 ro, vec3 rd)
 {
     const vec3 fogColor = vec3(.004, .005, .012);
@@ -512,6 +514,12 @@ vec3 render(vec3 ro, vec3 rd)
             f0 = mix(vec3(.04), albedo, metal);
             albedo *= 1. - metal;
             float ao = occlusion(p, n);
+            if (bounce == 0) {
+                float m = h.y;
+                heat0 = m >= 30. ? 1. : m >= 10. ? .82 + .18 * enemyInfo[int(m - 10.)].y
+                      : m == M_CRATE ? .65 : m == M_TUBE || m == M_COIL ? .6 : m == M_GUN ? .4 : m == M_NEON ? .45
+                      : .1 + .22 * fbm(p.xz * .3 + p.y * .5) + .3 * (1. - ao) + .1 * max(n.y, 0.);
+            }
             // neon: by the distance to the tubes, a bit off the surface (so
             // that surfaces facing away get less)
             float d = neonAt(p + n * .3);
@@ -523,6 +531,10 @@ vec3 render(vec3 ro, vec3 rd)
             }
         }
         float fog = exp(-h.x * fogDensity);
+        if (bounce == 0) {
+            heat0 = mix(.06, h.y >= 0. ? heat0 : .06, exp(-h.x * .025));
+            heat0 += dot(scattered(ro, rd, h.x) + fireballs(ro, rd, h.x), vec3(.3)) + max(-h.x, 0.);
+        }
         col += weight * (mix(fogColor, c, fog) + glowSum * _TV(neonGlow, .05)
                          + scattered(ro, rd, h.x) + beams(ro, rd, h.x) + fireballs(ro, rd, h.x));
         if (h.y < 0.)
@@ -555,7 +567,8 @@ void main()
 
         vec3 rd = normalize(uv.x * camR + uv.y * camU + (_TV(focal, 1.6) - kick * .03) * camF);
         // A NaN would spread through the bloom.
-        fragColor = vec4(clamp(render(eye, rd), 0., 50.), 1);
+        fragColor.rgb = clamp(render(eye, rd), 0., 50.);
+        fragColor.a = heat0;
         return;
     }
 
@@ -571,6 +584,13 @@ void main()
     float luma = dot(col, vec3(.3, .6, .1));
     col = mix(vec3(luma), col, 1.2) + vec3(-.005, 0, .015) * (1. - luma);
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
+    // Thermal: a blurry sensor, an "ironbow" palette, noise and scanlines
+    {
+        float t = mix(texture(tex, tc).a, textureLod(tex, tc, 2.).a, .5) + max(textureLod(tex, tc, 5.).a - .4, 0.) * .5;
+        t = clamp(t + (hash(gl_FragCoord.xy + fract(time) * 50.) - .5) * .04, 0., 1.2);
+        col = clamp(vec3(t * 1.7 - .15, t * t * 1.3 - .2, .45 * sin(t * 4.) + max(t - .85, 0.) * 5.), 0., 1.);
+        col *= .9 + .1 * sin(gl_FragCoord.y * 1.5);
+    }
     // the vignette closes in when the light is low; red when hurt
     float edge = length(texCoord - .5);
     col *= max(1. - pow(edge, 1.5) * (1.2 + (1. - light) * 2.), 0.);

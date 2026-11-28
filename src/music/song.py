@@ -114,6 +114,8 @@ SFX = [  # same order as the event counters in src/shaders/state.glsl
                + swept(osc(0, 36), 70, 90, 80) + [addp()] + out(90, 60)),
     # ammo crate: a bright little arpeggio of two tones
     instrument("Pickup", [env(64), osc(0, 88, gain=90), osc(0, 95, gain=60), addp(), mulp()] + out(30, 40)),
+    # heartbeat when the light is low: a deep, muffled thump
+    instrument("Beat", swept(osc(0, 34), 52, 70, 60, [lowpass(30, 80)]) + out(110, 0)),
 ]
 GLOBAL = instrument("Global", [
     unit("in", channel=2, stereo=1),

@@ -36,7 +36,7 @@ layout(std430, binding = 0) buffer State {
     
     
     int shotEvents, hitEvents, killEvents, hurtEvents, jumpEvents, lapEvents, spitEvents,
-        launchEvents, boomEvents, pickupEvents;
+        launchEvents, boomEvents, pickupEvents, beatEvents;
 
     vec3 pos; float yaw;     
     vec3 vel; float pitch;
@@ -56,6 +56,7 @@ layout(std430, binding = 0) buffer State {
     float prevButtons;
     uint rng;
     float spawnTimer;
+    float beatAt;            
     vec4 bolt[MAX_BOLTS];        
     vec4 boltVel[MAX_BOLTS];
     vec4 enemy[MAX_ENEMIES];     
@@ -462,6 +463,8 @@ float neon(vec3 p)
         tube(d, length(p.xz - vec2(4, 25)) - .45, vec3(1, .3, .7));
     
     
+    
+    neonCol = mix(vec3(0, .9, .7), vec3(.3, 1, .3), noise(vec2(p.x + p.z, p.y) * .2)) * (.7 + .3 * sin(time * 2. + p.x * .5));
     if (lap >= tDie) {
         float flash = hash(vec2(floor(time * 9.), tRoom));
         neonCol *= lap == tDie ? step(.35, flash) : .03 + step(.96, flash);
@@ -639,7 +642,7 @@ void cull(vec3 ro, vec3 rd)
     for (int i = 0; i < MAX_ENEMIES; i++)
         if (enemy[i].w != 0. && hitSphere(ro, rd, enemy[i].xyz, 2.7 * enemyScale(enemyKind[i])))
             seenX |= 1u << i;
-    if (hitSphere(ro, rd, eye + mat3(camR, camU, camF) * (gunAt + vec3(0, 0, .03)), .3))
+    if (started > 0 && hitSphere(ro, rd, eye + mat3(camR, camU, camF) * (gunAt + vec3(0, 0, .03)), .3))
         seenX |= 1u << 31;
     for (int k = 0; k < NP; k++)
         if ((taken >> k & 1) == 0 && hitSphere(ro, rd, PICKUPS[k], .7))
@@ -663,7 +666,7 @@ float occlusion(vec3 p, vec3 n)
 const vec4 BEAMS[NB] = vec4[](vec4(10, 0, 0, 9), vec4(22, 0, 0, 9), vec4(34, 0, 0, 9),
                               vec4(64, 0, -7, 10), vec4(72, 0, -7, 10), vec4(-2, 24, -3, 10));
 #define BEAM_R 1.2
-#define BEAM_COL vec3(.45, .6, 1)
+#define BEAM_COL vec3(.4, .9, 1)
 
 
 float inBeam(vec3 p)
@@ -717,7 +720,7 @@ vec3 material(vec3 p, float m)
     }
     if (m == M_NEON) {
         neonAt(p);
-        glow = neonCol * 6.;
+        glow = neonCol * 8. * smoothstep(.3, .1, length(fract(vec2(p.x + p.z, p.y) * 4.) - .5));
         return vec3(0);
     }
     if (m == M_COIL) {
@@ -758,13 +761,12 @@ vec3 material(vec3 p, float m)
         }
         
         float at = trackPos(p);
-        glow = vec3(.4, .6, 1) * .35 * smoothstep(.08, .04, trackDist) * step(fract((at - time * 5.) * .4), .3);
+        glow = vec3(.2, 1, .8) * .3 * smoothstep(.08, .04, trackDist) * step(fract((at - time * 5.) * .4), .3);
         
         vec2 g = abs(fract(p.xz / 1.5) - .5);
-        float wet = smoothstep(.55, .7, fbm(p.xz * .3) + .1 * fbm(p.xz * 3.) + (r == 3 ? .15 : 0.));
-        rough = mix(.6, .03, wet);
-        return vec3(.055, .05, .045) * (.6 + .4 * hash(floor(p.xz / 1.5))) * (.7 + .5 * fbm(p.xz * 2.))
-             * (1. - .6 * step(.48, max(g.x, g.y))) * (1. - .5 * wet);
+        float vein = smoothstep(.03, 0., abs(fbm(p.xz * .7 + fbm(p.xz * 2.) * 1.5) - .5));
+        rough = .03;
+        return mix(vec3(.008, .01, .01), vec3(.3, .33, .3), vein * .5) * (1. - .8 * step(.49, max(g.x, g.y)));
     }
     if (n.y < -.7) {
         
@@ -783,7 +785,7 @@ vec3 material(vec3 p, float m)
     float y = p.y * 2., row = floor(y);
     vec2 b = vec2(w + .5 * mod(row, 2.), y), e = abs(fract(b) - .5);
     rough = .7;
-    return vec3(.07, .065, .06) * (.6 + .5 * hash(vec2(floor(b.x), row))) * (.6 + .6 * fbm(vec2(w, p.y) * 4.))
+    return mix(vec3(.06, .08, .07), vec3(.02, .1, .06), fbm(vec2(w, p.y) * 1.5)) * (.6 + .5 * hash(vec2(floor(b.x), row))) * (.6 + .6 * fbm(vec2(w, p.y) * 4.))
          * (1. - .7 * step(.46, max(e.x, e.y * .9 + .05)));
 }
 
@@ -827,9 +829,21 @@ vec3 fireballs(vec3 ro, vec3 rd, float tMax)
     return c;
 }
 
+
+float caustics(vec3 p)
+{
+    vec2 q = p.xz * .7 + p.y * .2;
+    float c = 0.;
+    for (int i = 0; i < 3; i++) {
+        q += vec2(sin(q.y * 1.3 + time * .7), cos(q.x * 1.1 - time * .6)) * .5;
+        c += abs(sin(q.x + q.y));
+    }
+    return pow(1. - c / 3., 4.) * 10.;
+}
+
 vec3 render(vec3 ro, vec3 rd)
 {
-    const vec3 fogColor = vec3(.004, .005, .012);
+    const vec3 fogColor = vec3(0, .025, .03);
     vec3 col = vec3(0), weight = vec3(1);
     for (int bounce = 0; bounce < 2; bounce++) {
         glowSum = vec3(0);
@@ -848,13 +862,15 @@ vec3 render(vec3 ro, vec3 rd)
             
             float d = neonAt(p + n * .3);
             c = albedo * (neonCol * _TV(neonLight, 2.) / (1. + d * d * 3.) + vec3(.01, .012, .02)
-                          + BEAM_COL * 1.5 * inBeam(p) * max(n.y, 0.)) * ao + glow;
+                          + BEAM_COL * 1.5 * inBeam(p) * max(n.y, 0.)
+                          + vec3(.5, 1.2, 1.3) * caustics(p) * (.3 + .7 * max(n.y, 0.)) * (.3 + .7 * light)) * ao + glow;
             for (int i = 0; i < lightCount; i++) {
                 vec3 color = lightCol[i].rgb, l = lightPos[i].xyz - p;
                 c += albedo * color * max(dot(n, normalize(l)), 0.) / (dot(l, l) + .3) + shade(p, lightPos[i].xyz, color);
             }
         }
         float fog = exp(-h.x * fogDensity);
+        c *= exp(-h.x * vec3(.07, .02, .015));
         col += weight * (mix(fogColor, c, fog) + glowSum * _TV(neonGlow, .05)
                          + scattered(ro, rd, h.x) + beams(ro, rd, h.x) + fireballs(ro, rd, h.x));
         if (h.y < 0.)
@@ -883,7 +899,7 @@ void main()
         camR = normalize(cross(camF, vec3(0, 1, 0)));
         camU = cross(camR, camF);
         gunAt = vec3(.22 + sin(bob * 1.4) * .01, -.21 + b * .01, .36 - kick * .06);
-        fogDensity = _TV(fog, .03) + (1. - light) * .08;
+        fogDensity = _TV(fog, .05) + (1. - light) * .08;
 
         vec3 rd = normalize(uv.x * camR + uv.y * camU + (_TV(focal, 1.6) - kick * .03) * camF);
         
@@ -892,20 +908,21 @@ void main()
     }
 
     
-    vec2 tc = texCoord * iFrame.z, ca = (texCoord - .5) * .002; 
+    vec2 tc = texCoord * iFrame.z, ca = (texCoord - .5) * .003; 
     vec3 col = vec3(texture(tex, tc + ca).r, texture(tex, tc).g, texture(tex, tc - ca).b);
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)
         bloom += max(textureLod(tex, tc, float(i)).rgb - .4, 0.);
-    col += bloom * _TV(bloomAmount, .3);
+    col += bloom * _TV(bloomAmount, .45);
     col = col * (2.51 * col + .03) / (col * (2.43 * col + .59) + .14);
     
     float luma = dot(col, vec3(.3, .6, .1));
-    col = mix(vec3(luma), col, 1.2) + vec3(-.005, 0, .015) * (1. - luma);
+    col = mix(vec3(luma), col, 1.15) * vec3(.85, 1., 1.) + vec3(-.01, .01, .02) * (1. - luma);
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
     
     float edge = length(texCoord - .5);
-    col *= max(1. - pow(edge, 1.5) * (1.2 + (1. - light) * 2.), 0.);
+    float pulse = step(light, .3) * exp((beatAt - time) * 8.); 
+    col *= max(1. - pow(edge, 1.5) * (1.2 + (1. - light) * 2. + pulse * 2.), 0.);
     col = mix(col, vec3(col.r + .3, 0, 0), hurt * smoothstep(.2, .7, edge));
     col += lapFlash * GOLD * .3;
     col *= max(1. - dead * .5, 0.);
@@ -927,6 +944,14 @@ void main()
         col += cold * k * smoothstep(.01, 0., min(abs(length(q) - .04) - .006, max(abs(q.x) - .004, abs(q.y - .015) - .02)));
         digits7(col, RED * 2. * k, uv * 18. - vec2(1.5, -6.), 18., kills, 1);
         col += RED * 2. * k * smoothstep(.01, 0., length(uv - vec2(-.3, -.33)) - .03); 
+        fragColor = vec4(col, 1);
+        return;
+    }
+    if (started == 0) {
+        
+        col *= step(abs(uv.y), .78);
+        vec2 q = uv - vec2(0, -.62);
+        col += cold * (.6 + .4 * sin(time * 3.)) * smoothstep(.004, 0., max(-q.x - .02, abs(q.y) * 1.7 + q.x - .02));
         fragColor = vec4(col, 1);
         return;
     }

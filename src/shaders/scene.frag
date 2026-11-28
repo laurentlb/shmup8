@@ -309,7 +309,7 @@ void cull(vec3 ro, vec3 rd)
     for (int i = 0; i < MAX_ENEMIES; i++)
         if (enemy[i].w != 0. && hitSphere(ro, rd, enemy[i].xyz, 2.7 * enemyScale(enemyKind[i])))
             seenX |= 1u << i;
-    if (hitSphere(ro, rd, eye + mat3(camR, camU, camF) * (gunAt + vec3(0, 0, .03)), .3))
+    if (started > 0 && hitSphere(ro, rd, eye + mat3(camR, camU, camF) * (gunAt + vec3(0, 0, .03)), .3))
         seenX |= 1u << 31;
     for (int k = 0; k < NP; k++)
         if ((taken >> k & 1) == 0 && hitSphere(ro, rd, PICKUPS[k], .7))
@@ -588,7 +588,8 @@ void main()
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
     // the vignette closes in when the light is low; red when hurt
     float edge = length(texCoord - .5);
-    col *= max(1. - pow(edge, 1.5) * (1.2 + (1. - light) * 2.), 0.);
+    float pulse = step(light, .3) * exp((beatAt - time) * 8.); // the heartbeat squeezes the view
+    col *= max(1. - pow(edge, 1.5) * (1.2 + (1. - light) * 2. + pulse * 2.), 0.);
     col = mix(col, vec3(col.r + .3, 0, 0), hurt * smoothstep(.2, .7, edge));
     col += lapFlash * GOLD * .3;
     col *= max(1. - dead * .5, 0.);
@@ -610,6 +611,14 @@ void main()
         col += cold * k * smoothstep(.01, 0., min(abs(length(q) - .04) - .006, max(abs(q.x) - .004, abs(q.y - .015) - .02)));
         digits7(col, RED * 2. * k, uv * 18. - vec2(1.5, -6.), 18., kills, 1);
         col += RED * 2. * k * smoothstep(.01, 0., length(uv - vec2(-.3, -.33)) - .03); // an eye: kills
+        fragColor = vec4(col, 1);
+        return;
+    }
+    if (started == 0) {
+        // the title: letterbox, and a slowly pulsing "play" sign
+        col *= step(abs(uv.y), .78);
+        vec2 q = (uv - vec2(0, -.6)) * .5;
+        col += cold * (.6 + .4 * sin(time * 3.)) * smoothstep(.004, 0., max(-q.x - .02, abs(q.y) * 1.7 + q.x - .02));
         fragColor = vec4(col, 1);
         return;
     }

@@ -1709,12 +1709,107 @@
    ]
   },
   {
+   "name": "Beat",
+   "numvoices": 1,
+   "units": [
+    {
+     "type": "envelope",
+     "id": 133,
+     "parameters": {
+      "attack": 0,
+      "decay": 60,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "envelope",
+     "id": 134,
+     "parameters": {
+      "attack": 0,
+      "decay": 52,
+      "sustain": 0,
+      "release": 0,
+      "gain": 128,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "send",
+     "id": 135,
+     "parameters": {
+      "target": 131,
+      "amount": 70,
+      "port": 0,
+      "sendpop": 1,
+      "voice": 0,
+      "unit": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "oscillator",
+     "id": 131,
+     "parameters": {
+      "type": 0,
+      "transpose": 34,
+      "detune": 64,
+      "gain": 128,
+      "color": 128,
+      "shape": 64,
+      "phase": 0,
+      "lfo": 0,
+      "unison": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "mulp",
+     "id": 136,
+     "parameters": {
+      "stereo": 0
+     }
+    },
+    {
+     "type": "filter",
+     "id": 132,
+     "parameters": {
+      "frequency": 30,
+      "resonance": 80,
+      "lowpass": 1,
+      "bandpass": 0,
+      "highpass": 0,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "pan",
+     "id": 137,
+     "parameters": {
+      "panning": 64,
+      "stereo": 0
+     }
+    },
+    {
+     "type": "outaux",
+     "id": 138,
+     "parameters": {
+      "outgain": 88,
+      "auxgain": 0,
+      "stereo": 1
+     }
+    }
+   ]
+  },
+  {
    "name": "Global",
    "numvoices": 1,
    "units": [
     {
      "type": "in",
-     "id": 131,
+     "id": 139,
      "parameters": {
       "channel": 2,
       "stereo": 1
@@ -1722,7 +1817,7 @@
     },
     {
      "type": "delay",
-     "id": 132,
+     "id": 140,
      "parameters": {
       "stereo": 1,
       "pregain": 80,
@@ -1738,7 +1833,7 @@
     },
     {
      "type": "out",
-     "id": 133,
+     "id": 141,
      "parameters": {
       "gain": 60,
       "stereo": 1

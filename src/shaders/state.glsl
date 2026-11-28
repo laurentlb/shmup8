@@ -17,7 +17,7 @@ layout(std430, binding = 0) buffer State {
     // Event counters, they trigger the sound effects.
     // Same order as SFX in src/music/song.py.
     int shotEvents, hitEvents, killEvents, hurtEvents, jumpEvents, lapEvents, spitEvents,
-        launchEvents, boomEvents, pickupEvents;
+        launchEvents, boomEvents, pickupEvents, beatEvents;
 
     vec3 pos; float yaw;     // pos: the center of the player's sphere; yaw, pitch: the view
     vec3 vel; float pitch;
@@ -37,6 +37,7 @@ layout(std430, binding = 0) buffer State {
     float prevButtons;
     uint rng;
     float spawnTimer;
+    float beatAt;            // time of the last heartbeat (low light)
     vec4 bolt[MAX_BOLTS];        // xyz, w: life left (s), 0: free
     vec4 boltVel[MAX_BOLTS];
     vec4 enemy[MAX_ENEMIES];     // xyz, w: health, 0: free, < 0: bursting (from -0.3 to 0)

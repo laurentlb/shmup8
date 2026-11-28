@@ -40,7 +40,7 @@ layout(std430, binding = 0) buffer State {
     
     
     int shotEvents, hitEvents, killEvents, hurtEvents, jumpEvents, lapEvents, spitEvents,
-        launchEvents, boomEvents, pickupEvents;
+        launchEvents, boomEvents, pickupEvents, beatEvents;
 
     vec3 pos; float yaw;     
     vec3 vel; float pitch;
@@ -60,6 +60,7 @@ layout(std430, binding = 0) buffer State {
     float prevButtons;
     uint rng;
     float spawnTimer;
+    float beatAt;            
     vec4 bolt[MAX_BOLTS];        
     vec4 boltVel[MAX_BOLTS];
     vec4 enemy[MAX_ENEMIES];     
@@ -486,8 +487,20 @@ void update()
 {
     time += DT;
     tick++;
-    if (started == 0)
-        newRun();
+    if (started == 0) {
+        
+        vec3 a = vec3(0), b = vec3(0);
+        for (int k = 0; k < 4; k++)
+            a += trackPoint(time * 2.5 + float(k)), b += trackPoint(time * 2.5 + 7. + float(k));
+        pos = a / 4. + vec3(0, R_BODY + .5, 0);
+        b -= a;
+        yaw = atan(b.z, b.x);
+        pitch = -.06 + .04 * sin(time * .4);
+        light = 1.;
+        if (iInput[0].z + abs(iInput[0].x) + abs(iInput[0].y) > 0.)
+            newRun();
+        return;
+    }
     shake = max(shake - DT * 3., 0.);
     hurt = max(hurt - DT * 2., 0.);
     kick = max(kick - DT * 6., 0.);
@@ -521,6 +534,9 @@ void update()
             hurtEvents++;
             record = max(record, lap - 1);
         }
+        
+        if (light < .3 && time - beatAt > .3 + light * 2.)
+            beatAt = time, beatEvents++;
 
         
         vec3 wish = fw * iInput[0].y + rt * iInput[0].x;

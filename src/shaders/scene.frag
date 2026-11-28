@@ -153,9 +153,7 @@ vec2 enemyShape(vec3 p, int i)
     int kind = enemyKind[i];
     // appearing: grows; bursting: swells
     float s = (enemy[i].w < 0. ? 1.6 + enemy[i].w * 2. : max(enemyInfo[i].x, .05)) * ENEMY_SIZE * enemyScale(kind);
-    vec3 f = normalize(eye - e);
-    if (kind == 2)
-        f = normalize(vec3(f.x, 0, f.z)); // skitters stay level
+    vec3 f = normalize((eye - e) * vec3(1, kind == 2 ? 0. : .3, 1)); // skitters stay level, drones almost
     vec3 r = normalize(cross(f, vec3(0, 1, 0))), u = cross(r, f);
     vec3 q = p - e;
     vec3 l = vec3(dot(q, r), dot(q, u), dot(q, f)) / s;
@@ -175,24 +173,29 @@ vec2 enemyShape(vec3 p, int i)
         body = smin(body, capsule(vec3(abs(l.xy), l.z), vec3(.3, .3, -.1), vec3(.75, .75, -.5), .12), .15);
         body = min(body, length(vec2(length(l.xy) - .58, l.z + .05)) - .07);
     } else if (kind == 1 || kind == 4) {
-        // spitter: a ball with a ring of eight spikes turning around the eye;
-        // the warden also has a second ring, turning the other way, and a crown
-        body = length(l) - .5;
-        float a = mod(atan(l.y, l.x) + t * .3 + .39, .785) - .39;
-        body = smin(body, capsule(vec3(length(l.xy) * vec2(cos(a), sin(a)), l.z), vec3(.3, 0, -.1), vec3(1.1, 0, -.4), .05), .15);
-        if (kind == 4) {
-            a = mod(atan(l.y, l.x) - t * .2, .785) - .39;
-            body = smin(body, capsule(vec3(length(l.xy) * vec2(cos(a), sin(a)), l.z), vec3(.3, 0, -.3), vec3(.8, 0, -1.), .04), .1);
-            body = min(body, length(vec2(length(l.xy) - .62, l.z + .1)) - .05);
-        }
+        // gunship drone: an armored hull, a cannon under the nose, ducted
+        // fans on struts (two; four and two cannons for the warden)
+        vec3 r = abs(l - vec3(0, 0, -.05)) - vec3(.36, .22, .48);
+        body = length(max(r, 0.)) + min(max(r.x, max(r.y, r.z)), 0.) - .12;
+        body = max(body, (abs(l.x) + l.y) * .707 - .38); // beveled top
+        vec3 c = vec3(kind == 4 ? abs(l.x) - .22 : l.x, l.y + .34, l.z);
+        body = min(body, capsule(c, vec3(0, 0, -.1), vec3(0, 0, .72), .07));
+        vec3 q = vec3(abs(l.x), l.y - .05, kind == 4 ? abs(l.z) : l.z) - vec3(.9, 0, kind == 4 ? .5 : 0.);
+        body = min(body, capsule(vec3(abs(l.x), l.y - .05, q.z), vec3(.3, 0, 0), vec3(.9, 0, 0), .05));
+        body = min(body, max(abs(length(q.xz) - .3) - .04, abs(q.y) - .1)); // duct
+        float a = time * 25. + float(i);
+        q.xz *= mat2(cos(a), sin(a), -sin(a), cos(a));
+        body = min(body, length(max(abs(q) - vec3(.27, .01, .035), 0.)) - .005); // blades
     } else {
-        // wraith: tentacles trailing behind
-        body = length(l * vec3(1, 1.15, .8)) - .5;
-        for (int k = 0; k < 5; k++) {
-            float a = float(k) * 1.257 + sin(t * .3) * .3;
-            vec3 tip = vec3(cos(a) * .7, sin(a) * .7, -1.3) + .2 * vec3(sin(t + float(k) * 2.), cos(t * 1.3 + float(k)), 0);
-            body = smin(body, capsule(l, vec3(cos(a), sin(a), 0) * .25, tip, .07), .2);
-        }
+        // hunter drone: a flat pod on four arms with ducted rotors
+        body = (length(l / vec3(.5, .3, .6)) - 1.) * .3;
+        vec3 q = vec3(abs(l.x), l.y, abs(l.z));
+        body = smin(body, capsule(q, vec3(.15, 0, .1), vec3(.7, .08, .5), .045), .08);
+        q -= vec3(.7, .08, .5);
+        body = min(body, max(abs(length(q.xz) - .26) - .035, abs(q.y) - .07)); // duct
+        float a = time * 30. + float(i);
+        q.xz *= mat2(cos(a), sin(a), -sin(a), cos(a));
+        body = min(body, length(max(abs(q) - vec3(.24, .008, .03), 0.)) - .004); // blades
     }
     // an eye in a socket
     body = -smin(-body, length(l - vec3(0, 0, .55)) - .27, .05);
@@ -404,10 +407,21 @@ vec3 material(vec3 p, float m)
         // a black shell with glowing veins, white when hit
         int i = int(m - 10.);
         vec3 q = p - enemy[i].xyz;
-        float veins = abs(fbm(q.xy * 6. + q.z * 4. + time) - .5);
-        glow = RED * smoothstep(.06, 0., veins) * 3. + vec3(1.5 / enemyScale(enemyKind[i])) * enemyInfo[i].y + vec3(10) * max(-enemy[i].w, 0.);
-        rough = enemyKind[i] == 4 ? .6 : .15;
-        return vec3(.01);
+        int kind = enemyKind[i];
+        float sc = enemyScale(kind);
+        float flash = enemyInfo[i].y;
+        glow = vec3(.6, .5, .45) * flash * flash * flash / sc + vec3(10) * max(-enemy[i].w, 0.);
+        if (kind == 2 || kind == 3) {
+            // creatures: glowing veins
+            float veins = abs(fbm(q.xy * 6. + q.z * 4. + time) - .5);
+            glow += RED * smoothstep(.06, 0., veins) * 3.;
+            rough = .15;
+            return vec3(.01);
+        }
+        // drones: worn dark metal, a red light strip around the hull
+        rough = .3 + .3 * noise(q.xz * 20. / sc);
+        glow += RED * 3. * smoothstep(.025, .01, abs(q.y / sc + .03)) * step(length(q.xz), .55 * sc);
+        return vec3(.012, .012, .014) * (.6 + .8 * noise(q.xz * 20. / sc));
     }
     if (m == M_NEON) {
         neonAt(p);

@@ -604,7 +604,7 @@ void update()
             rockets--;
             launchEvents++;
             kick = 2.;
-            vec3 muzzle = eye + look * .5 + rt * .2 - up * .21;
+            vec3 muzzle = eye + look * .55 + rt * .17 - up * .22;
             for (int k = 0; k < MAX_ROCKETS; k++)
                 if (rocket[k].w <= 0.) {
                     rocket[k] = vec4(muzzle, 3);
@@ -776,6 +776,11 @@ void update()
             float range = kind == 1 ? 14. : 10.;
             int fan = max(kind - 2, 0);
             v += ((see ? to * clamp(dist - range, -1., 1.) : go) * speed * (kind == 3 ? .5 : 1.) + side * 4. - v) * DT * 1.5;
+            
+            if (kind == 4 && see && (enemyVel[i].w -= DT) <= 0.) {
+                enemyVel[i].w = 5.;
+                spawn(e + vec3(0, size, 0), 0);
+            }
             if (info.z <= 0. && dist < 30. && dead == 0.) {
                 info.z = .4;
                 if (see) {

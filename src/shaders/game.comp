@@ -545,7 +545,7 @@ void makeLights()
     addLight(eye + u * .4 - f * .3, GOLD * (light * _TV(lantern, 1.2) + .05));
     addLight(eye + r * .2 - u * .2 + f * .55, GOLD * kick * kick * 6.);
     for (int i = 0; i < MAX_ROCKETS; i++)
-        addLight(blast[i].xyz, ORANGE * 15. * max(.6 - blast[i].w, 0.) * step(1e-4, blast[i].w));
+        addLight(blast[i].xyz, ORANGE * 9. * max(.6 - blast[i].w, 0.) * step(1e-4, blast[i].w));
     for (int i = 0; i < MAX_SHOTS; i++)
         addLight(shot[i].xyz, RED * 3. * step(1e-4, shot[i].w));
     for (int i = 0; i < MAX_ENEMIES; i++)

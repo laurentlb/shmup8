@@ -871,7 +871,8 @@ vec3 fireballs(vec3 ro, vec3 rd, float tMax)
         vec3 o = blast[k].xyz - ro;
         float b = dot(o, rd), h = sqrt(max(dot(o, o) - b * b, 0.));
         if (age > 0. && b - r < tMax)
-            c += mix(vec3(2, 1.4, .8), ORANGE, age) * 2. * (1. - age) * (1. - age) * smoothstep(r, r * .2, h)
+            
+            c += mix(vec3(2, 1.4, .8), ORANGE, age) * 1.3 * (1. - age) * (1. - age) * smoothstep(r, r * .2, h) * min(length(o) / r, 1.)
                  * (.7 + .3 * noise(rd.xy * 30. + time * 5.));
     }
     return c;

@@ -44,30 +44,31 @@ rocket. Space: jump (hold to jump again on landing). Escape: quit.
   walls (not across the doorways), teal to green, slowly pulsing. One set of distance functions for both
   the collisions (stairs are ramps there) and the rendering.
 * Movement: Quake-style: ground and air acceleration (air strafing works),
-  friction, jumps, head bob.
+  friction, jumps, head bob (and a figure-eight sway of the gun).
 * Weapons:
-  * a light gun, unlimited: gold bolts that light the walls as they fly,
+  * a light rifle, unlimited (a beveled receiver, a hexagonal shroud with
+    vents showing a glowing core, a brass muzzle, a rail and a sight): gold bolts that light the walls as they fly,
     converging on what the crosshair points at. It gets better on each lap
-    (faster, then two and three bolts); a glowing band on the barrel per level;
+    (faster, then two and three bolts); one more third of the core glows per level;
   * a rocket launcher under the barrel, with limited rockets (5 at the start,
     15 at most): slow rockets, explosions with area damage and knockback, a
     ball of fire; the blast pushes you without hurting you (rocket jumps).
 * Ammo crates: six turning orange diamonds, +3 rockets each, some off the route
   (on the hall's walkway, at the bottom of the flooded pit, in corners); they
   come back on each lap.
-* Enemies, readable in the dark (a red eye, glowing veins, a red light),
-  white for an instant when hit, bursting into light when killed:
-  * wraiths weave toward you (hard to snipe) and charge when close; a bite
-    costs light and knocks you back;
-  * spitters, balls with a ring of turning spikes, keep their distance, circle,
-    and fire slow red shots you can dodge;
+* Enemies, readable in the dark (a red eye, a red light, glowing veins or a
+  red light strip), flashing when hit, bursting into light when killed:
+  * hunter drones, flat pods on four ducted rotors, weave toward you (hard to
+    snipe) and charge when close; a ram costs light and knocks you back;
+  * gunships, armored drones with a cannon under the nose and two ducted fans,
+    keep their distance, circle, and fire slow red shots you can dodge;
   * skitters, small spiders running on six legs, come in packs on the floor
     and leap at you; one hit kills them, but look down;
   * brutes, from lap 3: big armored balls with horns, slow, tough (rockets
     help), firing three shots at once; they release a lot of light;
-  * the warden, a boss, from lap 2: half-way through each lap, a giant with two
-    rings of spikes and a crown comes from ahead; it fires fans of five shots,
-    and follows you (a health bar at the top). Killing it releases a flood of
+  * the warden, a boss, from lap 2: half-way through each lap, a giant gunship
+    with four fans and two cannons comes from ahead; it fires fans of five
+    shots, launches a hunter drone every few seconds, and follows you (a health bar at the top). Killing it releases a flood of
     light and +4 rockets.
 
   They appear on the route, mostly ahead, sometimes behind; more of them,
@@ -93,7 +94,7 @@ rocket. Space: jump (hold to jump again on landing). Escape: quit.
   gameplay shader, with a bright core; fog with light scattered from them, thicker when your light is low;
   mirror floors; bloom, tone mapping, vignette that closes in
   when the light is low, red flash when hurt.
-* Sound: a dark loop; shot, hit, kill, hurt, jump, lap, enemy shot, rocket,
+* Sound: a dark loop; shot, hit, kill (a short explosion), hurt, jump, lap, enemy shot, rocket,
   explosion and ammo sounds, a heartbeat.
 * Performance: the scene is drawn at most 810 lines high, then scaled up (the
   HUD at full resolution); in the release, the resolution goes down to 60% when

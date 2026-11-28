@@ -462,6 +462,8 @@ float neon(vec3 p)
         tube(d, length(p.xz - vec2(4, 25)) - .45, vec3(1, .3, .7));
     
     
+    
+    neonCol = vec3(1, .75, .45) * .8;
     if (lap >= tDie) {
         float flash = hash(vec2(floor(time * 9.), tRoom));
         neonCol *= lap == tDie ? step(.35, flash) : .03 + step(.96, flash);
@@ -662,8 +664,8 @@ float occlusion(vec3 p, vec3 n)
 #define NB 6
 const vec4 BEAMS[NB] = vec4[](vec4(10, 0, 0, 9), vec4(22, 0, 0, 9), vec4(34, 0, 0, 9),
                               vec4(64, 0, -7, 10), vec4(72, 0, -7, 10), vec4(-2, 24, -3, 10));
-#define BEAM_R 1.2
-#define BEAM_COL vec3(.45, .6, 1)
+#define BEAM_R 2.2
+#define BEAM_COL vec3(1, .8, .5)
 
 
 float inBeam(vec3 p)
@@ -717,8 +719,10 @@ vec3 material(vec3 p, float m)
     }
     if (m == M_NEON) {
         neonAt(p);
-        glow = neonCol * 6.;
-        return vec3(0);
+        metal = 1.;
+        rough = .2;
+        glow = neonCol * .3;
+        return vec3(1, .75, .35);
     }
     if (m == M_COIL) {
         
@@ -759,7 +763,12 @@ vec3 material(vec3 p, float m)
         
         float at = trackPos(p);
         glow = vec3(.4, .6, 1) * .35 * smoothstep(.08, .04, trackDist) * step(fract((at - time * 5.) * .4), .3);
-        
+        {
+            vec2 g = abs(fract(p.xz / 1.5) - .5);
+            float vein = smoothstep(.03, 0., abs(fbm(p.xz * .7 + fbm(p.xz * 2.) * 1.5) - .5));
+            rough = .03;
+            return mix(vec3(.01), vec3(.35, .32, .28), vein * .6) * (1. - .8 * step(.49, max(g.x, g.y)));
+        }
         vec2 g = abs(fract(p.xz / 1.5) - .5);
         float wet = smoothstep(.55, .7, fbm(p.xz * .3) + .1 * fbm(p.xz * 3.) + (r == 3 ? .15 : 0.));
         rough = mix(.6, .03, wet);
@@ -769,7 +778,7 @@ vec3 material(vec3 p, float m)
     if (n.y < -.7) {
         
         glow = BEAM_COL * inBeam(p - vec3(0, .2, 0)) * step(.5, fract(p.x * 3.)) * 3.;
-        return vec3(.02);
+        return vec3(.2, .17, .13);
     }
     float w = p.x + p.z;
     if (r == 6) {
@@ -783,7 +792,7 @@ vec3 material(vec3 p, float m)
     float y = p.y * 2., row = floor(y);
     vec2 b = vec2(w + .5 * mod(row, 2.), y), e = abs(fract(b) - .5);
     rough = .7;
-    return vec3(.07, .065, .06) * (.6 + .5 * hash(vec2(floor(b.x), row))) * (.6 + .6 * fbm(vec2(w, p.y) * 4.))
+    return vec3(.45, .4, .33) * (.6 + .5 * hash(vec2(floor(b.x), row))) * (.6 + .6 * fbm(vec2(w, p.y) * 4.))
          * (1. - .7 * step(.46, max(e.x, e.y * .9 + .05)));
 }
 
@@ -829,7 +838,7 @@ vec3 fireballs(vec3 ro, vec3 rd, float tMax)
 
 vec3 render(vec3 ro, vec3 rd)
 {
-    const vec3 fogColor = vec3(.004, .005, .012);
+    const vec3 fogColor = vec3(.06, .045, .03);
     vec3 col = vec3(0), weight = vec3(1);
     for (int bounce = 0; bounce < 2; bounce++) {
         glowSum = vec3(0);
@@ -847,7 +856,7 @@ vec3 render(vec3 ro, vec3 rd)
             
             
             float d = neonAt(p + n * .3);
-            c = albedo * (neonCol * _TV(neonLight, 2.) / (1. + d * d * 3.) + vec3(.01, .012, .02)
+            c = albedo * (neonCol * _TV(neonLight, 2.) / (1. + d * d * 3.) + vec3(.05, .045, .04)
                           + BEAM_COL * 1.5 * inBeam(p) * max(n.y, 0.)) * ao + glow;
             for (int i = 0; i < lightCount; i++) {
                 vec3 color = lightCol[i].rgb, l = lightPos[i].xyz - p;
@@ -883,7 +892,7 @@ void main()
         camR = normalize(cross(camF, vec3(0, 1, 0)));
         camU = cross(camR, camF);
         gunAt = vec3(.22 + sin(bob * 1.4) * .01, -.21 + b * .01, .36 - kick * .06);
-        fogDensity = _TV(fog, .03) + (1. - light) * .08;
+        fogDensity = _TV(fog, .025) + (1. - light) * .08;
 
         vec3 rd = normalize(uv.x * camR + uv.y * camU + (_TV(focal, 1.6) - kick * .03) * camF);
         
@@ -896,12 +905,12 @@ void main()
     vec3 col = vec3(texture(tex, tc + ca).r, texture(tex, tc).g, texture(tex, tc - ca).b);
     vec3 bloom = vec3(0);
     for (int i = 2; i < 8; i++)
-        bloom += max(textureLod(tex, tc, float(i)).rgb - .4, 0.);
-    col += bloom * _TV(bloomAmount, .3);
+        bloom += max(textureLod(tex, tc, float(i)).rgb - .25, 0.);
+    col += bloom * _TV(bloomAmount, .5);
     col = col * (2.51 * col + .03) / (col * (2.43 * col + .59) + .14);
     
     float luma = dot(col, vec3(.3, .6, .1));
-    col = mix(vec3(luma), col, 1.2) + vec3(-.005, 0, .015) * (1. - luma);
+    col = mix(vec3(luma), col, 1.1) * vec3(1.05, 1., .88);
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
     
     float edge = length(texCoord - .5);

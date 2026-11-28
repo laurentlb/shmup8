@@ -130,6 +130,8 @@ float neon(vec3 p)
         tube(d, length(p.xz - vec2(4, 25)) - .45, vec3(1, .3, .7));
     // from lap 2, the neon dies room by room: it flickers, then it's dark
     // with rare flashes
+    // Hellfire: fire, flickering
+    neonCol = mix(vec3(1, .18, .02), vec3(1, .55, .12), noise(vec2(time * 7., p.x + p.z))) * (.75 + .25 * noise(vec2(time * 13., p.y + p.x)));
     if (lap >= tDie) {
         float flash = hash(vec2(floor(time * 9.), tRoom));
         neonCol *= lap == tDie ? step(.35, flash) : .03 + step(.96, flash);
@@ -331,7 +333,7 @@ float occlusion(vec3 p, vec3 n)
 const vec4 BEAMS[NB] = vec4[](vec4(10, 0, 0, 9), vec4(22, 0, 0, 9), vec4(34, 0, 0, 9),
                               vec4(64, 0, -7, 10), vec4(72, 0, -7, 10), vec4(-2, 24, -3, 10));
 #define BEAM_R 1.2
-#define BEAM_COL vec3(.45, .6, 1)
+#define BEAM_COL vec3(1, .55, .25)
 
 // How much p is in a shaft (0 to 1).
 float inBeam(vec3 p)
@@ -385,7 +387,7 @@ vec3 material(vec3 p, float m)
     }
     if (m == M_NEON) {
         neonAt(p);
-        glow = neonCol * 6.;
+        glow = neonCol * 6. * (.5 + fbm(vec2((p.x + p.z) * 3., p.y * 6. - time * 5.)));
         return vec3(0);
     }
     if (m == M_COIL) {
@@ -426,12 +428,12 @@ vec3 material(vec3 p, float m)
         }
         // the route: dashes of light on the floor, moving the way to run
         float at = trackPos(p);
-        glow = vec3(.4, .6, 1) * .35 * smoothstep(.08, .04, trackDist) * step(fract((at - time * 5.) * .4), .3);
+        glow = vec3(1, .5, .2) * .25 * smoothstep(.08, .04, trackDist) * step(fract((at - time * 5.) * .4), .3);
         // stone tiles, worn, with puddles (more in the cistern)
         vec2 g = abs(fract(p.xz / 1.5) - .5);
         float wet = smoothstep(.55, .7, fbm(p.xz * .3) + .1 * fbm(p.xz * 3.) + (r == 3 ? .15 : 0.));
         rough = mix(.6, .03, wet);
-        return vec3(.055, .05, .045) * (.6 + .4 * hash(floor(p.xz / 1.5))) * (.7 + .5 * fbm(p.xz * 2.))
+        return vec3(.1, .07, .045) * (.6 + .4 * hash(floor(p.xz / 1.5))) * (.7 + .5 * fbm(p.xz * 2.))
              * (1. - .6 * step(.48, max(g.x, g.y))) * (1. - .5 * wet);
     }
     if (n.y < -.7) {
@@ -451,7 +453,7 @@ vec3 material(vec3 p, float m)
     float y = p.y * 2., row = floor(y);
     vec2 b = vec2(w + .5 * mod(row, 2.), y), e = abs(fract(b) - .5);
     rough = .7;
-    return vec3(.07, .065, .06) * (.6 + .5 * hash(vec2(floor(b.x), row))) * (.6 + .6 * fbm(vec2(w, p.y) * 4.))
+    return vec3(.13, .085, .055) * (.6 + .5 * hash(vec2(floor(b.x), row))) * (.6 + .6 * fbm(vec2(w, p.y) * 4.))
          * (1. - .7 * step(.46, max(e.x, e.y * .9 + .05)));
 }
 
@@ -495,9 +497,24 @@ vec3 fireballs(vec3 ro, vec3 rd, float tMax)
     return c;
 }
 
+// Embers rising in the air: a few layers of cells along the ray.
+vec3 embers(vec3 ro, vec3 rd, float tMax)
+{
+    vec3 c = vec3(0);
+    for (int k = 0; k < 6; k++) {
+        float t = 1.5 + float(k) * 2.2;
+        if (t > tMax) break;
+        vec3 p = ro + rd * t + vec3(0, -time * .7, 0);
+        vec3 cell = floor(p), q = fract(p) - .5 - (vec3(hash(cell.xy + cell.z), hash(cell.yz + 3.), hash(cell.xz + 7.)) - .5) * .8;
+        q -= rd * dot(q, rd);
+        c += vec3(1, .35, .05) * step(.75, hash(cell.xz * 1.7 + cell.y)) * smoothstep(.04, .0, length(q)) * 3. / (1. + t * .3);
+    }
+    return c;
+}
+
 vec3 render(vec3 ro, vec3 rd)
 {
-    const vec3 fogColor = vec3(.004, .005, .012);
+    const vec3 fogColor = vec3(.03, .008, .003);
     vec3 col = vec3(0), weight = vec3(1);
     for (int bounce = 0; bounce < 2; bounce++) {
         glowSum = vec3(0);
@@ -515,7 +532,7 @@ vec3 render(vec3 ro, vec3 rd)
             // neon: by the distance to the tubes, a bit off the surface (so
             // that surfaces facing away get less)
             float d = neonAt(p + n * .3);
-            c = albedo * (neonCol * _TV(neonLight, 2.) / (1. + d * d * 3.) + vec3(.01, .012, .02)
+            c = albedo * (neonCol * _TV(neonLight, 4.) / (1. + d * d * 3.) + vec3(.01, .012, .02)
                           + BEAM_COL * 1.5 * inBeam(p) * max(n.y, 0.)) * ao + glow;
             for (int i = 0; i < lightCount; i++) {
                 vec3 color = lightCol[i].rgb, l = lightPos[i].xyz - p;
@@ -523,8 +540,8 @@ vec3 render(vec3 ro, vec3 rd)
             }
         }
         float fog = exp(-h.x * fogDensity);
-        col += weight * (mix(fogColor, c, fog) + glowSum * _TV(neonGlow, .05)
-                         + scattered(ro, rd, h.x) + beams(ro, rd, h.x) + fireballs(ro, rd, h.x));
+        col += weight * (mix(fogColor, c, fog) + glowSum * _TV(neonGlow, .12)
+                         + scattered(ro, rd, h.x) + beams(ro, rd, h.x) + fireballs(ro, rd, h.x) + embers(ro, rd, h.x) * float(bounce == 0));
         if (h.y < 0.)
             break;
         weight *= (f0 + (1. - f0) * pow(1. - max(dot(n, v), 0.), 5.)) * (1. - rough) * fog;
@@ -551,7 +568,7 @@ void main()
         camR = normalize(cross(camF, vec3(0, 1, 0)));
         camU = cross(camR, camF);
         gunAt = vec3(.22 + sin(bob * 1.4) * .01, -.21 + b * .01, .36 - kick * .06);
-        fogDensity = _TV(fog, .03) + (1. - light) * .08;
+        fogDensity = _TV(fog, .035) + (1. - light) * .08;
 
         vec3 rd = normalize(uv.x * camR + uv.y * camU + (_TV(focal, 1.6) - kick * .03) * camF);
         // A NaN would spread through the bloom.
@@ -569,11 +586,12 @@ void main()
     col = col * (2.51 * col + .03) / (col * (2.43 * col + .59) + .14);
     // grading: cold shadows, a little more saturation
     float luma = dot(col, vec3(.3, .6, .1));
-    col = mix(vec3(luma), col, 1.2) + vec3(-.005, 0, .015) * (1. - luma);
+    col = mix(vec3(luma), col, 1.3) * vec3(1.05, .95, .8) + vec3(.02, 0, -.01) * (1. - luma);
+    col = smoothstep(0., 1., col);
     col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
     // the vignette closes in when the light is low; red when hurt
     float edge = length(texCoord - .5);
-    col *= max(1. - pow(edge, 1.5) * (1.2 + (1. - light) * 2.), 0.);
+    col *= max(1. - pow(edge, 1.3) * (1.6 + (1. - light) * 2.), 0.);
     col = mix(col, vec3(col.r + .3, 0, 0), hurt * smoothstep(.2, .7, edge));
     col += lapFlash * GOLD * .3;
     col *= max(1. - dead * .5, 0.);

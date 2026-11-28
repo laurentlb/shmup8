@@ -48,7 +48,7 @@ layout(std430, binding = 0)buffer State{
   int lightCount;
   vec4 lightPos[32],lightCol[32];
 };
-const int ENEMY_HEALTH[5]=int[](3,5,1,16,40);
+const int ENEMY_HEALTH[5]=int[](3,5,1,16,30);
 const vec3 PICKUPS[6]=vec3[](vec3(20,1.6,4.75),vec3(68,-6.4,5),vec3(88,1.6,15),vec3(26,1.6,10),vec3(-6,-2.4,32),vec3(-6,.6,-1)),IN_LO[13]=vec3[](vec3(0,0,-6),vec3(-3,0,-2.5),vec3(39,-4,-2.5),vec3(52,-4,-16),vec3(60,-7,-8),vec3(83,-4,-2.5),vec3(84,-4,-2.5),vec3(83,1,11),vec3(24,1,8),vec3(50,1,11),vec3(19,1,26),vec3(-8,-3,16),vec3(-8,-3,-2.5)),IN_HI[13]=vec3[](vec3(40,9,6),vec3(1,4.5,2.5),vec3(53,4.5,2.5),vec3(84,10,16),vec3(76,-3.9,8),vec3(86,.5,2.5),vec3(90,6.5,16),vec3(86,5.5,16),vec3(52,7.2,34),vec3(54,5,16),vec3(25,5,32),vec3(20,10,34),vec3(-2,4.5,17)),SO_LO[9]=vec3[](vec3(4,0,-6),vec3(4,0,3.5),vec3(59,-7.5,-2),vec3(52,.5,11),vec3(52,1,10.8),vec3(84,-4,11),vec3(14,-3,24),vec3(-8,-3,-2.5),vec3(39,-4,-2.5)),SO_HI[9]=vec3[](vec3(36,1,-3.5),vec3(36,1,6),vec3(77,-4,2),vec3(84,1,16),vec3(84,2,11.2),vec3(90,1,16),vec3(20,1,34),vec3(-2,0,4),vec3(42,0,2.5)),ST_LO[5]=vec3[](vec3(42,-4,-2.5),vec3(70,-7,2),vec3(70,-7,-8),vec3(84,-4,1),vec3(-8,-3,4)),ST_HI[5]=vec3[](vec3(50,0,2.5),vec3(76,-4,8),vec3(76,-4,-2),vec3(90,1,11),vec3(-2,0,12));
 const int ST_DIR[5]=int[](1,0,0,2,3);
 const vec3 ROUTE[23]=vec3[](vec3(3,0,0),vec3(38,0,0),vec3(42,0,0),vec3(51,-4,0),vec3(59,-4,0),vec3(77,-4,0),vec3(87,-4,0),vec3(87,1,11),vec3(87,1,13.5),vec3(53,1,13.5),vec3(50,1,17),vec3(45,1,17),vec3(45,1,23),vec3(33,1,23),vec3(33,1,29),vec3(22,1,29),vec3(15,1,30),vec3(10,-3,31),vec3(-4,-3,30),vec3(-5,-3,18),vec3(-5,-3,12),vec3(-5,0,4),vec3(-5,0,0));
@@ -509,8 +509,8 @@ vec3 material(vec3 p,float m)
       int i=int(m-10.);
       vec3 q=p-enemy[i].xyz;
       int kind=enemyKind[i];
-      float sc=enemyScale(kind),flash=enemyInfo[i].y;
-      glow=vec3(1,.5,.3)*flash*flash*pow(1.-max(dot(n,v),0.),2.)*2.+vec3(10)*max(-enemy[i].w,0.);
+      float sc=enemyScale(kind),flash=enemyInfo[i].y,burst=max(-enemy[i].w,0.)/.3;
+      glow=vec3(1,.5,.3)*flash*flash*pow(1.-max(dot(n,v),0.),2.)*2.+vec3(4,1.2,.3)*burst*(.4+3.*smoothstep(.06,0.,abs(noise(q.xz*12./sc+q.y*7.)-.5)));
       if(kind==2||kind==3)
         {
           float veins=abs(fbm(q.xy*6.+q.z*4.+time)-.5);
@@ -648,7 +648,7 @@ vec3 render(vec3 ro,vec3 rd)
       glowSum=vec3(0);
       cull(ro,rd);
       maxSteps=bounce>0?
-        60:
+        48:
         200;
       vec2 h=march(ro,rd);
       vec3 p=ro+rd*h.x,c=fogColor;
@@ -659,12 +659,16 @@ vec3 render(vec3 ro,vec3 rd)
           vec3 albedo=material(p,h.y);
           f0=mix(vec3(.04),albedo,metal);
           albedo*=1.-metal;
-          float ao=occlusion(p,n),d=neonAt(p+n*.3);
+          float ao=bounce>0?
+            1.:
+            occlusion(p,n),d=neonAt(p+n*.3);
           c=albedo*(neonCol*2./(1.+d*d*3.)+vec3(.01,.012,.02)+vec3(.4,.9,1)*1.5*inBeam(p)*max(n.y,0.)+vec3(.5,1.2,1.3)*caustics(p)*(.3+.7*max(n.y,0.))*(.3+.7*light))*ao+glow;
           for(int i=0;i<lightCount;i++)
             {
               vec3 color=lightCol[i].xyz,l=lightPos[i].xyz-p;
-              c+=albedo*color*max(dot(n,normalize(l)),0.)/(dot(l,l)+.3)+shade(p,lightPos[i].xyz,color);
+              c+=albedo*color*max(dot(n,normalize(l)),0.)/(dot(l,l)+.3)+(bounce>0?
+                vec3(0):
+                shade(p,lightPos[i].xyz,color));
             }
         }
       float fog=exp(-h.x*fogDensity);
@@ -673,7 +677,7 @@ vec3 render(vec3 ro,vec3 rd)
       if(h.y<0.)
         break;
       weight*=(f0+(1.-f0)*pow(1.-max(dot(n,v),0.),5.))*(1.-rough)*fog;
-      if(rough>.08||max(weight.x,max(weight.y,weight.z))<.02)
+      if(rough>.08||max(weight.x,max(weight.y,weight.z))<.06)
         break;
       ro=p+n*.01;
       h=gl_FragCoord.xy;
@@ -816,7 +820,7 @@ layout(std430, binding = 0)buffer State{
   int lightCount;
   vec4 lightPos[32],lightCol[32];
 };
-const int ENEMY_HEALTH[5]=int[](3,5,1,16,40);
+const int ENEMY_HEALTH[5]=int[](3,5,1,16,30);
 const vec3 PICKUPS[6]=vec3[](vec3(20,1.6,4.75),vec3(68,-6.4,5),vec3(88,1.6,15),vec3(26,1.6,10),vec3(-6,-2.4,32),vec3(-6,.6,-1)),IN_LO[13]=vec3[](vec3(0,0,-6),vec3(-3,0,-2.5),vec3(39,-4,-2.5),vec3(52,-4,-16),vec3(60,-7,-8),vec3(83,-4,-2.5),vec3(84,-4,-2.5),vec3(83,1,11),vec3(24,1,8),vec3(50,1,11),vec3(19,1,26),vec3(-8,-3,16),vec3(-8,-3,-2.5)),IN_HI[13]=vec3[](vec3(40,9,6),vec3(1,4.5,2.5),vec3(53,4.5,2.5),vec3(84,10,16),vec3(76,-3.9,8),vec3(86,.5,2.5),vec3(90,6.5,16),vec3(86,5.5,16),vec3(52,7.2,34),vec3(54,5,16),vec3(25,5,32),vec3(20,10,34),vec3(-2,4.5,17)),SO_LO[9]=vec3[](vec3(4,0,-6),vec3(4,0,3.5),vec3(59,-7.5,-2),vec3(52,.5,11),vec3(52,1,10.8),vec3(84,-4,11),vec3(14,-3,24),vec3(-8,-3,-2.5),vec3(39,-4,-2.5)),SO_HI[9]=vec3[](vec3(36,1,-3.5),vec3(36,1,6),vec3(77,-4,2),vec3(84,1,16),vec3(84,2,11.2),vec3(90,1,16),vec3(20,1,34),vec3(-2,0,4),vec3(42,0,2.5)),ST_LO[5]=vec3[](vec3(42,-4,-2.5),vec3(70,-7,2),vec3(70,-7,-8),vec3(84,-4,1),vec3(-8,-3,4)),ST_HI[5]=vec3[](vec3(50,0,2.5),vec3(76,-4,8),vec3(76,-4,-2),vec3(90,1,11),vec3(-2,0,12));
 const int ST_DIR[5]=int[](1,0,0,2,3);
 const vec3 ROUTE[23]=vec3[](vec3(3,0,0),vec3(38,0,0),vec3(42,0,0),vec3(51,-4,0),vec3(59,-4,0),vec3(77,-4,0),vec3(87,-4,0),vec3(87,1,11),vec3(87,1,13.5),vec3(53,1,13.5),vec3(50,1,17),vec3(45,1,17),vec3(45,1,23),vec3(33,1,23),vec3(33,1,29),vec3(22,1,29),vec3(15,1,30),vec3(10,-3,31),vec3(-4,-3,30),vec3(-5,-3,18),vec3(-5,-3,12),vec3(-5,0,4),vec3(-5,0,0));
@@ -1341,7 +1345,9 @@ void update()
               10.),-1.,1.):
             go)*speed*(kind==3?
             .5:
-            1.)+side*4.-v)*DT*1.5;
+            kind==4?
+              1.4:
+              1.)+side*4.-v)*DT*1.5;
           if(kind==4&&see&&(enemyVel[i].w-=DT)<=0.)
             enemyVel[i].w=5.,spawn(e+vec3(0,size,0),0);
           if(info.z<=0.&&dist<30.&&dead==0.)
@@ -1352,7 +1358,9 @@ void update()
                   vec3 r=normalize(cross(to,vec3(0,1,0)));
                   for(int j=-fan,k=0;j<=fan&&k<10;k++)
                     if(shot[k].w<=0.)
-                      shot[k]=vec4(e+to*size,3),shotVel[k].xyz=normalize(to+r*float(j++)*(.1+.05*float(fan)))*(12.+float(lap)),spitEvents++,info.z=max(2.2-.2*float(lap),1.)*(kind==1?
+                      shot[k]=vec4(e+to*size,3),shotVel[k]=vec4(normalize(to+r*float(j++)*(.1+.05*float(fan)))*(12.+float(lap)),kind==4?
+                        .045:
+                        .08),spitEvents++,info.z=max(2.2-.2*float(lap),1.)*(kind==1?
                         1.:
                         1.5);
                 }
@@ -1406,7 +1414,7 @@ void update()
       if(level(shot[k].xyz)<.1)
         shot[k].w=0.;
       if(length(pos+vec3(0,.5,0)-shot[k].xyz)<.9&&dead==0.)
-        hurtPlayer(.08),vel+=shotVel[k].xyz*.3,shot[k].w=0.;
+        hurtPlayer(shotVel[k].w),vel+=shotVel[k].xyz*.3,shot[k].w=0.;
     }
   for(int k=0;k<12;k++)
     {
